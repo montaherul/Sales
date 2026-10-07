@@ -168,9 +168,9 @@ export function ExecutiveDashboard() {
       </div>
 
       {/* KPI Metrics Ribbon */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {/* Metric 1 */}
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm shadow-sm dark:shadow-none">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-3.5 sm:p-4 backdrop-blur-sm shadow-sm dark:shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Cigarette Sales</span>
             <div className="rounded-lg bg-blue-50 dark:bg-blue-950/60 p-2 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/40">
@@ -178,14 +178,14 @@ export function ExecutiveDashboard() {
             </div>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-slate-900 dark:text-white font-mono">{metrics.totalCigSales}</span>
+            <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-mono">{metrics.totalCigSales}</span>
             <span className="ml-1 text-xs text-slate-400">Mio Sticks</span>
           </div>
-          <p className="mt-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">All 5 territories recorded</p>
+          <p className="mt-1 text-[10px] sm:text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">All 5 territories recorded</p>
         </div>
 
         {/* Metric 2 */}
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm shadow-sm dark:shadow-none">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-3.5 sm:p-4 backdrop-blur-sm shadow-sm dark:shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Cigarette Closing Stock</span>
             <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/60 p-2 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">
@@ -193,14 +193,14 @@ export function ExecutiveDashboard() {
             </div>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-slate-900 dark:text-white font-mono">{metrics.totalCigStock}</span>
+            <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-mono">{metrics.totalCigStock}</span>
             <span className="ml-1 text-xs text-slate-400">Mio Sticks</span>
           </div>
-          <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 font-medium">Warehouse & Route buffer</p>
+          <p className="mt-1 text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium">Warehouse & Route buffer</p>
         </div>
 
         {/* Metric 3 */}
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm shadow-sm dark:shadow-none">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-3.5 sm:p-4 backdrop-blur-sm shadow-sm dark:shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Daily Average (ADS)</span>
             <div className="rounded-lg bg-purple-50 dark:bg-purple-950/60 p-2 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800/40">
@@ -208,14 +208,14 @@ export function ExecutiveDashboard() {
             </div>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-slate-900 dark:text-white font-mono">{metrics.ads}</span>
+            <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-mono">{metrics.ads}</span>
             <span className="ml-1 text-xs text-slate-400">Mio/Day</span>
           </div>
-          <p className="mt-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">Standard 26 working days</p>
+          <p className="mt-1 text-[10px] sm:text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">Standard 26 working days</p>
         </div>
 
         {/* Metric 4 */}
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm shadow-sm dark:shadow-none">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-3.5 sm:p-4 backdrop-blur-sm shadow-sm dark:shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Zarda Sales Value</span>
             <div className="rounded-lg bg-amber-50 dark:bg-amber-950/60 p-2 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40">
@@ -223,13 +223,13 @@ export function ExecutiveDashboard() {
             </div>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-slate-900 dark:text-white font-mono">৳ {metrics.totalZardaValue.toLocaleString()}</span>
+            <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-mono">৳ {metrics.totalZardaValue.toLocaleString()}</span>
           </div>
-          <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium">22/25, 99/14, 33/15 pouches</p>
+          <p className="mt-1 text-[10px] sm:text-[11px] text-amber-600 dark:text-amber-400 font-medium">22/25, 99/14, 33/15 pouches</p>
         </div>
 
         {/* Metric 5 */}
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm shadow-sm dark:shadow-none">
+        <div className="col-span-2 sm:col-span-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-3.5 sm:p-4 backdrop-blur-sm shadow-sm dark:shadow-none">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Empty Packets</span>
             <div className="rounded-lg bg-rose-50 dark:bg-rose-950/60 p-2 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/40">
@@ -237,10 +237,10 @@ export function ExecutiveDashboard() {
             </div>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-slate-900 dark:text-white font-mono">{metrics.totalEmptyPackets.toLocaleString()}</span>
+            <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-mono">{metrics.totalEmptyPackets.toLocaleString()}</span>
             <span className="ml-1 text-xs text-slate-400">Units</span>
           </div>
-          <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 font-medium">Express promotion return</p>
+          <p className="mt-1 text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium">Express promotion return</p>
         </div>
       </div>
 
@@ -327,8 +327,13 @@ export function ExecutiveDashboard() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
+        {/* Mobile Swipe Hint */}
+        <div className="md:hidden text-[10px] text-slate-400 dark:text-slate-500 flex items-center justify-center gap-1.5 py-0.5">
+          <span>⇄ Swipe table horizontally to view all territory metrics</span>
+        </div>
+
+        <div className="overflow-x-auto -mx-1 sm:mx-0">
+          <table className="w-full text-xs text-left min-w-[540px]">
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold">
                 <th className="pb-2">Territory</th>

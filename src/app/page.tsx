@@ -18,6 +18,7 @@ import { MasterHierarchyManagement } from '@/components/admin/MasterHierarchyMan
 import { AuditLogViewer } from '@/components/audit/AuditLogViewer';
 import { ImportModal } from '@/components/import/ImportModal';
 import { DriveUploadWidget } from '@/components/drive/DriveUploadWidget';
+import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 
 export default function Home() {
   const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
@@ -130,8 +131,8 @@ export default function Home() {
       {/* 2. Main Workspace Layout */}
       <div
         className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
-          sidebarOpen ? 'pl-64' : 'pl-16'
-        }`}
+          sidebarOpen ? 'lg:pl-64' : 'lg:pl-16'
+        } pl-0`}
       >
         {/* Top Navbar: Shows Company Name ONLY, User Profile, Role Simulator, Theme Toggle & Logout */}
         <Navbar
@@ -143,7 +144,7 @@ export default function Home() {
         />
 
         {/* Dynamic Tab Body */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-3 sm:p-5 lg:p-8 pb-24 lg:pb-8 max-w-7xl w-full mx-auto">
           {/* Operational Modules */}
           {activeTab === 'dashboard' && <ExecutiveDashboard />}
           {activeTab === 'entry' && <DailySalesGrid />}
@@ -164,6 +165,14 @@ export default function Home() {
           </p>
         </footer>
       </div>
+
+      {/* Mobile Sticky Bottom Nav Bar */}
+      <MobileBottomNav
+        currentRole={currentRole}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        onOpenSidebar={() => setSidebarOpen(true)}
+      />
 
       {/* Modals & Drawers */}
       <ImportModal isOpen={importOpen} onClose={() => setImportOpen(false)} />

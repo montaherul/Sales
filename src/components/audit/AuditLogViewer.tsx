@@ -189,9 +189,9 @@ export function AuditLogViewer() {
 
       {/* Payload Inspection Modal */}
       {expandedLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl flex flex-col max-h-[85vh] transition-colors duration-200">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 py-4 bg-slate-50 dark:bg-slate-950/70">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-2xl overflow-hidden rounded-t-2xl sm:rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[85vh] transition-colors duration-200">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 py-3.5 sm:py-4 bg-slate-50 dark:bg-slate-950/70">
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">
@@ -206,8 +206,8 @@ export function AuditLogViewer() {
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto space-y-4 text-xs font-mono">
-              <div className="grid grid-cols-2 gap-2 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 pb-3">
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs font-mono">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 pb-3">
                 <div>Entity: <strong className="text-slate-900 dark:text-white">{expandedLog.entity_name}</strong></div>
                 <div>Record ID: <strong className="text-slate-900 dark:text-white">{expandedLog.entity_id}</strong></div>
                 <div>User: <strong className="text-slate-900 dark:text-white">{expandedLog.user_email || 'System'}</strong></div>

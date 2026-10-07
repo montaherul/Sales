@@ -196,19 +196,19 @@ export function ServerDataTable<T extends Record<string, any>>({
   };
 
   return (
-    <div className="w-full space-y-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 sm:p-6 backdrop-blur-md shadow-lg dark:shadow-2xl transition-colors duration-200">
+    <div className="w-full space-y-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-3.5 sm:p-5 lg:p-6 backdrop-blur-md shadow-lg dark:shadow-2xl transition-colors duration-200">
       {/* Top Header & Action Controls */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         <div>
-          {title && <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">{title}</h2>}
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          {title && <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">{title}</h2>}
+          <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">
             Total {totalRecords} records found • Page {page} of {totalPages}
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           {/* Server-side search box */}
-          <div className="relative flex-1 sm:w-64 min-w-[200px]">
+          <div className="relative flex-1 md:w-64 min-w-[180px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
             <input
               type="text"
@@ -223,7 +223,7 @@ export function ServerDataTable<T extends Record<string, any>>({
           <button
             onClick={fetchData}
             disabled={loading}
-            className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-700 transition-all disabled:opacity-50 cursor-pointer"
+            className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:border-slate-700 transition-all disabled:opacity-50 cursor-pointer shrink-0"
             title="Refresh Data"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-blue-500 dark:text-blue-400' : ''}`} />
@@ -233,11 +233,11 @@ export function ServerDataTable<T extends Record<string, any>>({
           <button
             onClick={handleExportCsv}
             disabled={isExporting}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all disabled:opacity-50 cursor-pointer shrink-0"
             title="Export full table to CSV"
           >
             {isExporting ? <Loader2 className="w-4 h-4 animate-spin text-blue-500 dark:text-blue-400" /> : <Download className="w-4 h-4" />}
-            <span>Export CSV</span>
+            <span className="hidden xs:inline">Export CSV</span>
           </button>
 
           {/* Custom Action (e.g. Create Button) */}
@@ -247,7 +247,7 @@ export function ServerDataTable<T extends Record<string, any>>({
 
       {/* Multi-Selection Batch Actions Bar */}
       {selectedIds.length > 0 && (
-        <div className="flex items-center justify-between rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 px-4 py-2 text-xs text-blue-800 dark:text-blue-200 animate-fadeIn">
+        <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 px-4 py-2 text-xs text-blue-800 dark:text-blue-200 animate-fadeIn">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-blue-700 dark:text-blue-300">
               {selectedIds.length} {selectedIds.length === 1 ? 'row' : 'rows'} selected
@@ -279,9 +279,14 @@ export function ServerDataTable<T extends Record<string, any>>({
         </div>
       )}
 
+      {/* Mobile Swipe Hint */}
+      <div className="lg:hidden text-[10px] text-slate-400 dark:text-slate-500 flex items-center justify-center gap-1.5 py-0.5">
+        <span>⇄ Swipe table horizontally to view full records</span>
+      </div>
+
       {/* Main Tabulator-Style Data Table */}
-      <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
-        <table className="w-full text-left text-xs border-collapse">
+      <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 -mx-1 sm:mx-0">
+        <table className="w-full text-left text-xs border-collapse min-w-[620px] md:min-w-full">
           {/* Table Header */}
           <thead className="bg-slate-100 dark:bg-slate-950/90 text-slate-600 dark:text-slate-400 uppercase font-semibold tracking-wider border-b border-slate-200 dark:border-slate-800 sticky top-0">
             <tr>
@@ -421,11 +426,11 @@ export function ServerDataTable<T extends Record<string, any>>({
         </div>
 
         {/* Page Navigation Controls */}
-        <div className="flex items-center gap-1.5 text-xs">
+        <div className="flex items-center gap-1 sm:gap-1.5 text-xs">
           <button
             onClick={() => setPage(1)}
             disabled={page <= 1 || loading}
-            className="p-1.5 rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white disabled:opacity-40 transition-colors cursor-pointer"
+            className="p-2 sm:p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white disabled:opacity-40 transition-colors cursor-pointer min-w-[32px] min-h-[32px] flex items-center justify-center"
             title="First Page"
           >
             <ChevronsLeft className="w-4 h-4" />
@@ -433,20 +438,20 @@ export function ServerDataTable<T extends Record<string, any>>({
           <button
             onClick={() => setPage((prev) => Math.max(1, prev - 1))}
             disabled={page <= 1 || loading}
-            className="p-1.5 rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white disabled:opacity-40 transition-colors cursor-pointer"
+            className="p-2 sm:p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white disabled:opacity-40 transition-colors cursor-pointer min-w-[32px] min-h-[32px] flex items-center justify-center"
             title="Previous Page"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
 
-          <span className="px-3 py-1 font-mono text-slate-700 dark:text-slate-300">
+          <span className="px-2.5 py-1 font-mono text-[11px] sm:text-xs text-slate-700 dark:text-slate-300">
             {page} / {totalPages || 1}
           </span>
 
           <button
             onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
             disabled={page >= totalPages || loading}
-            className="p-1.5 rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white disabled:opacity-40 transition-colors cursor-pointer"
+            className="p-2 sm:p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white disabled:opacity-40 transition-colors cursor-pointer min-w-[32px] min-h-[32px] flex items-center justify-center"
             title="Next Page"
           >
             <ChevronRight className="w-4 h-4" />
@@ -454,7 +459,7 @@ export function ServerDataTable<T extends Record<string, any>>({
           <button
             onClick={() => setPage(totalPages)}
             disabled={page >= totalPages || loading}
-            className="p-1.5 rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white disabled:opacity-40 transition-colors cursor-pointer"
+            className="p-2 sm:p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white disabled:opacity-40 transition-colors cursor-pointer min-w-[32px] min-h-[32px] flex items-center justify-center"
             title="Last Page"
           >
             <ChevronsRight className="w-4 h-4" />
