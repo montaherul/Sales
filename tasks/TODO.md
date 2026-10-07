@@ -53,3 +53,12 @@
 - [x] Build Company-Wise User Directory (`UserRoleManagement.tsx`, `/api/users`) with Select2 company filter and role assignment (`SUPER_ADMIN`, `RSO`, `TSO`, `CSR`).
 - [x] Build Dynamic Hierarchy, Pricing & Targets CRUD Suite (`MasterHierarchyManagement.tsx`, `/api/hierarchy`, `/api/brands`, `/api/targets`).
 - [x] Enhance Menu Management (`MenuManagement.tsx`, `/api/menu-management`) with Select2 user selection and persistent RWMA/UWMA rules.
+
+## Phase 10: Company-Wise Scoping, Roles & Backend Isolation
+- [x] Implement database migration `00009_company_wise_roles_and_scopes.sql` adding `roles.company_id`, consolidating `user_scopes`, and deploying `sp_get_roles_paginated` & `sp_get_users_paginated`.
+- [x] Implement company-wise role management with company filter, company scoping for custom roles, and CSV export (`/api/roles`).
+- [x] Implement hierarchical auto-resolution of company, region, and territory during user creation and updates (`/api/users`).
+- [x] Enhance `DynamicCrudModal.tsx` with `onFieldChange` and non-destructive state merging for dynamic cascading dropdowns.
+- [x] Upgrade `UserRoleManagement.tsx` with company filtering, role filtering, dynamic cascading Region (RSO) and Territory (TSO/CSR) selection, and company-wise role catalog.
+- [x] Implement server-side company & territory boundary isolation for non-Super Admins in `/api/daily-submissions` and `validateOrganizationalScope`.
+- [x] Enforce immutability and delete guards for `FINALIZED` records across UI and backend APIs per Rules 10 & 26.
