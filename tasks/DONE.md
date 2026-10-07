@@ -56,7 +56,8 @@
   - `DynamicCrudModal.tsx`: Unified single-page Create & Edit modal controller driven by schema and mode detection (`create` vs `edit`).
 - [x] Implemented Super Admin Administration Suite:
   - `CompanyManagement.tsx` & `/api/companies`: Full company CRUD with stats and CSV export.
-  - `UserRoleManagement.tsx` & `/api/users`: Company-wise user directory with Select2 company filter and scoped role assignments (`SUPER_ADMIN`, `RSO`, `TSO`, `CSR`).
+  - `UserRoleManagement.tsx` & `/api/users`: Full **User CRUD** with Company-wise scoping, Select2 company/role filters, dynamic roles, password hashing, territory boundary scoping, single delete, batch delete, and CSV export.
+  - `UserRoleManagement.tsx` & `/api/roles`: Full **Role CRUD** with custom role creation, role description updates, active user allocation counts, permission counts, system role protection (`SUPER_ADMIN`, `RSO`, `TSO`, `CSR`), and CSV export.
   - `MasterHierarchyManagement.tsx` & `/api/hierarchy`, `/api/brands`, `/api/targets`: Dynamic CRUD for Territories, Product Pricing, and Targets.
   - `MenuManagement.tsx` & `/api/menu-management`: Role-Wise Menu Access (RWMA) and User-Wise Menu Access (UWMA) with Select2 user selection.
 - [x] Implemented Enterprise Authentication & Onboarding:
