@@ -1,252 +1,631 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { ServerDataTable, ColumnDef } from '@/components/common/ServerDataTable';
+import { DynamicCrudModal, DynamicFormField } from '@/components/common/DynamicCrudModal';
+import { Select2, Select2Option } from '@/components/common/Select2';
 import { 
   Building2, 
   MapPin, 
   Tag, 
   Target, 
+  Plus, 
+  Edit, 
+  Trash2, 
+  Coins, 
   Layers, 
-  RefreshCw,
-  Coins,
-  ChevronRight,
-  TrendingUp
+  CheckCircle2, 
+  XCircle,
+  TrendingUp,
+  ShieldAlert
 } from 'lucide-react';
 
 export function MasterHierarchyManagement() {
-  const [territories, setTerritories] = useState<any[]>([]);
-  const [brands, setBrands] = useState<any[]>([]);
-  const [targets, setTargets] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'HIERARCHY' | 'PRICING' | 'TARGETS'>('HIERARCHY');
+  const [activeTab, setActiveTab] = useState<'TERRITORIES' | 'BRANDS' | 'TARGETS'>('TERRITORIES');
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('ALL');
+  const [companies, setCompanies] = useState<Select2Option[]>([]);
+  const [regions, setRegions] = useState<Select2Option[]>([]);
+  const [brands, setBrands] = useState<Select2Option[]>([]);
+  const [territories, setTerritories] = useState<Select2Option[]>([]);
+  const [refreshKey, setRefreshKey] = useState<number>(0);
 
-  const fetchMasterData = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/master-data');
-      const json = await res.json();
-      if (json.success && json.data) {
-        setTerritories(json.data.territories || []);
-        setBrands(json.data.brands || []);
-        setTargets(json.data.targets || []);
+  // Modal Controller State
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
+  const [editingItem, setEditingItem] = useState<any>(null);
+
+  // Load master options for Select2 dropdowns
+  useEffect(() => {
+    async function loadOptions() {
+      try {
+        const [compRes, masterRes] = await Promise.all([
+          fetch('/api/companies?pageSize=100'),
+          fetch('/api/master-data'),
+        ]);
+
+        const compJson = await compRes.json();
+        const masterJson = await masterRes.json();
+
+        if (compJson.success) {
+          setCompanies([
+            { value: 'ALL', label: 'All Companies (Enterprise)' },
+            ...(compJson.data || []).map((c: any) => ({
+              value: c.id,
+              label: c.name,
+              badge: c.code,
+            })),
+          ]);
+        }
+
+        if (masterJson.success) {
+          // Region options
+          setRegions([
+            { value: 'b050e2e2-beb6-4729-a490-9c596efc5218', label: 'Satkania Region', subLabel: 'Ctg South • Chittagong Wing' },
+          ]);
+
+          // Brand options
+          const brandOpts: Select2Option[] = (masterJson.data?.brands || []).map((b: any) => ({
+            value: b.id,
+            label: b.name,
+            badge: b.type,
+          }));
+          setBrands(brandOpts);
+
+          // Territory options
+          const terrOpts: Select2Option[] = (masterJson.data?.territories || []).map((t: any) => ({
+            value: t.id,
+            label: t.name,
+            subLabel: t.region_name || 'Satkania Region',
+          }));
+          setTerritories(terrOpts);
+        }
+      } catch (err) {
+        console.error('Failed to load hierarchy options:', err);
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+    }
+
+    loadOptions();
+  }, []);
+
+  // 1. TERRITORY CRUD DEFINITIONS
+  const territoryColumns: ColumnDef<any>[] = [
+    {
+      key: 'territory_name',
+      header: 'Territory Name',
+      sortable: true,
+      render: (row) => (
+        <div className="flex items-center gap-2">
+          <MapPin className="w-4 h-4 text-cyan-400 shrink-0" />
+          <span className="font-semibold text-white">{row.territory_name}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'region_name',
+      header: 'Region / Wing / Division',
+      render: (row) => (
+        <div className="text-xs">
+          <div className="text-slate-200 font-medium">{row.region_name}</div>
+          <div className="text-[10px] text-slate-500">{row.wing_name} • {row.division_name}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'company_name',
+      header: 'Parent Company',
+      render: (row) => (
+        <span className="inline-flex items-center gap-1 text-slate-300">
+          <Building2 className="w-3.5 h-3.5 text-blue-400" />
+          {row.company_name}
+        </span>
+      ),
+    },
+    {
+      key: 'sort_order',
+      header: 'Order',
+      align: 'center',
+      sortable: true,
+      render: (row) => (
+        <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+          #{row.sort_order}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (row) => (
+        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => {
+              setEditingItem(row);
+              setModalMode('edit');
+              setModalOpen(true);
+            }}
+            className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-blue-400"
+          >
+            <Edit className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => handleDelete('/api/hierarchy', row.id)}
+            className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-rose-400"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  const territoryFields: DynamicFormField[] = [
+    {
+      name: 'name',
+      label: 'Territory Name',
+      type: 'text',
+      required: true,
+      placeholder: 'e.g. Kerani hat',
+    },
+    {
+      name: 'regionId',
+      label: 'Assigned Region',
+      type: 'select2',
+      required: true,
+      options: regions,
+      defaultValue: regions[0]?.value,
+    },
+    {
+      name: 'sortOrder',
+      label: 'Sort Order',
+      type: 'number',
+      defaultValue: 1,
+    },
+  ];
+
+  // 2. BRAND CRUD DEFINITIONS
+  const brandColumns: ColumnDef<any>[] = [
+    {
+      key: 'name',
+      header: 'Brand Name',
+      sortable: true,
+      render: (row) => (
+        <div className="flex items-center gap-2">
+          <Tag className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span className="font-semibold text-white">{row.name}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'type',
+      header: 'Category',
+      sortable: true,
+      render: (row) => (
+        <span
+          className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide border ${
+            row.type === 'CIGARETTE'
+              ? 'bg-blue-950/70 text-blue-300 border-blue-800'
+              : 'bg-amber-950/70 text-amber-300 border-amber-800'
+          }`}
+        >
+          {row.type}
+        </span>
+      ),
+    },
+    {
+      key: 'unit_price',
+      header: 'Unit Price (BDT)',
+      align: 'right',
+      render: (row) => (
+        <span className="font-mono font-semibold text-emerald-400">
+          {row.unit_price ? `BDT ${parseFloat(row.unit_price).toFixed(2)}` : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'is_active',
+      header: 'Status',
+      align: 'center',
+      render: (row) => (
+        <span className={`inline-flex items-center gap-1 text-[11px] ${row.is_active ? 'text-emerald-400' : 'text-slate-500'}`}>
+          {row.is_active ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+          {row.is_active ? 'Active' : 'Inactive'}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (row) => (
+        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => {
+              setEditingItem(row);
+              setModalMode('edit');
+              setModalOpen(true);
+            }}
+            className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-blue-400"
+          >
+            <Edit className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => handleDelete('/api/brands', row.id)}
+            className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-rose-400"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  const brandFields: DynamicFormField[] = [
+    {
+      name: 'name',
+      label: 'Brand Name',
+      type: 'text',
+      required: true,
+      placeholder: 'e.g. Wilson or 22/25',
+    },
+    {
+      name: 'type',
+      label: 'Product Category',
+      type: 'select2',
+      required: true,
+      options: [
+        { value: 'CIGARETTE', label: 'Cigarette' },
+        { value: 'ZARDA', label: 'Zarda' },
+      ],
+      defaultValue: 'CIGARETTE',
+    },
+    {
+      name: 'unitPrice',
+      label: 'Unit Price in BDT',
+      type: 'number',
+      placeholder: '0.00',
+    },
+    {
+      name: 'sortOrder',
+      label: 'Sort Order',
+      type: 'number',
+      defaultValue: 1,
+    },
+    {
+      name: 'isActive',
+      label: 'Is Active',
+      type: 'boolean',
+      defaultValue: true,
+    },
+  ];
+
+  // 3. TARGET CRUD DEFINITIONS
+  const targetColumns: ColumnDef<any>[] = [
+    {
+      key: 'territory_name',
+      header: 'Territory',
+      sortable: true,
+      render: (row) => <span className="font-semibold text-white">{row.territory_name}</span>,
+    },
+    {
+      key: 'brand_name',
+      header: 'Brand',
+      sortable: true,
+      render: (row) => (
+        <span className="font-medium text-slate-300">
+          {row.brand_name} <span className="text-[10px] text-slate-500 font-mono">({row.brand_type})</span>
+        </span>
+      ),
+    },
+    {
+      key: 'target_quantity',
+      header: 'Target Volume',
+      align: 'right',
+      sortable: true,
+      render: (row) => (
+        <span className="font-mono font-bold text-blue-400">
+          {parseFloat(row.target_quantity || 0).toFixed(2)}
+        </span>
+      ),
+    },
+    {
+      key: 'route_count',
+      header: 'Routes',
+      align: 'center',
+      render: (row) => <span className="text-slate-400 font-mono">{row.route_count || 0}</span>,
+    },
+    {
+      key: 'outlet_count',
+      header: 'Outlets',
+      align: 'center',
+      render: (row) => <span className="text-slate-400 font-mono">{row.outlet_count || 0}</span>,
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (row) => (
+        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => {
+              setEditingItem(row);
+              setModalMode('edit');
+              setModalOpen(true);
+            }}
+            className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-blue-400"
+          >
+            <Edit className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => handleDelete('/api/targets', row.id)}
+            className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-rose-400"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  const targetFields: DynamicFormField[] = [
+    {
+      name: 'territoryId',
+      label: 'Territory',
+      type: 'select2',
+      required: true,
+      options: territories,
+    },
+    {
+      name: 'brandId',
+      label: 'Brand',
+      type: 'select2',
+      required: true,
+      options: brands,
+    },
+    {
+      name: 'targetQuantity',
+      label: 'Target Volume',
+      type: 'number',
+      required: true,
+      placeholder: '0.00',
+    },
+    {
+      name: 'routeCount',
+      label: 'Route Count',
+      type: 'number',
+      defaultValue: 0,
+    },
+    {
+      name: 'outletCount',
+      label: 'Outlet Count',
+      type: 'number',
+      defaultValue: 0,
+    },
+  ];
+
+  const handleDelete = async (endpoint: string, id: string) => {
+    if (!confirm('Are you sure you want to delete this record?')) return;
+    try {
+      const res = await fetch(`${endpoint}?id=${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (json.success) {
+        setRefreshKey((prev) => prev + 1);
+      } else {
+        alert(json.error || 'Failed to delete');
+      }
+    } catch {
+      alert('Delete failed');
     }
   };
 
-  useEffect(() => {
-    fetchMasterData();
-  }, []);
+  const handleFormSubmit = async (formData: Record<string, any>, mode: 'create' | 'edit') => {
+    let endpoint = '/api/hierarchy';
+    if (activeTab === 'BRANDS') endpoint = '/api/brands';
+    if (activeTab === 'TARGETS') endpoint = '/api/targets';
 
-  const zardaPricing = [
-    { name: '22/25', unitPrice: 15, unit: 'Packet', effective: '2026-01-01' },
-    { name: '99/14', unitPrice: 6, unit: 'Packet', effective: '2026-01-01' },
-    { name: '33/15', unitPrice: 8, unit: 'Pouch', effective: '2026-01-01' },
-    { name: 'SLB', unitPrice: 0, unit: 'Raw Qty', effective: '2026-01-01' },
-  ];
+    const method = mode === 'create' ? 'POST' : 'PUT';
+    const res = await fetch(endpoint, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData),
+    });
+
+    const json = await res.json();
+    if (!json.success) {
+      throw new Error(json.error || `Failed to ${mode} record`);
+    }
+
+    setRefreshKey((prev) => prev + 1);
+  };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-blue-400" />
-            <span>Master Organization, Pricing & Target Hierarchy</span>
-          </h2>
-          <p className="text-xs text-slate-400">
-            Authoritative dynamic hierarchy (Company → Division → Wing → Region → Territory → Routes)
-          </p>
-        </div>
-
-        <button
-          onClick={fetchMasterData}
-          disabled={loading}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 transition-colors"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>Refresh Master Data</span>
-        </button>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center space-x-2 border-b border-slate-800 pb-3">
-        <button
-          onClick={() => setActiveTab('HIERARCHY')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-            activeTab === 'HIERARCHY'
-              ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
-          }`}
-        >
-          <Building2 className="h-4 w-4" />
-          <span>Organizational Hierarchy</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('PRICING')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-            activeTab === 'PRICING'
-              ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
-          }`}
-        >
-          <Coins className="h-4 w-4" />
-          <span>Brand Catalog & Official Pricing</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('TARGETS')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-            activeTab === 'TARGETS'
-              ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
-          }`}
-        >
-          <Target className="h-4 w-4" />
-          <span>Monthly Territory Targets</span>
-        </button>
-      </div>
-
-      {/* TAB 1: Organizational Hierarchy */}
-      {activeTab === 'HIERARCHY' && (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-6 backdrop-blur-sm space-y-6">
-          <div className="flex items-center gap-2 text-sm font-semibold text-white">
-            <span>Afaz Tobacco Company</span>
-            <ChevronRight className="h-4 w-4 text-slate-500" />
-            <span className="text-blue-400">Ctg South Division</span>
-            <ChevronRight className="h-4 w-4 text-slate-500" />
-            <span className="text-purple-400">Chittagong Wing</span>
-            <ChevronRight className="h-4 w-4 text-slate-500" />
-            <span className="text-emerald-400">Satkania Region</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {territories.map((t) => (
-              <div
-                key={t.id}
-                className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 space-y-3 hover:border-slate-700 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 font-bold text-white text-sm">
-                    <MapPin className="h-4 w-4 text-blue-400" />
-                    <span>{t.name}</span>
-                  </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                    SL {t.sort_order}
-                  </span>
-                </div>
-                <div className="text-xs text-slate-400 space-y-1">
-                  <p>Region: <strong className="text-slate-200">{t.region_name}</strong></p>
-                  <p>Status: <strong className="text-emerald-400">Active Operational Route</strong></p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 2: Brand Catalog & Pricing */}
-      {activeTab === 'PRICING' && (
-        <div className="space-y-6">
-          {/* Cigarettes */}
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm space-y-3">
-            <h3 className="text-sm font-bold text-white">Cigarette Brand Catalog (BITCL Standard)</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {['Wilson', 'Shahara', 'Express', 'Nexus', 'SB', 'SM'].map((brand, i) => (
-                <div key={brand} className="rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-center space-y-1">
-                  <span className="text-xs font-bold text-white block">{brand}</span>
-                  <span className="text-[10px] text-blue-400 font-mono block">Rank {i + 1}</span>
-                  <span className="text-[10px] text-slate-500 block">Unit: Million Sticks</span>
-                </div>
-              ))}
+      {/* Module Overview Banner */}
+      <div className="p-5 rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur-md space-y-4">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400">
+              <Building2 className="w-6 h-6" />
             </div>
-          </div>
-
-          {/* Zarda Official Valuation Formula Pricing */}
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-white">Official Zarda Formula Valuation Prices</h3>
-                <p className="text-xs text-slate-400">Used by calculation engine and Excel sheet formula W{'{r}'} & AC{'{r}'}</p>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-950/60 border-b border-slate-800 text-slate-400 font-semibold">
-                  <tr>
-                    <th className="py-2.5 px-4">Brand Variant</th>
-                    <th className="py-2.5 px-4 text-right">Official Unit Price</th>
-                    <th className="py-2.5 px-4">Unit Packaging</th>
-                    <th className="py-2.5 px-4">Effective Date</th>
-                    <th className="py-2.5 px-4 text-right">Calculation Rule</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 font-mono text-slate-300">
-                  {zardaPricing.map((zp) => (
-                    <tr key={zp.name} className="hover:bg-slate-800/20">
-                      <td className="py-2.5 px-4 font-sans font-medium text-white">{zp.name}</td>
-                      <td className="py-2.5 px-4 text-right font-bold text-amber-400">৳ {zp.unitPrice}.00</td>
-                      <td className="py-2.5 px-4 font-sans text-slate-400">{zp.unit}</td>
-                      <td className="py-2.5 px-4 text-slate-400">{zp.effective}</td>
-                      <td className="py-2.5 px-4 text-right font-mono text-[11px] text-blue-400">
-                        {zp.unitPrice > 0 ? `Qty * ${zp.unitPrice} BDT` : 'Quantity Tracking'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: Targets */}
-      {activeTab === 'TARGETS' && (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm space-y-3">
-          <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-white">October 2026 Monthly Brand Targets</h3>
-              <p className="text-xs text-slate-400">Authoritative target figures powering Sheet 33 ('Target.') & Sheet 34 ('Analysis')</p>
+              <h2 className="text-lg font-bold text-white tracking-tight">
+                Master Hierarchy, Pricing & Target Suite
+              </h2>
+              <p className="text-xs text-slate-400">
+                Configure Company-Scoped Divisions, Wings, Regions, Territories, Product Pricing, and Monthly Territory Targets.
+              </p>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950/60 border-b border-slate-800 text-slate-400 font-semibold">
-                <tr>
-                  <th className="py-2.5 px-4">SL</th>
-                  <th className="py-2.5 px-4">Territory Name</th>
-                  <th className="py-2.5 px-4 text-right">Wilson Target</th>
-                  <th className="py-2.5 px-4 text-right">Shahara Target</th>
-                  <th className="py-2.5 px-4 text-right">Express Target</th>
-                  <th className="py-2.5 px-4 text-right">Nexus Target</th>
-                  <th className="py-2.5 px-4 text-right">SB Target</th>
-                  <th className="py-2.5 px-4 text-right">SM Target</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 font-mono text-slate-300">
-                {territories.map((t, idx) => (
-                  <tr key={t.id} className="hover:bg-slate-800/20">
-                    <td className="py-2.5 px-4">{idx + 1}</td>
-                    <td className="py-2.5 px-4 font-sans font-medium text-white">{t.name}</td>
-                    <td className="py-2.5 px-4 text-right">25,000</td>
-                    <td className="py-2.5 px-4 text-right">18,000</td>
-                    <td className="py-2.5 px-4 text-right text-blue-400 font-bold">12,000</td>
-                    <td className="py-2.5 px-4 text-right">15,000</td>
-                    <td className="py-2.5 px-4 text-right">8,000</td>
-                    <td className="py-2.5 px-4 text-right">6,000</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <button
+            onClick={() => {
+              setEditingItem(null);
+              setModalMode('create');
+              setModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white shadow-lg shadow-blue-500/20 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            <span>
+              {activeTab === 'TERRITORIES'
+                ? 'Add Territory'
+                : activeTab === 'BRANDS'
+                ? 'Add Brand / Price'
+                : 'Set Territory Target'}
+            </span>
+          </button>
+        </div>
+
+        {/* Company Filter via Select2 & Navigation Tabs */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-3 border-t border-slate-800">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setActiveTab('TERRITORIES')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === 'TERRITORIES'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              <MapPin className="w-3.5 h-3.5" />
+              <span>Territories & Geography</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('BRANDS')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === 'BRANDS'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              <Tag className="w-3.5 h-3.5" />
+              <span>Brand Catalog & Pricing</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('TARGETS')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === 'TARGETS'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              <Target className="w-3.5 h-3.5" />
+              <span>Territory Targets</span>
+            </button>
+          </div>
+
+          <div className="w-full sm:w-72">
+            <Select2
+              options={companies}
+              value={selectedCompanyId}
+              onChange={(val) => setSelectedCompanyId(val || 'ALL')}
+              placeholder="Filter by Company Scope..."
+              isClearable={false}
+            />
           </div>
         </div>
+      </div>
+
+      {/* Dynamic Tab Body with ServerDataTable */}
+      {activeTab === 'TERRITORIES' && (
+        <ServerDataTable
+          key={`terr_${refreshKey}_${selectedCompanyId}`}
+          endpoint="/api/hierarchy"
+          columns={territoryColumns}
+          idField="id"
+          title="Active Operational Territories"
+          searchPlaceholder="Search territory or region name..."
+          additionalParams={{ companyId: selectedCompanyId }}
+          exportFilenamePrefix="Territories_Hierarchy"
+          onBatchDelete={async (ids) => {
+            await fetch('/api/hierarchy', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids }),
+            });
+          }}
+        />
       )}
+
+      {activeTab === 'BRANDS' && (
+        <ServerDataTable
+          key={`brand_${refreshKey}`}
+          endpoint="/api/brands"
+          columns={brandColumns}
+          idField="id"
+          title="Product Brand Catalog & Pricing"
+          searchPlaceholder="Search brand name..."
+          exportFilenamePrefix="Brand_Pricing_Catalog"
+          onBatchDelete={async (ids) => {
+            await fetch('/api/brands', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids }),
+            });
+          }}
+        />
+      )}
+
+      {activeTab === 'TARGETS' && (
+        <ServerDataTable
+          key={`target_${refreshKey}`}
+          endpoint="/api/targets"
+          columns={targetColumns}
+          idField="id"
+          title="October 2026 Monthly Targets"
+          searchPlaceholder="Search targets by territory or brand..."
+          additionalParams={{ year: 2026, month: 10 }}
+          exportFilenamePrefix="October_2026_Targets"
+          onBatchDelete={async (ids) => {
+            await fetch('/api/targets', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids }),
+            });
+          }}
+        />
+      )}
+
+      {/* Unified Single-Page Create & Edit Controller Modal */}
+      <DynamicCrudModal
+        isOpen={modalOpen}
+        mode={modalMode}
+        title={
+          activeTab === 'TERRITORIES'
+            ? modalMode === 'create' ? 'Add New Territory' : `Edit Territory: ${editingItem?.territory_name}`
+            : activeTab === 'BRANDS'
+            ? modalMode === 'create' ? 'Add New Product Brand' : `Edit Brand: ${editingItem?.name}`
+            : modalMode === 'create' ? 'Set Monthly Target' : `Edit Target: ${editingItem?.territory_name}`
+        }
+        fields={
+          activeTab === 'TERRITORIES'
+            ? territoryFields
+            : activeTab === 'BRANDS'
+            ? brandFields
+            : targetFields
+        }
+        initialData={
+          editingItem
+            ? {
+                id: editingItem.id,
+                name: editingItem.territory_name || editingItem.name,
+                regionId: editingItem.region_id,
+                sortOrder: editingItem.sort_order,
+                type: editingItem.type,
+                unitPrice: editingItem.unit_price,
+                isActive: editingItem.is_active,
+                territoryId: editingItem.territory_id,
+                brandId: editingItem.brand_id,
+                targetQuantity: editingItem.target_quantity,
+                routeCount: editingItem.route_count,
+                outletCount: editingItem.outlet_count,
+              }
+            : null
+        }
+        onSubmit={handleFormSubmit}
+        onClose={() => setModalOpen(false)}
+      />
     </div>
   );
 }

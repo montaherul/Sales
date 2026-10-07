@@ -23,6 +23,7 @@ import {
   LayoutDashboard
 } from 'lucide-react';
 import { RoleType } from '@/lib/types';
+import { Select2, Select2Option } from '@/components/common/Select2';
 
 interface SystemMenu {
   id: string;
@@ -297,19 +298,19 @@ export function MenuManagement() {
         </div>
 
         {activeSubTab === 'UWMA' && (
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-slate-400">Select User:</label>
-            <select
+          <div className="w-80">
+            <Select2
+              options={users.map((u) => ({
+                value: u.id,
+                label: u.full_name,
+                subLabel: u.email,
+                badge: u.role_name,
+              }))}
               value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white focus:border-blue-500 focus:outline-none"
-            >
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.full_name} ({u.role_name} - {u.email})
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setSelectedUserId(val)}
+              placeholder="Search and select user..."
+              isClearable={false}
+            />
           </div>
         )}
       </div>

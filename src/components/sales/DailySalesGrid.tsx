@@ -24,6 +24,7 @@ import {
   RefreshCw,
   AlertCircle
 } from 'lucide-react';
+import { Select2, Select2Option } from '@/components/common/Select2';
 
 interface TerritoryItem {
   id: string;
@@ -152,8 +153,8 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
 
   const isReadOnly = currentStatus === 'FINALIZED';
 
-  const handleTerritoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const terr = territories.find(t => t.id === e.target.value);
+  const handleTerritoryChange = (terrId: string) => {
+    const terr = territories.find(t => t.id === terrId);
     if (terr) {
       setSelectedTerritoryId(terr.id);
       setSelectedTerritoryName(terr.name);
@@ -280,20 +281,25 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
       {/* Header Controls */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm">
         <div className="flex flex-wrap items-center gap-4">
-          <div>
-            <label className="text-xs text-slate-400 block mb-1">Territory</label>
-            <select
+          <div className="w-56">
+            <Select2
+              label="Territory"
+              options={territories.map((t) => ({
+                value: t.id,
+                label: t.name,
+                badge: `SL #${t.sort_order}`,
+              }))}
               value={selectedTerritoryId}
-              onChange={handleTerritoryChange}
+              onChange={(val) => {
+                const terr = territories.find((t) => t.id === val);
+                if (terr) {
+                  setSelectedTerritoryId(terr.id);
+                  setSelectedTerritoryName(terr.name);
+                }
+              }}
               disabled={isLoading}
-              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white focus:border-blue-500 focus:outline-none"
-            >
-              {territories.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} (SL {t.sort_order})
-                </option>
-              ))}
-            </select>
+              isClearable={false}
+            />
           </div>
 
           <div>
