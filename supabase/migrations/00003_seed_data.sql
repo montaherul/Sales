@@ -25,17 +25,23 @@ DECLARE
 BEGIN
     SELECT id INTO company_uuid FROM companies WHERE code = 'ATC' LIMIT 1;
 
-    INSERT INTO divisions (company_id, name)
-    VALUES (company_uuid, 'Ctg South')
-    RETURNING id INTO division_uuid;
+    -- Division
+    SELECT id INTO division_uuid FROM divisions WHERE company_id = company_uuid AND name = 'Ctg South' LIMIT 1;
+    IF division_uuid IS NULL THEN
+        INSERT INTO divisions (company_id, name) VALUES (company_uuid, 'Ctg South') RETURNING id INTO division_uuid;
+    END IF;
 
-    INSERT INTO wings (division_id, name)
-    VALUES (division_uuid, 'Chittagong')
-    RETURNING id INTO wing_uuid;
+    -- Wing
+    SELECT id INTO wing_uuid FROM wings WHERE division_id = division_uuid AND name = 'Chittagong' LIMIT 1;
+    IF wing_uuid IS NULL THEN
+        INSERT INTO wings (division_id, name) VALUES (division_uuid, 'Chittagong') RETURNING id INTO wing_uuid;
+    END IF;
 
-    INSERT INTO regions (wing_id, name)
-    VALUES (wing_uuid, 'Satkania')
-    RETURNING id INTO region_uuid;
+    -- Region
+    SELECT id INTO region_uuid FROM regions WHERE wing_id = wing_uuid AND name = 'Satkania' LIMIT 1;
+    IF region_uuid IS NULL THEN
+        INSERT INTO regions (wing_id, name) VALUES (wing_uuid, 'Satkania') RETURNING id INTO region_uuid;
+    END IF;
 
     -- Seed Satkania Region Territories
     INSERT INTO territories (region_id, name, sort_order) VALUES
