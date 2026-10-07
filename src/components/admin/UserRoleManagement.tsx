@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ServerDataTable, ColumnDef } from '@/components/common/ServerDataTable';
 import { DynamicCrudModal, DynamicFormField } from '@/components/common/DynamicCrudModal';
 import { Select2, Select2Option } from '@/components/common/Select2';
@@ -14,11 +14,28 @@ import {
   CheckCircle2, 
   XCircle,
   ShieldCheck,
-  ShieldAlert,
   Shield,
-  Plus
+  Plus,
+  Globe
 } from 'lucide-react';
 import { RoleType } from '@/shared/constants';
+
+interface RawRegion {
+  id: string;
+  name: string;
+  company_id: string;
+  company_name: string;
+}
+
+interface RawTerritory {
+  id: string;
+  name: string;
+  region_id: string;
+  region_name: string;
+  company_id: string;
+  company_name: string;
+  sort_order: number;
+}
 
 interface UserRecord {
   id: string;
@@ -29,6 +46,7 @@ interface UserRecord {
   is_active: boolean;
   company_id?: string;
   company_name?: string;
+  company_code?: string;
   territory_id?: string;
   territory_name?: string;
   region_id?: string;
@@ -40,6 +58,9 @@ interface RoleRecord {
   id: string;
   name: string;
   description: string;
+  company_id?: string | null;
+  company_name?: string | null;
+  company_code?: string | null;
   user_count: number;
   permission_count: number;
   is_system_role: boolean;
@@ -49,24 +70,32 @@ interface RoleRecord {
 export function UserRoleManagement() {
   const [activeSubTab, setActiveSubTab] = useState<'USERS' | 'ROLES'>('USERS');
 
-  // User State
+  // Master Data Cache
+  const [rawRegions, setRawRegions] = useState<RawRegion[]>([]);
+  const [rawTerritories, setRawTerritories] = useState<RawTerritory[]>([]);
+  const [companies, setCompanies] = useState<Select2Option[]>([]);
+  const [roles, setRoles] = useState<Select2Option[]>([]);
+
+  // User Tab State
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('ALL');
   const [selectedRole, setSelectedRole] = useState<string>('ALL');
-  const [companies, setCompanies] = useState<Select2Option[]>([]);
-  const [territories, setTerritories] = useState<Select2Option[]>([]);
-  const [roles, setRoles] = useState<Select2Option[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [currentUser, setCurrentUser] = useState<UserRecord | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Role State
+  // Active form state inside User Modal (for dependent dropdown cascading)
+  const [modalUserCompanyId, setModalUserCompanyId] = useState<string>('');
+  const [modalUserRoleName, setModalUserRoleName] = useState<string>('CSR');
+
+  // Role Tab State
+  const [selectedRoleCompanyId, setSelectedRoleCompanyId] = useState<string>('ALL');
   const [roleModalOpen, setRoleModalOpen] = useState(false);
   const [roleModalMode, setRoleModalMode] = useState<'create' | 'edit'>('create');
   const [currentRoleItem, setCurrentRoleItem] = useState<RoleRecord | null>(null);
   const [roleRefreshTrigger, setRoleRefreshTrigger] = useState(0);
 
-  // Load companies, territories, and dynamic roles
+  // Load companies, regions, territories, and dynamic roles
   useEffect(() => {
     async function loadMasterData() {
       try {
@@ -93,12 +122,8 @@ export function UserRoleManagement() {
         }
 
         if (masterJson.success) {
-          const terrOpts: Select2Option[] = (masterJson.data?.territories || []).map((t: any) => ({
-            value: t.id,
-            label: t.name,
-            subLabel: t.region_name || 'Satkania Region',
-          }));
-          setTerritories(terrOpts);
+          setRawRegions(masterJson.data?.regions || []);
+          setRawTerritories(masterJson.data?.territories || []);
         }
 
         if (rolesJson.success && rolesJson.data) {
@@ -117,67 +142,139 @@ export function UserRoleManagement() {
     loadMasterData();
   }, [roleRefreshTrigger]);
 
-  // ==========================================
-  // 1. USER CRUD SCHEMAS & CONTROLLERS
-  // ==========================================
+  // When opening Create or Edit user, sync modal state
+  const handleOpenUserModal = (user: UserRecord | null, mode: 'create' | 'edit') => {
+    setCurrentUser(user);
+    setModalMode(mode);
+    if (user) {
+      setModalUserCompanyId(user.company_id || (companies[1]?.value || ''));
+      setModalUserRoleName(user.role_name || 'CSR');
+    } else {
+      // Default to the first available real company or currently filtered company
+      const defaultComp = selectedCompanyId !== 'ALL' ? selectedCompanyId : (companies[1]?.value || '');
+      setModalUserCompanyId(defaultComp);
+      setModalUserRoleName('CSR');
+    }
+    setModalOpen(true);
+  };
 
-  const userFormFields: DynamicFormField[] = [
-    {
-      name: 'fullName',
-      label: 'Full Name',
-      type: 'text',
-      required: true,
-      placeholder: 'e.g. Mohammad Rahim',
-    },
-    {
-      name: 'email',
-      label: 'Corporate Email',
-      type: 'email',
-      required: true,
-      placeholder: 'e.g. rahim@afaztobacco.com',
-    },
-    {
-      name: 'phone',
-      label: 'Contact Phone',
-      type: 'text',
-      placeholder: '+880 1711-000000',
-    },
-    {
-      name: 'companyId',
-      label: 'Assigned Company',
-      type: 'select2',
-      placeholder: 'Select company...',
-      options: companies.filter((c) => c.value !== 'ALL'),
-      hint: 'Scoping the user to an enterprise company entity.',
-    },
-    {
-      name: 'roleName',
-      label: 'System Role',
-      type: 'select2',
-      required: true,
-      defaultValue: roles[0]?.value || 'SUPER_ADMIN',
-      options: roles.length > 0 ? roles : [
-        { value: 'SUPER_ADMIN', label: 'SUPER_ADMIN (Global System Access)', badge: 'GLOBAL' },
-        { value: 'RSO', label: 'RSO (Regional Sales Officer)', badge: 'REGION' },
-        { value: 'TSO', label: 'TSO (Territory Sales Officer)', badge: 'TERRITORY' },
-        { value: 'CSR', label: 'CSR (Customer Sales Representative)', badge: 'OPERATIONAL' },
-      ],
-    },
-    {
-      name: 'territoryId',
-      label: 'Assigned Territory Scope',
-      type: 'select2',
-      placeholder: 'Select territory...',
-      options: territories,
-      hint: 'Required for TSO and CSR operational boundary enforcement.',
-    },
-    {
+  // Filtered regions and territories for the current selected company in modal
+  const availableRegions = useMemo(() => {
+    const list = modalUserCompanyId
+      ? rawRegions.filter((r) => r.company_id === modalUserCompanyId)
+      : rawRegions;
+    return list.map((r) => ({
+      value: r.id,
+      label: r.name,
+      subLabel: r.company_name,
+    }));
+  }, [modalUserCompanyId, rawRegions]);
+
+  const availableTerritories = useMemo(() => {
+    const list = modalUserCompanyId
+      ? rawTerritories.filter((t) => t.company_id === modalUserCompanyId)
+      : rawTerritories;
+    return list.map((t) => ({
+      value: t.id,
+      label: t.name,
+      subLabel: `${t.region_name} • ${t.company_name}`,
+    }));
+  }, [modalUserCompanyId, rawTerritories]);
+
+  // Dynamic user form fields depending on Role and Company
+  const userFormFields = useMemo((): DynamicFormField[] => {
+    const fields: DynamicFormField[] = [
+      {
+        name: 'fullName',
+        label: 'Full Name',
+        type: 'text',
+        required: true,
+        placeholder: 'e.g. Mohammad Rahim',
+      },
+      {
+        name: 'email',
+        label: 'Corporate Email',
+        type: 'email',
+        required: true,
+        placeholder: 'e.g. rahim@afaztobacco.com',
+      },
+      {
+        name: 'phone',
+        label: 'Contact Phone',
+        type: 'text',
+        placeholder: '+880 1711-000000',
+      },
+      {
+        name: 'companyId',
+        label: 'Assigned Company',
+        type: 'select2',
+        required: true,
+        placeholder: 'Select company...',
+        options: companies.filter((c) => c.value !== 'ALL'),
+        defaultValue: modalUserCompanyId || companies.filter((c) => c.value !== 'ALL')[0]?.value,
+        hint: 'Primary enterprise organization that owns this user account and scopes.',
+      },
+      {
+        name: 'roleName',
+        label: 'Assigned Role',
+        type: 'select2',
+        required: true,
+        defaultValue: modalUserRoleName || 'CSR',
+        options: roles.length > 0 ? roles : [
+          { value: 'SUPER_ADMIN', label: 'SUPER_ADMIN (Global System Access)', badge: 'GLOBAL' },
+          { value: 'RSO', label: 'RSO (Regional Sales Officer)', badge: 'REGION' },
+          { value: 'TSO', label: 'TSO (Territory Sales Officer)', badge: 'TERRITORY' },
+          { value: 'CSR', label: 'CSR (Customer Sales Representative)', badge: 'OPERATIONAL' },
+        ],
+        hint: 'Determines operational permissions and workflow capabilities.',
+      },
+    ];
+
+    // RSO scope: Region
+    if (modalUserRoleName === 'RSO') {
+      fields.push({
+        name: 'regionId',
+        label: 'Assigned Regional Scope',
+        type: 'select2',
+        required: true,
+        placeholder: availableRegions.length > 0 ? 'Select region...' : 'No regions found for this company',
+        options: availableRegions,
+        hint: 'RSO supervises all territories within this assigned region.',
+      });
+    }
+
+    // TSO and CSR scope: Territory
+    if (modalUserRoleName === 'TSO' || modalUserRoleName === 'CSR') {
+      fields.push({
+        name: 'territoryId',
+        label: 'Assigned Territory Scope',
+        type: 'select2',
+        required: true,
+        placeholder: availableTerritories.length > 0 ? 'Select territory...' : 'No territories found for this company',
+        options: availableTerritories,
+        hint: `${modalUserRoleName} operational boundary for daily data entries and review.`,
+      });
+    }
+
+    fields.push({
       name: 'isActive',
       label: 'Account Active Status',
       type: 'boolean',
       defaultValue: true,
-    },
-  ];
+    });
+
+    return fields;
+  }, [modalUserCompanyId, modalUserRoleName, companies, roles, availableRegions, availableTerritories]);
+
+  // Handle dynamic field changes inside User modal
+  const handleUserModalFieldChange = (fieldName: string, value: any) => {
+    if (fieldName === 'companyId') {
+      setModalUserCompanyId(value);
+    }
+    if (fieldName === 'roleName') {
+      setModalUserRoleName(value);
+    }
+  };
 
   const userColumns: ColumnDef<UserRecord>[] = [
     {
@@ -198,7 +295,7 @@ export function UserRoleManagement() {
     },
     {
       key: 'role_name',
-      header: 'Assigned Role',
+      header: 'Role',
       sortable: true,
       render: (row) => {
         let badgeStyle = 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700';
@@ -221,19 +318,49 @@ export function UserRoleManagement() {
       render: (row) => (
         <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
           <Building2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-          <span className="font-medium truncate">{row.company_name || 'Afaz Tobacco Company'}</span>
+          <span className="font-semibold text-xs">{row.company_name || 'Afaz Tobacco Company'}</span>
+          {row.company_code && (
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+              {row.company_code}
+            </span>
+          )}
         </div>
       ),
     },
     {
       key: 'territory_name',
       header: 'Geographic Scope',
-      render: (row) => (
-        <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-          <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          <span>{row.territory_name || row.region_name || 'Global Access'}</span>
-        </div>
-      ),
+      render: (row) => {
+        if (row.role_name === 'SUPER_ADMIN') {
+          return (
+            <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 text-xs font-mono">
+              <Globe className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+              <span>Global Enterprise</span>
+            </div>
+          );
+        }
+
+        if (row.role_name === 'RSO') {
+          return (
+            <div className="flex items-center gap-1.5 text-purple-700 dark:text-purple-300 text-xs font-medium">
+              <MapPin className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+              <span>Region: {row.region_name || 'Assigned Region'}</span>
+            </div>
+          );
+        }
+
+        return (
+          <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 text-xs font-medium">
+            <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+            <span>{row.territory_name || 'Assigned Territory'}</span>
+            {row.region_name && (
+              <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                ({row.region_name})
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'is_active',
@@ -259,11 +386,7 @@ export function UserRoleManagement() {
       render: (row) => (
         <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
           <button
-            onClick={() => {
-              setCurrentUser(row);
-              setModalMode('edit');
-              setModalOpen(true);
-            }}
+            onClick={() => handleOpenUserModal(row, 'edit')}
             className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-400 dark:hover:bg-blue-900/60 dark:border-blue-800/50 transition-all cursor-pointer shadow-xs"
             title="Edit User"
           >
@@ -325,7 +448,7 @@ export function UserRoleManagement() {
   };
 
   // ==========================================
-  // 2. ROLE CRUD SCHEMAS & CONTROLLERS
+  // 2. ROLE CRUD SCHEMAS & CONTROLLERS (COMPANY-WISE)
   // ==========================================
 
   const roleFormFields: DynamicFormField[] = [
@@ -343,6 +466,18 @@ export function UserRoleManagement() {
       type: 'text',
       placeholder: 'e.g. Compliance auditor with read-only inspection access',
       hint: 'Operational responsibilities and authorization boundaries.',
+    },
+    {
+      name: 'companyId',
+      label: 'Assigned Company (Optional)',
+      type: 'select2',
+      placeholder: 'Select company for role scoping...',
+      options: [
+        { value: 'GLOBAL', label: 'Global / Enterprise-Wide (All Companies)' },
+        ...companies.filter((c) => c.value !== 'ALL'),
+      ],
+      defaultValue: 'GLOBAL',
+      hint: 'Leave Global for enterprise roles, or select a specific company entity.',
     },
   ];
 
@@ -371,6 +506,21 @@ export function UserRoleManagement() {
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400">{row.description || 'No description configured'}</div>
           </div>
+        </div>
+      ),
+    },
+    {
+      key: 'company_name',
+      header: 'Company Scope',
+      sortable: true,
+      render: (row) => (
+        <div className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300">
+          <Building2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+          {row.company_name ? (
+            <span className="font-medium text-slate-900 dark:text-white">{row.company_name}</span>
+          ) : (
+            <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">Global (All Companies)</span>
+          )}
         </div>
       ),
     },
@@ -468,11 +618,15 @@ export function UserRoleManagement() {
   };
 
   const handleRoleFormSubmit = async (formData: Record<string, any>, mode: 'create' | 'edit') => {
+    const payload = {
+      ...formData,
+      companyId: formData.companyId === 'GLOBAL' ? null : formData.companyId,
+    };
     const method = mode === 'create' ? 'POST' : 'PUT';
     const res = await fetch('/api/roles', {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData),
+      body: JSON.stringify(payload),
     });
 
     const json = await res.json();
@@ -497,7 +651,7 @@ export function UserRoleManagement() {
                 Enterprise Users & Roles Governance
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Manage company-scoped personnel, territory boundaries, custom role definitions, and system permissions.
+                Manage company-scoped personnel (RSO, TSO, CSR), geographic boundaries, and company-wise role catalogs.
               </p>
             </div>
           </div>
@@ -505,11 +659,7 @@ export function UserRoleManagement() {
           <div className="flex items-center gap-2 w-full md:w-auto">
             {activeSubTab === 'USERS' ? (
               <button
-                onClick={() => {
-                  setCurrentUser(null);
-                  setModalMode('create');
-                  setModalOpen(true);
-                }}
+                onClick={() => handleOpenUserModal(null, 'create')}
                 className="w-full md:w-auto flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white shadow-lg shadow-blue-500/20 transition-all cursor-pointer"
               >
                 <UserPlus className="w-4 h-4" />
@@ -542,7 +692,7 @@ export function UserRoleManagement() {
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>Personnel Directory (User CRUD)</span>
+            <span>Personnel Directory (Company & Role Wise)</span>
           </button>
 
           <button
@@ -554,7 +704,7 @@ export function UserRoleManagement() {
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span>System Roles & Catalog (Role CRUD)</span>
+            <span>System Roles & Catalog (Company Scoped)</span>
           </button>
         </div>
 
@@ -583,6 +733,20 @@ export function UserRoleManagement() {
             />
           </div>
         )}
+
+        {/* Filters (Shown for Roles Tab) */}
+        {activeSubTab === 'ROLES' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+            <Select2
+              label="Filter Roles by Company"
+              options={companies}
+              value={selectedRoleCompanyId}
+              onChange={(val) => setSelectedRoleCompanyId(val || 'ALL')}
+              placeholder="Select Company..."
+              isClearable={false}
+            />
+          </div>
+        )}
       </div>
 
       {/* SUB-TAB 1: USERS DIRECTORY */}
@@ -606,12 +770,15 @@ export function UserRoleManagement() {
       {/* SUB-TAB 2: ROLES CATALOG */}
       {activeSubTab === 'ROLES' && (
         <ServerDataTable<RoleRecord>
-          key={`roles_${roleRefreshTrigger}`}
+          key={`roles_${roleRefreshTrigger}_${selectedRoleCompanyId}`}
           endpoint="/api/roles"
           columns={roleColumns}
           idField="id"
           title="Role Definitions & User Allocation"
           searchPlaceholder="Search roles by identifier or description..."
+          additionalParams={{
+            companyId: selectedRoleCompanyId,
+          }}
           exportFilenamePrefix="Afaz_Tobacco_Roles"
           onBatchDelete={handleRoleBatchDelete}
         />
@@ -623,6 +790,7 @@ export function UserRoleManagement() {
         mode={modalMode}
         title={modalMode === 'create' ? 'Register New User Account' : `Edit User: ${currentUser?.full_name}`}
         fields={userFormFields}
+        onFieldChange={handleUserModalFieldChange}
         initialData={
           currentUser
             ? {
@@ -632,6 +800,7 @@ export function UserRoleManagement() {
                 phone: currentUser.phone,
                 roleName: currentUser.role_name,
                 companyId: currentUser.company_id,
+                regionId: currentUser.region_id,
                 territoryId: currentUser.territory_id,
                 isActive: currentUser.is_active,
               }
@@ -653,6 +822,7 @@ export function UserRoleManagement() {
                 id: currentRoleItem.id,
                 name: currentRoleItem.name,
                 description: currentRoleItem.description,
+                companyId: currentRoleItem.company_id || 'GLOBAL',
               }
             : null
         }

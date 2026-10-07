@@ -58,9 +58,14 @@ export function MasterHierarchyManagement() {
         }
 
         if (masterJson.success) {
-          // Region options
-          setRegions([
-            { value: 'b050e2e2-beb6-4729-a490-9c596efc5218', label: 'Satkania Region', subLabel: 'Ctg South • Chittagong Wing' },
+          // Region options from master data
+          const regOpts: Select2Option[] = (masterJson.data?.regions || []).map((r: any) => ({
+            value: r.id,
+            label: `${r.name} Region`,
+            subLabel: r.company_name || 'Afaz Tobacco Company',
+          }));
+          setRegions(regOpts.length > 0 ? regOpts : [
+            { value: 'b050e2e2-beb6-4729-a490-9c596efc5218', label: 'Satkania Region', subLabel: 'Afaz Tobacco Company' },
           ]);
 
           // Brand options

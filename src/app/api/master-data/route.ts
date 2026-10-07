@@ -4,11 +4,42 @@ import { dbQuery, getDbPool } from '@/lib/db';
 export async function GET() {
   try {
     if (getDbPool()) {
-      // Fetch Territories
+      // Fetch Companies
+      const compRes = await dbQuery(`
+        SELECT id, name, code 
+        FROM companies 
+        ORDER BY name;
+      `);
+
+      // Fetch Regions with Company Scoping
+      const regRes = await dbQuery(`
+        SELECT 
+          r.id, 
+          r.name, 
+          d.company_id, 
+          c.name as company_name 
+        FROM regions r 
+        JOIN wings w ON r.wing_id = w.id 
+        JOIN divisions d ON w.division_id = d.id 
+        JOIN companies c ON d.company_id = c.id 
+        ORDER BY r.name;
+      `);
+
+      // Fetch Territories with Company & Region Scoping
       const terrRes = await dbQuery(`
-        SELECT t.id, t.name, r.name as region_name, t.sort_order 
+        SELECT 
+          t.id, 
+          t.name, 
+          t.region_id, 
+          r.name as region_name, 
+          d.company_id, 
+          c.name as company_name, 
+          t.sort_order 
         FROM territories t 
         JOIN regions r ON t.region_id = r.id 
+        JOIN wings w ON r.wing_id = w.id 
+        JOIN divisions d ON w.division_id = d.id 
+        JOIN companies c ON d.company_id = c.id 
         ORDER BY t.sort_order;
       `);
 
@@ -36,6 +67,8 @@ export async function GET() {
       return NextResponse.json({
         success: true,
         data: {
+          companies: compRes.rows,
+          regions: regRes.rows,
           territories: terrRes.rows,
           brands: brandRes.rows,
           users: userRes.rows,

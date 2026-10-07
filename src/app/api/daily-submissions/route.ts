@@ -33,10 +33,21 @@ export async function GET(request: NextRequest) {
 
     const cleanSortBy = sortBy.replace(/^s\./, '');
     const actualPageSize = isExport ? -1 : pageSize;
-    const filterTerritoryId = territoryId && territoryId !== 'ALL' ? territoryId : null;
+    let filterTerritoryId = territoryId && territoryId !== 'ALL' ? territoryId : null;
     const filterStatus = status && status !== 'ALL' ? status : null;
-    const filterCompanyId = companyId && companyId !== 'ALL' ? companyId : null;
+    let filterCompanyId = companyId && companyId !== 'ALL' ? companyId : null;
     const filterDate = date || null;
+
+    // Server-side scope enforcement: Non-Super Admins are scoped to their assigned company & territory
+    const actor = await getAuthenticatedUser(request);
+    if (actor.role !== 'SUPER_ADMIN') {
+      if (actor.companyId) {
+        filterCompanyId = actor.companyId;
+      }
+      if ((actor.role === 'TSO' || actor.role === 'CSR') && actor.territoryId) {
+        filterTerritoryId = actor.territoryId;
+      }
+    }
 
     // PostgreSQL Stored Procedure: sp_get_daily_submissions_paginated
     const result = await PaginationHelper.executeFunction(
@@ -120,6 +131,20 @@ export async function DELETE(request: NextRequest) {
 
     if (idsToDelete.length === 0) {
       throw new ValidationError('At least one Submission ID is required for deletion');
+    }
+
+    // Prevent deletion of locked/finalized submissions by non-super admin
+    if (user.role !== 'SUPER_ADMIN') {
+      const lockedCheck = await dbQuery(
+        `SELECT COUNT(*) as count FROM daily_submissions WHERE id = ANY($1::uuid[]) AND (status = 'FINALIZED' OR is_locked = TRUE)`,
+        [idsToDelete]
+      );
+      if (parseInt(lockedCheck.rows[0].count, 10) > 0) {
+        return NextResponse.json(
+          { success: false, error: 'Cannot delete finalized or locked records without Super Admin unlock' },
+          { status: 403 }
+        );
+      }
     }
 
     await dbQuery(`DELETE FROM daily_submissions WHERE id = ANY($1::uuid[])`, [idsToDelete]);

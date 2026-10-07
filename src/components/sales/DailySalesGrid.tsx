@@ -386,14 +386,24 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
             <FileEdit className="h-3 w-3" />
             <span>Open / Edit</span>
           </button>
-          <button
-            onClick={(e) => handleDeleteSingle(row.id, e)}
-            className="rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-400 dark:hover:bg-rose-900/60 dark:border-rose-800/40 px-2.5 py-1 text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-xs"
-            title="Delete this daily submission"
-          >
-            <Trash2 className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
-            <span>Delete</span>
-          </button>
+          {row.status === 'FINALIZED' ? (
+            <span
+              className="rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 px-2 py-1 text-xs font-medium flex items-center gap-1 cursor-not-allowed"
+              title="Finalized records are locked. Super Admin must unlock before deleting."
+            >
+              <Lock className="h-3 w-3" />
+              <span>Locked</span>
+            </span>
+          ) : (
+            <button
+              onClick={(e) => handleDeleteSingle(row.id, e)}
+              className="rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-400 dark:hover:bg-rose-900/60 dark:border-rose-800/40 px-2.5 py-1 text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+              title="Delete this daily submission"
+            >
+              <Trash2 className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+              <span>Delete</span>
+            </button>
+          )}
         </div>
       ),
     },

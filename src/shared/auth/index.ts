@@ -15,6 +15,8 @@ export async function getAuthenticatedUser(request?: NextRequest): Promise<UserA
       id: sessionUser.id,
       email: sessionUser.email,
       role: sessionUser.role,
+      companyId: sessionUser.companyId || null,
+      companyName: sessionUser.companyName || null,
       territoryId: sessionUser.territoryId || null,
       regionId: sessionUser.regionId || null,
       permissions: [],
@@ -26,12 +28,15 @@ export async function getAuthenticatedUser(request?: NextRequest): Promise<UserA
     const roleHeader = request.headers.get('x-user-role') as RoleType | null;
     const emailHeader = request.headers.get('x-user-email');
     const territoryHeader = request.headers.get('x-user-territory');
+    const companyHeader = request.headers.get('x-user-company');
 
     if (roleHeader && Object.values(ROLES).includes(roleHeader)) {
       return {
         id: `sim-${roleHeader.toLowerCase()}`,
         email: emailHeader || `${roleHeader.toLowerCase()}@afaztobacco.com`,
         role: roleHeader,
+        companyId: companyHeader || '53ea4edf-b686-45cb-816e-b29581847213',
+        companyName: 'Afaz Tobacco Company',
         territoryId: territoryHeader || (roleHeader === 'TSO' || roleHeader === 'CSR' ? 'satkania-keranihat' : null),
         regionId: 'satkania-region',
         permissions: [],

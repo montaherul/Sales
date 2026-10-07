@@ -28,6 +28,7 @@ export interface DynamicCrudModalProps {
   onSubmit: (formData: Record<string, any>, mode: 'create' | 'edit') => Promise<void>;
   onClose: () => void;
   submitButtonText?: string;
+  onFieldChange?: (fieldName: string, value: any, currentFormData: Record<string, any>) => void;
 }
 
 export function DynamicCrudModal({
@@ -39,42 +40,67 @@ export function DynamicCrudModal({
   onSubmit,
   onClose,
   submitButtonText,
+  onFieldChange,
 }: DynamicCrudModalProps) {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const wasOpenRef = React.useRef<boolean>(false);
 
   // Initialize or reset form values based on mode and initialData
   useEffect(() => {
     if (isOpen) {
-      setSubmitError(null);
-      setErrors({});
-      const initial: Record<string, any> = {};
+      const isFreshOpen = !wasOpenRef.current;
+      wasOpenRef.current = true;
 
-      fields.forEach((field) => {
-        if (mode === 'edit' && initialData && initialData[field.name] !== undefined) {
-          initial[field.name] = initialData[field.name];
-        } else {
-          initial[field.name] = field.defaultValue !== undefined ? field.defaultValue : (field.type === 'boolean' ? false : '');
+      if (isFreshOpen) {
+        setSubmitError(null);
+        setErrors({});
+        const initial: Record<string, any> = {};
+
+        fields.forEach((field) => {
+          if (mode === 'edit' && initialData && initialData[field.name] !== undefined) {
+            initial[field.name] = initialData[field.name];
+          } else {
+            initial[field.name] = field.defaultValue !== undefined ? field.defaultValue : (field.type === 'boolean' ? false : '');
+          }
+        });
+
+        // Preserve ID if editing
+        if (mode === 'edit' && initialData?.id) {
+          initial.id = initialData.id;
         }
-      });
 
-      // Preserve ID if editing
-      if (mode === 'edit' && initialData?.id) {
-        initial.id = initialData.id;
+        setFormData(initial);
+      } else {
+        // Modal is already open, preserve user entries and merge any new default field keys
+        setFormData((prev) => {
+          const merged = { ...prev };
+          fields.forEach((field) => {
+            if (merged[field.name] === undefined) {
+              merged[field.name] = field.defaultValue !== undefined ? field.defaultValue : (field.type === 'boolean' ? false : '');
+            }
+          });
+          return merged;
+        });
       }
-
-      setFormData(initial);
+    } else {
+      wasOpenRef.current = false;
+      setFormData({});
     }
   }, [isOpen, mode, initialData, fields]);
 
   if (!isOpen) return null;
 
   const handleChange = (fieldName: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [fieldName]: value }));
+    const nextFormData = { ...formData, [fieldName]: value };
+    setFormData(nextFormData);
     if (errors[fieldName]) {
       setErrors((prev) => ({ ...prev, [fieldName]: '' }));
+    }
+    if (onFieldChange) {
+      onFieldChange(fieldName, value, nextFormData);
     }
   };
 

@@ -107,12 +107,45 @@ export async function POST(request: NextRequest) {
 
     const userId = userRes.rows[0].id;
 
+    // Resolve organizational scope hierarchically
+    let finalCompanyId = companyId && companyId !== 'ALL' ? companyId : null;
+    let finalRegionId = regionId && regionId !== 'ALL' ? regionId : null;
+    let finalTerritoryId = territoryId && territoryId !== 'ALL' ? territoryId : null;
+
+    if (finalTerritoryId) {
+      const terrInfo = await dbQuery(
+        `SELECT t.region_id, d.company_id 
+         FROM territories t 
+         JOIN regions r ON t.region_id = r.id 
+         JOIN wings w ON r.wing_id = w.id 
+         JOIN divisions d ON w.division_id = d.id 
+         WHERE t.id = $1 LIMIT 1`,
+        [finalTerritoryId]
+      );
+      if (terrInfo.rows.length > 0) {
+        if (!finalRegionId) finalRegionId = terrInfo.rows[0].region_id;
+        if (!finalCompanyId) finalCompanyId = terrInfo.rows[0].company_id;
+      }
+    } else if (finalRegionId && !finalCompanyId) {
+      const regInfo = await dbQuery(
+        `SELECT d.company_id 
+         FROM regions r 
+         JOIN wings w ON r.wing_id = w.id 
+         JOIN divisions d ON w.division_id = d.id 
+         WHERE r.id = $1 LIMIT 1`,
+        [finalRegionId]
+      );
+      if (regInfo.rows.length > 0) {
+        finalCompanyId = regInfo.rows[0].company_id;
+      }
+    }
+
     // Assign organizational scope (Company + Region + Territory)
     await dbQuery(`DELETE FROM user_scopes WHERE user_id = $1`, [userId]);
     await dbQuery(
       `INSERT INTO user_scopes (user_id, company_id, region_id, territory_id)
        VALUES ($1, $2, $3, $4)`,
-      [userId, companyId || null, regionId || null, territoryId || null]
+      [userId, finalCompanyId, finalRegionId, finalTerritoryId]
     );
 
     // Audit log
@@ -125,7 +158,7 @@ export async function POST(request: NextRequest) {
           AUDIT_ACTIONS.CREATE,
           'user_profiles',
           userId,
-          JSON.stringify({ email, fullName, roleName, companyId, territoryId, regionId }),
+          JSON.stringify({ email, fullName, roleName, companyId: finalCompanyId, territoryId: finalTerritoryId, regionId: finalRegionId }),
         ]
       );
     } catch {}
@@ -175,13 +208,45 @@ export async function PUT(request: NextRequest) {
       [fullName || null, phone || null, roleId || null, isActive !== undefined ? isActive : null, id]
     );
 
-    // Update scopes
+    // Update scopes hierarchically
     if (companyId !== undefined || territoryId !== undefined || regionId !== undefined) {
+      let finalCompanyId = companyId && companyId !== 'ALL' ? companyId : null;
+      let finalRegionId = regionId && regionId !== 'ALL' ? regionId : null;
+      let finalTerritoryId = territoryId && territoryId !== 'ALL' ? territoryId : null;
+
+      if (finalTerritoryId) {
+        const terrInfo = await dbQuery(
+          `SELECT t.region_id, d.company_id 
+           FROM territories t 
+           JOIN regions r ON t.region_id = r.id 
+           JOIN wings w ON r.wing_id = w.id 
+           JOIN divisions d ON w.division_id = d.id 
+           WHERE t.id = $1 LIMIT 1`,
+          [finalTerritoryId]
+        );
+        if (terrInfo.rows.length > 0) {
+          if (!finalRegionId) finalRegionId = terrInfo.rows[0].region_id;
+          if (!finalCompanyId) finalCompanyId = terrInfo.rows[0].company_id;
+        }
+      } else if (finalRegionId && !finalCompanyId) {
+        const regInfo = await dbQuery(
+          `SELECT d.company_id 
+           FROM regions r 
+           JOIN wings w ON r.wing_id = w.id 
+           JOIN divisions d ON w.division_id = d.id 
+           WHERE r.id = $1 LIMIT 1`,
+          [finalRegionId]
+        );
+        if (regInfo.rows.length > 0) {
+          finalCompanyId = regInfo.rows[0].company_id;
+        }
+      }
+
       await dbQuery(`DELETE FROM user_scopes WHERE user_id = $1`, [id]);
       await dbQuery(
         `INSERT INTO user_scopes (user_id, company_id, region_id, territory_id)
          VALUES ($1, $2, $3, $4)`,
-        [id, companyId || null, regionId || null, territoryId || null]
+        [id, finalCompanyId, finalRegionId, finalTerritoryId]
       );
     }
 

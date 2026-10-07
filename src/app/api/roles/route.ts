@@ -17,17 +17,19 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
     const search = searchParams.get('search') || '';
+    const companyId = searchParams.get('companyId');
     const sortBy = searchParams.get('sortBy') || 'name';
     const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc';
     const isExport = searchParams.get('export') === 'csv';
     const isAll = searchParams.get('all') === 'true';
 
     const actualPageSize = isExport || isAll ? -1 : pageSize;
+    const filterCompanyId = companyId && companyId !== 'ALL' ? companyId : null;
 
     // PostgreSQL Stored Procedure: sp_get_roles_paginated
     const result = await PaginationHelper.executeFunction(
       'sp_get_roles_paginated',
-      [page, actualPageSize, search || null, sortBy, sortOrder.toUpperCase()]
+      [page, actualPageSize, search || null, filterCompanyId, sortBy, sortOrder.toUpperCase()]
     );
 
     // CSV Export Handler
@@ -36,6 +38,7 @@ export async function GET(request: NextRequest) {
         id: 'Role ID',
         name: 'Role Name',
         description: 'Description',
+        company_name: 'Assigned Company',
         user_count: 'Active Users',
         permission_count: 'Assigned Permissions',
         is_system_role: 'System Protected',
@@ -72,7 +75,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    let { name, description } = body;
+    let { name, description, companyId } = body;
 
     if (!name || !name.trim()) {
       throw new ValidationError('Role Name is required');
@@ -88,10 +91,10 @@ export async function POST(request: NextRequest) {
     }
 
     const res = await dbQuery(
-      `INSERT INTO roles (name, description)
-       VALUES ($1, $2)
-       RETURNING id, name, description, created_at`,
-      [name, description?.trim() || null]
+      `INSERT INTO roles (name, description, company_id)
+       VALUES ($1, $2, $3)
+       RETURNING id, name, description, company_id, created_at`,
+      [name, description?.trim() || null, companyId && companyId !== 'ALL' ? companyId : null]
     );
 
     const newRole = res.rows[0];
@@ -126,12 +129,12 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, name, description } = body;
+    const { id, name, description, companyId } = body;
 
     if (!id) throw new ValidationError('Role ID is required');
 
     // Fetch existing role
-    const existing = await dbQuery('SELECT id, name, description FROM roles WHERE id = $1', [id]);
+    const existing = await dbQuery('SELECT id, name, description, company_id FROM roles WHERE id = $1', [id]);
     if (existing.rows.length === 0) {
       throw new ValidationError('Role not found');
     }
@@ -150,16 +153,21 @@ export async function PUT(request: NextRequest) {
 
     await dbQuery(
       `UPDATE roles
-       SET name = $1, description = $2
-       WHERE id = $3`,
-      [targetName, description !== undefined ? description?.trim() : currentRole.description, id]
+       SET name = $1, description = $2, company_id = $3
+       WHERE id = $4`,
+      [
+        targetName, 
+        description !== undefined ? description?.trim() : currentRole.description, 
+        companyId !== undefined ? (companyId && companyId !== 'ALL' ? companyId : null) : currentRole.company_id,
+        id
+      ]
     );
 
     // Audit log
     await dbQuery(
       `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, old_values, new_values)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [actor.id, AUDIT_ACTIONS.UPDATE, 'roles', id, JSON.stringify(currentRole), JSON.stringify({ name: targetName, description })]
+      [actor.id, AUDIT_ACTIONS.UPDATE, 'roles', id, JSON.stringify(currentRole), JSON.stringify({ name: targetName, description, companyId })]
     ).catch(() => {});
 
     return NextResponse.json({

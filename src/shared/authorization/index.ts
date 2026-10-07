@@ -27,6 +27,8 @@ export interface UserAuthContext {
   id: string;
   email: string;
   role: RoleType;
+  companyId?: string | null;
+  companyName?: string | null;
   territoryId?: string | null;
   regionId?: string | null;
   permissions: Permission[];
@@ -96,10 +98,18 @@ export function hasPermission(user: UserAuthContext, permission: Permission): bo
 export function validateOrganizationalScope(
   user: UserAuthContext,
   targetTerritoryId: string,
-  targetRegionId?: string
+  targetRegionId?: string,
+  targetCompanyId?: string
 ): void {
   if (user.role === ROLES.SUPER_ADMIN) {
     return; // Super Admin has global scope
+  }
+
+  // Cross-company isolation
+  if (user.companyId && targetCompanyId && user.companyId !== targetCompanyId) {
+    throw new ForbiddenError(
+      `Company scope violation: User company (${user.companyId}) does not match target company (${targetCompanyId})`
+    );
   }
 
   if (user.role === ROLES.RSO) {
