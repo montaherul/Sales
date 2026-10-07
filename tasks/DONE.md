@@ -27,17 +27,38 @@
 - [x] Placed verified authoritative 34-sheet workbook at `excel/TEMPLATE.xlsx`.
 - [x] Extracted and documented exact cell/sheet mapping in `excel/EXCEL-MAPPING.md`.
 - [x] Initialized Git repository and pushed to `https://github.com/montaherul/Sales.git` on `main`.
-- [x] Initialized Next.js App Router project with TypeScript, Tailwind CSS, and full enterprise dependencies.
-- [x] Implemented decoupled Central Calculation Engine (`src/lib/calculations/engine.ts`).
-- [x] Implemented RBAC and geographical scope verification (`src/lib/auth/rbac.ts`).
-- [x] Implemented Date Safety verification engine (`src/lib/excel/date-safety.ts`).
-- [x] Implemented Authoritative 34-Sheet Excel Generator (`src/lib/excel/export.ts`) using ExcelJS.
-- [x] Implemented Strict XLSX Import Parser and Pre-flight Inspector (`src/lib/excel/import.ts`).
-- [x] Created Export API endpoint (`/api/exports/xlsx`) streaming 34-sheet workbooks.
-- [x] Created Import API endpoint (`/api/imports/xlsx`) with date safety validation.
-- [x] Created Executive Analytics Dashboard (`ExecutiveDashboard.tsx`) with Recharts.
-- [x] Created Field Entry Grid (`DailySalesGrid.tsx`) with real-time formula computation.
-- [x] Created Review & Approval Center (`ApprovalHub.tsx`) with role-based workflow transitions.
-- [x] Created Import Modal (`ImportModal.tsx`) with live date safety checks.
-- [x] Created Super Admin Google Drive Archival widget (`DriveUploadWidget.tsx`).
-- [x] Verified complete TypeScript compilation with 0 errors.
+- [x] Executed live PostgreSQL database migrations on Supabase (`00001_initial_schema.sql` through `00005_menu_management.sql`).
+- [x] Implemented Modular Monolith & Clean Architecture in `src/modules/*`:
+  - `calculation/`: 9 standalone calculators (`SalesCalculator`, `StockCalculator`, `ZardaCalculator`, `STDCalculator`, `ADSCalculator`, `TargetCalculator`, `AchievementCalculator`, `ProjectionCalculator`, `VarianceCalculator`) and unified `CalculationEngine` facade.
+  - `approval/`: `ApprovalStateMachine` enforcing immutable finalized records, mandatory rejection reason, and Super Admin unlock.
+  - `daily-sales/`: Domain entity `DailySalesEntry`, application service `DailySalesService`, and selective `DailySalesRepository`.
+  - `excel-export/`: `ExportSpecification`, `FormulaWriter`, `WorkbookBuilder`, and `ExcelExportService` generating exact 34-sheet workbooks.
+  - `excel-import/`: `ImportValidationPipeline` with 12 validation steps, date safety check, duplicate detection, and atomic transactional commit.
+  - `google-drive/`: `GoogleDriveUseCases` and `GoogleDriveAdapter` with SHA-256 checksum and folder hierarchy.
+  - `reporting/`: `ReportingService` and `ReportingRepository` computing executive KPIs and territory performance summaries.
+  - `identity/`: `IdentityService` and `UserRepository` managing profiles and scopes.
+  - `organization/`: `OrganizationService` and `OrganizationRepository` managing companies, divisions, wings, regions, territories.
+  - `product/`: `ProductService` and `ProductRepository` managing cigarette and zarda brands and pricing.
+  - `target/`: `TargetService` and `TargetRepository` managing monthly targets.
+  - `audit/`: `AuditService` and `AuditLogRepository` recording immutable audit logs.
+- [x] Implemented Shared Layer in `src/shared/*`:
+  - `database/pagination.ts`: Generic SQL-injection safe server-side pagination, multi-column search, dynamic sorting, and streaming CSV export.
+  - `database/db.ts`: PostgreSQL pool with SSL, transaction runner `withTransaction`.
+  - `authorization/`: Scope validation (`GLOBAL`, `REGION`, `TERRITORY`, `OPERATIONAL`), fine-grained permissions, and state transition validation.
+  - `constants/`: Roles, statuses, sheets, brands, pricing.
+  - `errors/`: Domain errors (`AppError`, `UnauthorizedError`, `ForbiddenError`, `ValidationError`, `ConflictError`, `DateMismatchError`).
+  - `logger/`: Structured logger.
+  - `utils/`: SHA-256 calculation, formatting.
+  - `validation/`: Runtime Zod schemas.
+- [x] Implemented Generic 3-Tier Components in `src/components/common/*`:
+  - `ServerDataTable.tsx`: Tabulator-style server-side table with pagination (10/25/50/100), multi-column search, column sorting, row selection checkboxes, select-all, and CSV export.
+  - `Select2.tsx`: Searchable dropdown with async/static options, badges, sub-labels, icons, clearable trigger, and single/multi selection.
+  - `DynamicCrudModal.tsx`: Unified single-page Create & Edit modal controller driven by schema and mode detection (`create` vs `edit`).
+- [x] Implemented Super Admin Administration Suite:
+  - `CompanyManagement.tsx` & `/api/companies`: Full company CRUD with stats and CSV export.
+  - `UserRoleManagement.tsx` & `/api/users`: Company-wise user directory with Select2 company filter and scoped role assignments (`SUPER_ADMIN`, `RSO`, `TSO`, `CSR`).
+  - `MasterHierarchyManagement.tsx` & `/api/hierarchy`, `/api/brands`, `/api/targets`: Dynamic CRUD for Territories, Product Pricing, and Targets.
+  - `MenuManagement.tsx` & `/api/menu-management`: Role-Wise Menu Access (RWMA) and User-Wise Menu Access (UWMA) with Select2 user selection.
+- [x] Verified full Next.js 15 production build (`npm run build`) with all 22 static and dynamic routes compiling cleanly with 0 errors.
+- [x] Verified local server HTTP 200 response on `http://localhost:3000`.
+- [x] Committed and pushed to GitHub `https://github.com/montaherul/Sales.git` on `main`.
