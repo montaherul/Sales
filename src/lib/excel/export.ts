@@ -163,7 +163,55 @@ export async function generate34SheetMonthlyReport(data: MonthlyWorkbookData): P
     worksheet.getCell(`AD${totRow}`).value = { formula: `SUM(AD8:AD12)` };
   }
 
-  // 2. Validate Generated Workbook
+  // 2. Populate Sheet 32: 'STD & ADS'
+  const stdSheet = workbook.getWorksheet('STD & ADS');
+  if (stdSheet) {
+    for (const t of SATKANIA_TERRITORIES) {
+      const row = t.row;
+      // 31-day summation formula for cigarette sales brands (D to I)
+      const brandCols = ['D', 'E', 'F', 'G', 'H', 'I'];
+      for (const col of brandCols) {
+        const parts = [];
+        for (let d = 1; d <= 31; d++) {
+          parts.push(`'${d}'!${col}${row}`);
+        }
+        stdSheet.getCell(`${col}${row}`).value = { formula: parts.join('+') };
+      }
+
+      // Total STD: =SUM(D:I)
+      stdSheet.getCell(`J${row}`).value = { formula: `SUM(D${row}:I${row})` };
+    }
+  }
+
+  // 3. Populate Sheet 33: 'Target.'
+  const targetSheet = workbook.getWorksheet('Target.');
+  if (targetSheet) {
+    for (const t of SATKANIA_TERRITORIES) {
+      const row = t.row;
+      // Total Target formula: =SUM(D:I)
+      targetSheet.getCell(`J${row}`).value = { formula: `SUM(D${row}:I${row})` };
+      // Target ADS formula: =J/26
+      targetSheet.getCell(`K${row}`).value = { formula: `J${row}/26` };
+    }
+  }
+
+  // 4. Populate Sheet 34: 'Analysis'
+  const analysisSheet = workbook.getWorksheet('Analysis');
+  if (analysisSheet) {
+    for (const t of SATKANIA_TERRITORIES) {
+      const row = t.row;
+      // LM ADS: =D/26
+      analysisSheet.getCell(`E${row}`).value = { formula: `D${row}/26` };
+      // TARGET: =Target.!J
+      analysisSheet.getCell(`F${row}`).value = { formula: `Target.!J${row}` };
+      // TADS: ='STD & ADS'!Q or Target ADS
+      analysisSheet.getCell(`G${row}`).value = { formula: `'STD & ADS'!Q${row}` };
+      // STD: ='STD & ADS'!J
+      analysisSheet.getCell(`H${row}`).value = { formula: `'STD & ADS'!J${row}` };
+    }
+  }
+
+  // 5. Validate Generated Workbook
   const validation = validateExportedWorkbook(workbook);
   if (!validation.isValid) {
     throw new Error(`Workbook export validation failed: ${validation.errors.join('; ')}`);

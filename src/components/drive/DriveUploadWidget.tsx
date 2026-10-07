@@ -26,17 +26,36 @@ export function DriveUploadWidget({ isOpen, onClose }: DriveUploadWidgetProps) {
 
   if (!isOpen) return null;
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     setUploading(true);
-    setTimeout(() => {
-      setUploading(false);
-      setDriveResult({
-        fileId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-        folderPath: 'Afaz_Tobacco_Reports/2026/10_October/2026-10-06/',
-        fileName: 'Daily sales and Closing Stock Information October 6 2026.xlsx',
-        sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    try {
+      const res = await fetch('/api/google-drive/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userRole: 'SUPER_ADMIN',
+          year: 2026,
+          month: 10,
+          day: 6,
+        }),
       });
-    }, 1500);
+
+      const json = await res.json();
+      if (json.success) {
+        setDriveResult({
+          fileId: json.data.fileId,
+          folderPath: json.data.folderPath,
+          fileName: json.data.fileName,
+          sha256: json.data.sha256,
+        });
+      } else {
+        alert(json.error || 'Failed to archive report to Google Drive');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error uploading to Google Drive');
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (

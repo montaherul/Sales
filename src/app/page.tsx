@@ -9,6 +9,8 @@ import { ApprovalHub } from '@/components/approval/ApprovalHub';
 import { ImportModal } from '@/components/import/ImportModal';
 import { DriveUploadWidget } from '@/components/drive/DriveUploadWidget';
 
+import { AuditLogViewer } from '@/components/audit/AuditLogViewer';
+
 export default function Home() {
   const [currentRole, setCurrentRole] = useState<RoleType>('SUPER_ADMIN');
   const [activeTab, setActiveTab] = useState<string>('dashboard');
@@ -38,6 +40,7 @@ export default function Home() {
         {activeTab === 'dashboard' && <ExecutiveDashboard />}
         {activeTab === 'entry' && <DailySalesGrid />}
         {activeTab === 'approvals' && <ApprovalHub currentRole={currentRole} />}
+        {activeTab === 'audit' && <AuditLogViewer />}
       </main>
 
       {/* Modals & Drawers */}

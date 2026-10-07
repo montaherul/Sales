@@ -93,49 +93,130 @@ export function ApprovalHub({ currentRole }: ApprovalHubProps) {
   const [unlockingId, setUnlockingId] = useState<string | null>(null);
   const [unlockReason, setUnlockReason] = useState('');
 
-  const handleApprove = (id: string) => {
-    setItems((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item;
-        let newStatus = item.status;
-        if (currentRole === 'TSO' && item.status === 'SUBMITTED') {
-          newStatus = 'TSO_APPROVED';
-        } else if (currentRole === 'RSO' && item.status === 'TSO_APPROVED') {
-          newStatus = 'RSO_APPROVED';
-        } else if (currentRole === 'SUPER_ADMIN') {
-          newStatus = item.status === 'SUBMITTED' ? 'TSO_APPROVED' : item.status === 'TSO_APPROVED' ? 'RSO_APPROVED' : 'FINALIZED';
-        }
-        return { ...item, status: newStatus };
-      })
-    );
+  const refreshSubmissions = async () => {
+    try {
+      const res = await fetch('/api/daily-submissions?date=2026-10-06');
+      const json = await res.json();
+      if (json.success && json.data.length > 0) {
+        setItems(
+          json.data.map((r: any) => ({
+            id: r.territoryId,
+            territory: r.territoryName,
+            reportDate: r.reportDate,
+            sales: r.totalCigaretteSales,
+            stock: r.totalCigaretteStock,
+            zardaValue: r.totalZardaSalesValue,
+            emptyPackets: r.emptyPackets,
+            status: r.status,
+            submittedBy: 'Field Rep',
+          }))
+        );
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
-  const handleConfirmReject = () => {
+  const handleApprove = async (id: string) => {
+    const item = items.find((i) => i.id === id);
+    if (!item) return;
+
+    let targetStatus: SubmissionStatus = 'TSO_APPROVED';
+    if (currentRole === 'RSO') targetStatus = 'RSO_APPROVED';
+    if (currentRole === 'SUPER_ADMIN') targetStatus = item.status === 'RSO_APPROVED' ? 'FINALIZED' : 'RSO_APPROVED';
+
+    try {
+      await fetch('/api/daily-submissions/workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          territoryId: id,
+          reportDate: item.reportDate,
+          toStatus: targetStatus,
+          userId: currentRole.toLowerCase() + '-user',
+          comments: `Approved by ${currentRole}`,
+        }),
+      });
+
+      setItems((prev) =>
+        prev.map((i) => (i.id === id ? { ...i, status: targetStatus } : i))
+      );
+    } catch (err: any) {
+      alert(err.message || 'Error updating approval');
+    }
+  };
+
+  const handleConfirmReject = async () => {
     if (!rejectingId || !rejectReason.trim()) return;
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === rejectingId ? { ...item, status: 'REJECTED' } : item
-      )
-    );
-    setRejectingId(null);
-    setRejectReason('');
+    const item = items.find((i) => i.id === rejectingId);
+    if (!item) return;
+
+    try {
+      await fetch('/api/daily-submissions/workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          territoryId: rejectingId,
+          reportDate: item.reportDate,
+          toStatus: 'REJECTED',
+          userId: currentRole.toLowerCase() + '-user',
+          comments: rejectReason,
+        }),
+      });
+
+      setItems((prev) =>
+        prev.map((i) => (i.id === rejectingId ? { ...i, status: 'REJECTED' } : i))
+      );
+      setRejectingId(null);
+      setRejectReason('');
+    } catch (err: any) {
+      alert(err.message || 'Error rejecting submission');
+    }
   };
 
-  const handleConfirmUnlock = () => {
+  const handleConfirmUnlock = async () => {
     if (!unlockingId || !unlockReason.trim()) return;
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === unlockingId ? { ...item, status: 'RSO_APPROVED' } : item
-      )
-    );
-    setUnlockingId(null);
-    setUnlockReason('');
+    const item = items.find((i) => i.id === unlockingId);
+    if (!item) return;
+
+    try {
+      await fetch('/api/daily-submissions/workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          territoryId: unlockingId,
+          reportDate: item.reportDate,
+          toStatus: 'RSO_APPROVED',
+          isUnlock: true,
+          userId: 'super-admin-user',
+          unlockReason,
+        }),
+      });
+
+      setItems((prev) =>
+        prev.map((i) => (i.id === unlockingId ? { ...i, status: 'RSO_APPROVED' } : i))
+      );
+      setUnlockingId(null);
+      setUnlockReason('');
+    } catch (err: any) {
+      alert(err.message || 'Error unlocking record');
+    }
   };
 
-  const handleFinalizeAll = () => {
-    setItems((prev) =>
-      prev.map((item) => ({ ...item, status: 'FINALIZED' }))
-    );
+  const handleFinalizeAll = async () => {
+    for (const item of items) {
+      await fetch('/api/daily-submissions/workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          territoryId: item.id,
+          reportDate: item.reportDate,
+          toStatus: 'FINALIZED',
+          userId: 'super-admin-user',
+        }),
+      }).catch(console.error);
+    }
+    setItems((prev) => prev.map((item) => ({ ...item, status: 'FINALIZED' })));
   };
 
   const getStatusBadge = (status: SubmissionStatus) => {

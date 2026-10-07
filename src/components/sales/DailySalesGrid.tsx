@@ -76,43 +76,102 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
   const totalZardaSales = useMemo(() => calculateZardaSalesValuation(zardaSales), [zardaSales]);
   const totalZardaStock = useMemo(() => calculateZardaStockValuation(zardaStock), [zardaStock]);
 
-  const handleSaveDraft = () => {
-    setSubmittedStatus('Draft saved successfully.');
-    if (onSaveDraft) {
-      onSaveDraft({
-        selectedTerritory,
+  const territoryMapping: Record<string, string> = {
+    'Kerani hat': 'satkania-1',
+    'Satkania': 'satkania-2',
+    'Bandarban': 'satkania-3',
+    'Rajasthali': 'satkania-4',
+    'Dohazari': 'satkania-5',
+  };
+
+  const handleSaveDraft = async () => {
+    try {
+      const terrId = territoryMapping[selectedTerritory] || 'satkania-1';
+      const record = {
+        territoryId: terrId,
+        territoryName: selectedTerritory,
+        regionName: 'Satkania',
         reportDate,
-        sales,
-        stock,
+        dayNumber: parseInt(reportDate.split('-')[2] || '6', 10),
+        status: 'DRAFT',
+        cigaretteSales: sales,
+        cigaretteStock: stock,
         zardaSales,
         zardaStock,
         emptyPackets,
         remarks,
-        totalSales,
-        totalStock,
-        totalZardaSales,
-        totalZardaStock,
+        totalCigaretteSales: totalSales,
+        totalCigaretteStock: totalStock,
+        totalZardaSalesValue: totalZardaSales,
+        totalZardaStockValue: totalZardaStock,
+      };
+
+      const res = await fetch('/api/daily-submissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ record, userId: 'csr-field-id' }),
       });
+
+      const json = await res.json();
+      if (json.success) {
+        setSubmittedStatus('Draft saved and persisted successfully.');
+      } else {
+        alert(json.error || 'Failed to save draft');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error saving draft');
     }
   };
 
-  const handleSubmit = () => {
-    setSubmittedStatus('Submitted to Territory Sales Officer (TSO) for review.');
-    if (onSubmitForReview) {
-      onSubmitForReview({
-        selectedTerritory,
+  const handleSubmit = async () => {
+    try {
+      const terrId = territoryMapping[selectedTerritory] || 'satkania-1';
+      const record = {
+        territoryId: terrId,
+        territoryName: selectedTerritory,
+        regionName: 'Satkania',
         reportDate,
-        sales,
-        stock,
+        dayNumber: parseInt(reportDate.split('-')[2] || '6', 10),
+        status: 'SUBMITTED',
+        cigaretteSales: sales,
+        cigaretteStock: stock,
         zardaSales,
         zardaStock,
         emptyPackets,
         remarks,
-        totalSales,
-        totalStock,
-        totalZardaSales,
-        totalZardaStock,
+        totalCigaretteSales: totalSales,
+        totalCigaretteStock: totalStock,
+        totalZardaSalesValue: totalZardaSales,
+        totalZardaStockValue: totalZardaStock,
+      };
+
+      // Save submission first
+      await fetch('/api/daily-submissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ record, userId: 'csr-field-id' }),
       });
+
+      // Transition to SUBMITTED
+      const res = await fetch('/api/daily-submissions/workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          territoryId: terrId,
+          reportDate,
+          toStatus: 'SUBMITTED',
+          userId: 'csr-field-id',
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setSubmittedStatus('Submitted to Territory Sales Officer (TSO) for review.');
+      } else {
+        alert(json.error || 'Failed to submit for review');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error submitting for review');
     }
   };
 

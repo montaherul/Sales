@@ -57,8 +57,28 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
     }
   };
 
-  const handleCommit = () => {
-    setImportSuccess(true);
+  const handleCommit = async () => {
+    if (!preview || !preview.records.length) return;
+    try {
+      const res = await fetch('/api/imports/xlsx/commit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          records: preview.records,
+          fileName: file?.name || 'imported_file.xlsx',
+          userId: 'admin-import-user',
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setImportSuccess(true);
+      } else {
+        alert(json.error || 'Failed to commit import records');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error committing import');
+    }
   };
 
   return (

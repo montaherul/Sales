@@ -36,6 +36,7 @@ export function Navbar({
     { id: 'dashboard', label: 'Executive Analytics', icon: Layers },
     { id: 'entry', label: 'Daily Field Entry', icon: Building2 },
     { id: 'approvals', label: 'Approval Hub', icon: ShieldCheck },
+    { id: 'audit', label: 'Audit Trail', icon: Layers },
   ];
 
   return (
