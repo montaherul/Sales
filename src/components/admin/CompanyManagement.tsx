@@ -53,8 +53,8 @@ export function CompanyManagement() {
             <Building2 className="w-4 h-4" />
           </div>
           <div>
-            <div className="font-semibold text-white">{row.name}</div>
-            <div className="text-[11px] font-mono text-blue-400">{row.code}</div>
+            <div className="font-semibold text-slate-900 dark:text-white">{row.name}</div>
+            <div className="text-[11px] font-mono text-blue-600 dark:text-blue-400">{row.code}</div>
           </div>
         </div>
       ),
@@ -186,16 +186,16 @@ export function CompanyManagement() {
   return (
     <div className="space-y-6">
       {/* Module Overview Banner */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5 rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur-md">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 backdrop-blur-md shadow-sm dark:shadow-none transition-colors duration-200">
         <div className="flex items-center gap-3">
-          <div className="p-3 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400">
+          <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-600/20 border border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400">
             <Building2 className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white tracking-tight">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
               Enterprise Company Management
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Manage parent companies and root organizations for dynamic multi-company scoping and role assignments.
             </p>
           </div>

@@ -81,6 +81,22 @@ export async function clearSessionCookie(): Promise<void> {
   cookieStore.delete(SESSION_COOKIE_NAME);
 }
 
+export function attachSessionCookieToResponse(response: any, user: SessionUser): void {
+  const token = signPayload({
+    user,
+    createdAt: Date.now(),
+    expiresAt: Date.now() + MAX_AGE_SECONDS * 1000,
+  });
+
+  response.cookies.set(SESSION_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: MAX_AGE_SECONDS,
+    path: '/',
+  });
+}
+
 export async function getSessionUser(): Promise<SessionUser | null> {
   try {
     const cookieStore = await cookies();

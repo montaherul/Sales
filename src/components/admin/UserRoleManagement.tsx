@@ -156,8 +156,8 @@ export function UserRoleManagement() {
             {row.full_name?.charAt(0) || 'U'}
           </div>
           <div>
-            <div className="font-semibold text-white">{row.full_name}</div>
-            <div className="text-[11px] text-slate-400 font-mono">{row.email}</div>
+            <div className="font-semibold text-slate-900 dark:text-white">{row.full_name}</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">{row.email}</div>
           </div>
         </div>
       ),
@@ -303,17 +303,17 @@ export function UserRoleManagement() {
   return (
     <div className="space-y-6">
       {/* Module Overview Banner & Filters */}
-      <div className="p-5 rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur-md space-y-4">
+      <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 backdrop-blur-md space-y-4 shadow-sm dark:shadow-none transition-colors duration-200">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-3 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-400">
+            <div className="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-600/20 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
               <Users className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white tracking-tight">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
                 Company-Wise User & Role Directory
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Manage administrators, RSOs, TSOs, and CSRs scoped by enterprise company and operational territory.
               </p>
             </div>
@@ -321,7 +321,7 @@ export function UserRoleManagement() {
 
           <button
             onClick={handleCreateClick}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white shadow-lg shadow-blue-500/20 transition-all"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white shadow-lg shadow-blue-500/20 transition-all cursor-pointer"
           >
             <UserPlus className="w-4 h-4" />
             <span>Create New User</span>
@@ -329,7 +329,7 @@ export function UserRoleManagement() {
         </div>
 
         {/* Generic Select2 Company & Role Filter Toolbar */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2 border-t border-slate-800">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
           <Select2
             label="Filter by Company"
             options={companies}

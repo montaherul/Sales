@@ -135,19 +135,19 @@ export function ApprovalHub({ currentRole }: ApprovalHubProps) {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'DRAFT':
-        return <span className="rounded-full bg-slate-800 text-slate-300 px-2.5 py-0.5 text-[10px] font-medium border border-slate-700">Draft</span>;
+        return <span className="rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-0.5 text-[10px] font-medium border border-slate-200 dark:border-slate-700">Draft</span>;
       case 'SUBMITTED':
-        return <span className="rounded-full bg-blue-950/80 text-blue-400 px-2.5 py-0.5 text-[10px] font-medium border border-blue-800/60">TSO Pending</span>;
+        return <span className="rounded-full bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-400 px-2.5 py-0.5 text-[10px] font-medium border border-blue-200 dark:border-blue-800/60">TSO Pending</span>;
       case 'TSO_APPROVED':
-        return <span className="rounded-full bg-amber-950/80 text-amber-400 px-2.5 py-0.5 text-[10px] font-medium border border-amber-800/60">TSO Approved (RSO Pending)</span>;
+        return <span className="rounded-full bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 px-2.5 py-0.5 text-[10px] font-medium border border-amber-200 dark:border-amber-800/60">TSO Approved (RSO Pending)</span>;
       case 'RSO_APPROVED':
-        return <span className="rounded-full bg-purple-950/80 text-purple-400 px-2.5 py-0.5 text-[10px] font-medium border border-purple-800/60">RSO Verified</span>;
+        return <span className="rounded-full bg-purple-50 dark:bg-purple-950/80 text-purple-700 dark:text-purple-400 px-2.5 py-0.5 text-[10px] font-medium border border-purple-200 dark:border-purple-800/60">RSO Verified</span>;
       case 'FINALIZED':
-        return <span className="rounded-full bg-emerald-950/80 text-emerald-400 px-2.5 py-0.5 text-[10px] font-medium border border-emerald-800/60 flex items-center gap-1"><Lock className="h-2.5 w-2.5" /> Finalized</span>;
+        return <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 px-2.5 py-0.5 text-[10px] font-medium border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-1"><Lock className="h-2.5 w-2.5" /> Finalized</span>;
       case 'REJECTED':
-        return <span className="rounded-full bg-rose-950/80 text-rose-400 px-2.5 py-0.5 text-[10px] font-medium border border-rose-800/60">Rejected</span>;
+        return <span className="rounded-full bg-rose-50 dark:bg-rose-950/80 text-rose-700 dark:text-rose-400 px-2.5 py-0.5 text-[10px] font-medium border border-rose-200 dark:border-rose-800/60">Rejected</span>;
       default:
-        return <span className="rounded-full bg-slate-800 text-slate-400 px-2.5 py-0.5 text-[10px] font-medium">{status}</span>;
+        return <span className="rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2.5 py-0.5 text-[10px] font-medium">{status}</span>;
     }
   };
 
@@ -158,8 +158,8 @@ export function ApprovalHub({ currentRole }: ApprovalHubProps) {
       sortable: true,
       render: (row) => (
         <div>
-          <span className="font-semibold text-white block">{row.territory_name}</span>
-          <span className="text-[10px] text-slate-400">{row.region_name || 'Satkania'}</span>
+          <span className="font-semibold text-slate-900 dark:text-white block">{row.territory_name}</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400">{row.region_name || 'Satkania'}</span>
         </div>
       ),
     },
@@ -167,31 +167,31 @@ export function ApprovalHub({ currentRole }: ApprovalHubProps) {
       key: 'reporting_date',
       header: 'Date',
       sortable: true,
-      render: (row) => <span className="font-mono text-slate-300">{row.reporting_date}</span>,
+      render: (row) => <span className="font-mono text-slate-700 dark:text-slate-300">{row.reporting_date}</span>,
     },
     {
       key: 'total_cigarette_sales',
       header: 'Cig. Sales (Mio)',
       align: 'right',
-      render: (row) => <span className="font-mono font-semibold text-white">{parseFloat(row.total_cigarette_sales || 0).toFixed(2)}</span>,
+      render: (row) => <span className="font-mono font-semibold text-slate-900 dark:text-white">{parseFloat(row.total_cigarette_sales || 0).toFixed(2)}</span>,
     },
     {
       key: 'total_cigarette_stock',
       header: 'Cig. Stock (Mio)',
       align: 'right',
-      render: (row) => <span className="font-mono text-emerald-400">{parseFloat(row.total_cigarette_stock || 0).toFixed(2)}</span>,
+      render: (row) => <span className="font-mono text-emerald-600 dark:text-emerald-400">{parseFloat(row.total_cigarette_stock || 0).toFixed(2)}</span>,
     },
     {
       key: 'total_zarda_sales_value',
       header: 'Zarda (BDT)',
       align: 'right',
-      render: (row) => <span className="font-mono text-amber-300">৳ {parseFloat(row.total_zarda_sales_value || 0).toLocaleString()}</span>,
+      render: (row) => <span className="font-mono text-amber-600 dark:text-amber-300">৳ {parseFloat(row.total_zarda_sales_value || 0).toLocaleString()}</span>,
     },
     {
       key: 'empty_packets',
       header: 'Empty Pkts',
       align: 'right',
-      render: (row) => <span className="font-mono text-slate-300">{parseInt(row.empty_packets || 0, 10).toLocaleString()}</span>,
+      render: (row) => <span className="font-mono text-slate-700 dark:text-slate-300">{parseInt(row.empty_packets || 0, 10).toLocaleString()}</span>,
     },
     {
       key: 'status',
@@ -277,11 +277,11 @@ export function ApprovalHub({ currentRole }: ApprovalHubProps) {
       {/* Top Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-indigo-400" />
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
             <span>Operational Review & Approval Governance</span>
           </h2>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             PostgreSQL-governed verification workflow: Field CSR → TSO Review → RSO Verification → Super Admin Finalization
           </p>
         </div>
@@ -290,7 +290,7 @@ export function ApprovalHub({ currentRole }: ApprovalHubProps) {
           <button
             onClick={() => setTableRefreshKey(k => k + 1)}
             disabled={actionLoading}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 shadow-sm transition-colors cursor-pointer"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${actionLoading ? 'animate-spin' : ''}`} />
             <span>Refresh Table</span>
@@ -299,9 +299,9 @@ export function ApprovalHub({ currentRole }: ApprovalHubProps) {
       </div>
 
       {/* Filter Strip */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4 backdrop-blur-sm grid grid-cols-1 sm:grid-cols-2 gap-4 shadow-sm">
         <div>
-          <label className="text-[11px] font-medium text-slate-400 mb-1 block">Workflow Status Filter</label>
+          <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 block">Workflow Status Filter</label>
           <Select2
             value={statusFilter}
             onChange={(val) => setStatusFilter(val)}
@@ -318,9 +318,9 @@ export function ApprovalHub({ currentRole }: ApprovalHubProps) {
         </div>
 
         <div>
-          <label className="text-[11px] font-medium text-slate-400 mb-1 block">Active Role Scope</label>
+          <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 block">Active Role Scope</label>
           <div className="flex items-center gap-2 pt-1">
-            <span className="font-mono text-xs px-2.5 py-1 rounded-md bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 font-semibold">
+            <span className="font-mono text-xs px-2.5 py-1 rounded-md bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 font-semibold">
               Acting Role: {currentRole}
             </span>
           </div>
@@ -341,20 +341,20 @@ export function ApprovalHub({ currentRole }: ApprovalHubProps) {
 
       {/* Reject Modal */}
       {rejectingRecord && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl space-y-4">
-            <div className="flex items-center gap-2 text-rose-400">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
               <AlertTriangle className="h-5 w-5" />
-              <h3 className="font-bold text-white text-sm">Reject Submission</h3>
+              <h3 className="font-bold text-slate-900 dark:text-white text-sm">Reject Submission</h3>
             </div>
-            <p className="text-xs text-slate-400">
-              Rejecting submission for <strong className="text-white">{rejectingRecord.territory_name}</strong> on {rejectingRecord.reporting_date}. A mandatory reason is required to notify the submitter.
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Rejecting submission for <strong className="text-slate-900 dark:text-white">{rejectingRecord.territory_name}</strong> on {rejectingRecord.reporting_date}. A mandatory reason is required to notify the submitter.
             </p>
             <textarea
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               placeholder="Provide explicit operational rejection rationale..."
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 p-2.5 text-xs text-white focus:border-rose-500 focus:outline-none min-h-[90px]"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-2.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:border-rose-500 focus:outline-none min-h-[90px]"
             />
             <div className="flex items-center justify-end gap-2">
               <button
@@ -363,14 +363,14 @@ export function ApprovalHub({ currentRole }: ApprovalHubProps) {
                   setRejectReason('');
                 }}
                 disabled={actionLoading}
-                className="rounded-lg border border-slate-800 px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800"
+                className="rounded-lg border border-slate-300 dark:border-slate-800 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmReject}
                 disabled={!rejectReason.trim() || actionLoading}
-                className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
+                className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500 disabled:opacity-50 cursor-pointer shadow"
               >
                 {actionLoading ? 'Rejecting...' : 'Confirm Rejection'}
               </button>
@@ -381,20 +381,20 @@ export function ApprovalHub({ currentRole }: ApprovalHubProps) {
 
       {/* Unlock Modal (Super Admin Only) */}
       {unlockingRecord && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-xl border border-amber-900/50 bg-slate-900 p-6 shadow-2xl space-y-4">
-            <div className="flex items-center gap-2 text-amber-400">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-xl border border-amber-300 dark:border-amber-900/50 bg-white dark:bg-slate-900 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
               <Unlock className="h-5 w-5" />
-              <h3 className="font-bold text-white text-sm">Super Admin Unlock Protocol</h3>
+              <h3 className="font-bold text-slate-900 dark:text-white text-sm">Super Admin Unlock Protocol</h3>
             </div>
-            <p className="text-xs text-slate-400">
-              Per Rule 10 & 26: Once finalized, records are immutable. Unlocking <strong className="text-white">{unlockingRecord.territory_name}</strong> requires an audited justification.
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Per Rule 10 & 26: Once finalized, records are immutable. Unlocking <strong className="text-slate-900 dark:text-white">{unlockingRecord.territory_name}</strong> requires an audited justification.
             </p>
             <textarea
               value={unlockReason}
               onChange={(e) => setUnlockReason(e.target.value)}
               placeholder="State governance reason for unlocking finalized submission..."
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 p-2.5 text-xs text-white focus:border-amber-500 focus:outline-none min-h-[90px]"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-2.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:border-amber-500 focus:outline-none min-h-[90px]"
             />
             <div className="flex items-center justify-end gap-2">
               <button
@@ -403,14 +403,14 @@ export function ApprovalHub({ currentRole }: ApprovalHubProps) {
                   setUnlockReason('');
                 }}
                 disabled={actionLoading}
-                className="rounded-lg border border-slate-800 px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800"
+                className="rounded-lg border border-slate-300 dark:border-slate-800 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmUnlock}
                 disabled={!unlockReason.trim() || actionLoading}
-                className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-500 disabled:opacity-50"
+                className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-500 disabled:opacity-50 cursor-pointer shadow"
               >
                 {actionLoading ? 'Unlocking...' : 'Audit & Unlock'}
               </button>

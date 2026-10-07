@@ -95,8 +95,8 @@ export function MasterHierarchyManagement() {
       sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2">
-          <MapPin className="w-4 h-4 text-cyan-400 shrink-0" />
-          <span className="font-semibold text-white">{row.territory_name}</span>
+          <MapPin className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />
+          <span className="font-semibold text-slate-900 dark:text-white">{row.territory_name}</span>
         </div>
       ),
     },
@@ -105,8 +105,8 @@ export function MasterHierarchyManagement() {
       header: 'Region / Wing / Division',
       render: (row) => (
         <div className="text-xs">
-          <div className="text-slate-200 font-medium">{row.region_name}</div>
-          <div className="text-[10px] text-slate-500">{row.wing_name} • {row.division_name}</div>
+          <div className="text-slate-800 dark:text-slate-200 font-medium">{row.region_name}</div>
+          <div className="text-[10px] text-slate-500 dark:text-slate-400">{row.wing_name} • {row.division_name}</div>
         </div>
       ),
     },
@@ -114,8 +114,8 @@ export function MasterHierarchyManagement() {
       key: 'company_name',
       header: 'Parent Company',
       render: (row) => (
-        <span className="inline-flex items-center gap-1 text-slate-300">
-          <Building2 className="w-3.5 h-3.5 text-blue-400" />
+        <span className="inline-flex items-center gap-1 text-slate-700 dark:text-slate-300">
+          <Building2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
           {row.company_name}
         </span>
       ),
@@ -126,7 +126,7 @@ export function MasterHierarchyManagement() {
       align: 'center',
       sortable: true,
       render: (row) => (
-        <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+        <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
           #{row.sort_order}
         </span>
       ),
@@ -143,13 +143,13 @@ export function MasterHierarchyManagement() {
               setModalMode('edit');
               setModalOpen(true);
             }}
-            className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-blue-400"
+            className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
           >
             <Edit className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => handleDelete('/api/hierarchy', row.id)}
-            className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-rose-400"
+            className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
@@ -190,8 +190,8 @@ export function MasterHierarchyManagement() {
       sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2">
-          <Tag className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span className="font-semibold text-white">{row.name}</span>
+          <Tag className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <span className="font-semibold text-slate-900 dark:text-white">{row.name}</span>
         </div>
       ),
     },
@@ -203,8 +203,8 @@ export function MasterHierarchyManagement() {
         <span
           className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide border ${
             row.type === 'CIGARETTE'
-              ? 'bg-blue-950/70 text-blue-300 border-blue-800'
-              : 'bg-amber-950/70 text-amber-300 border-amber-800'
+              ? 'bg-blue-100 dark:bg-blue-950/70 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-800'
+              : 'bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800'
           }`}
         >
           {row.type}
@@ -216,7 +216,7 @@ export function MasterHierarchyManagement() {
       header: 'Unit Price (BDT)',
       align: 'right',
       render: (row) => (
-        <span className="font-mono font-semibold text-emerald-400">
+        <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
           {row.unit_price ? `BDT ${parseFloat(row.unit_price).toFixed(2)}` : '—'}
         </span>
       ),
@@ -226,7 +226,7 @@ export function MasterHierarchyManagement() {
       header: 'Status',
       align: 'center',
       render: (row) => (
-        <span className={`inline-flex items-center gap-1 text-[11px] ${row.is_active ? 'text-emerald-400' : 'text-slate-500'}`}>
+        <span className={`inline-flex items-center gap-1 text-[11px] ${row.is_active ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
           {row.is_active ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
           {row.is_active ? 'Active' : 'Inactive'}
         </span>
@@ -244,13 +244,13 @@ export function MasterHierarchyManagement() {
               setModalMode('edit');
               setModalOpen(true);
             }}
-            className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-blue-400"
+            className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
           >
             <Edit className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => handleDelete('/api/brands', row.id)}
-            className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-rose-400"
+            className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
@@ -304,15 +304,15 @@ export function MasterHierarchyManagement() {
       key: 'territory_name',
       header: 'Territory',
       sortable: true,
-      render: (row) => <span className="font-semibold text-white">{row.territory_name}</span>,
+      render: (row) => <span className="font-semibold text-slate-900 dark:text-white">{row.territory_name}</span>,
     },
     {
       key: 'brand_name',
       header: 'Brand',
       sortable: true,
       render: (row) => (
-        <span className="font-medium text-slate-300">
-          {row.brand_name} <span className="text-[10px] text-slate-500 font-mono">({row.brand_type})</span>
+        <span className="font-medium text-slate-700 dark:text-slate-300">
+          {row.brand_name} <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">({row.brand_type})</span>
         </span>
       ),
     },
@@ -322,7 +322,7 @@ export function MasterHierarchyManagement() {
       align: 'right',
       sortable: true,
       render: (row) => (
-        <span className="font-mono font-bold text-blue-400">
+        <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
           {parseFloat(row.target_quantity || 0).toFixed(2)}
         </span>
       ),
@@ -331,13 +331,13 @@ export function MasterHierarchyManagement() {
       key: 'route_count',
       header: 'Routes',
       align: 'center',
-      render: (row) => <span className="text-slate-400 font-mono">{row.route_count || 0}</span>,
+      render: (row) => <span className="text-slate-600 dark:text-slate-400 font-mono">{row.route_count || 0}</span>,
     },
     {
       key: 'outlet_count',
       header: 'Outlets',
       align: 'center',
-      render: (row) => <span className="text-slate-400 font-mono">{row.outlet_count || 0}</span>,
+      render: (row) => <span className="text-slate-600 dark:text-slate-400 font-mono">{row.outlet_count || 0}</span>,
     },
     {
       key: 'actions',
@@ -351,13 +351,13 @@ export function MasterHierarchyManagement() {
               setModalMode('edit');
               setModalOpen(true);
             }}
-            className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-blue-400"
+            className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
           >
             <Edit className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => handleDelete('/api/targets', row.id)}
-            className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-rose-400"
+            className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
@@ -440,17 +440,17 @@ export function MasterHierarchyManagement() {
   return (
     <div className="space-y-6">
       {/* Module Overview Banner */}
-      <div className="p-5 rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur-md space-y-4">
+      <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 backdrop-blur-md shadow-sm space-y-4">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-3 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400">
+            <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-600/20 border border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400">
               <Building2 className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white tracking-tight">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
                 Master Hierarchy, Pricing & Target Suite
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Configure Company-Scoped Divisions, Wings, Regions, Territories, Product Pricing, and Monthly Territory Targets.
               </p>
             </div>
@@ -462,7 +462,7 @@ export function MasterHierarchyManagement() {
               setModalMode('create');
               setModalOpen(true);
             }}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white shadow-lg shadow-blue-500/20 transition-all"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white shadow-lg shadow-blue-500/20 transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>
@@ -476,14 +476,14 @@ export function MasterHierarchyManagement() {
         </div>
 
         {/* Company Filter via Select2 & Navigation Tabs */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-3 border-t border-slate-800">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-3 border-t border-slate-200 dark:border-slate-800">
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setActiveTab('TERRITORIES')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === 'TERRITORIES'
                   ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                  : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-900'
               }`}
             >
               <MapPin className="w-3.5 h-3.5" />
@@ -492,10 +492,10 @@ export function MasterHierarchyManagement() {
 
             <button
               onClick={() => setActiveTab('BRANDS')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === 'BRANDS'
                   ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                  : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-900'
               }`}
             >
               <Tag className="w-3.5 h-3.5" />
@@ -504,10 +504,10 @@ export function MasterHierarchyManagement() {
 
             <button
               onClick={() => setActiveTab('TARGETS')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === 'TARGETS'
                   ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                  : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-900'
               }`}
             >
               <Target className="w-3.5 h-3.5" />

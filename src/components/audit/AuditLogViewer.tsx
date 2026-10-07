@@ -136,23 +136,23 @@ export function AuditLogViewer() {
   return (
     <div className="space-y-6">
       {/* Overview Banner & Filters */}
-      <div className="p-5 rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur-md space-y-4">
+      <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 backdrop-blur-md space-y-4 shadow-sm dark:shadow-none transition-colors duration-200">
         <div className="flex items-center gap-3">
-          <div className="p-3 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400">
+          <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-600/20 border border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400">
             <History className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white tracking-tight">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
               Enterprise Immutable Audit & Governance Trail
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Chronological, tamper-proof record of every operational entry, approval transition, unlock, price revision, and cloud archive.
             </p>
           </div>
         </div>
 
         {/* Generic Select2 Filter Toolbar */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-3 border-t border-slate-800">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
           <Select2
             label="Filter by Event Action"
             options={eventTypeOptions}
@@ -189,35 +189,35 @@ export function AuditLogViewer() {
 
       {/* Payload Inspection Modal */}
       {expandedLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-slate-800 bg-slate-900 shadow-2xl flex flex-col max-h-[85vh]">
-            <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4 bg-slate-950/70">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl flex flex-col max-h-[85vh] transition-colors duration-200">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 py-4 bg-slate-50 dark:bg-slate-950/70">
               <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-400" />
-                <h3 className="text-sm font-bold text-white">
-                  Audit Event Payload: <span className="text-blue-400">{expandedLog.event_type}</span>
+                <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Audit Event Payload: <span className="text-blue-600 dark:text-blue-400">{expandedLog.event_type}</span>
                 </h3>
               </div>
               <button
                 onClick={() => setExpandedLog(null)}
-                className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-slate-800"
+                className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white text-xs px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors cursor-pointer"
               >
                 Close
               </button>
             </div>
 
             <div className="p-6 overflow-y-auto space-y-4 text-xs font-mono">
-              <div className="grid grid-cols-2 gap-2 text-slate-300 border-b border-slate-800 pb-3">
-                <div>Entity: <strong className="text-white">{expandedLog.entity_name}</strong></div>
-                <div>Record ID: <strong className="text-white">{expandedLog.entity_id}</strong></div>
-                <div>User: <strong className="text-white">{expandedLog.user_email || 'System'}</strong></div>
-                <div>Timestamp: <strong className="text-white">{expandedLog.created_at}</strong></div>
+              <div className="grid grid-cols-2 gap-2 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 pb-3">
+                <div>Entity: <strong className="text-slate-900 dark:text-white">{expandedLog.entity_name}</strong></div>
+                <div>Record ID: <strong className="text-slate-900 dark:text-white">{expandedLog.entity_id}</strong></div>
+                <div>User: <strong className="text-slate-900 dark:text-white">{expandedLog.user_email || 'System'}</strong></div>
+                <div>Timestamp: <strong className="text-slate-900 dark:text-white">{expandedLog.created_at}</strong></div>
               </div>
 
               {expandedLog.old_values && (
                 <div>
-                  <h4 className="text-rose-400 font-bold mb-1">Old Values (Previous State):</h4>
-                  <pre className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 overflow-x-auto">
+                  <h4 className="text-rose-600 dark:text-rose-400 font-bold mb-1 font-sans">Old Values (Previous State):</h4>
+                  <pre className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-300 overflow-x-auto">
                     {typeof expandedLog.old_values === 'string'
                       ? expandedLog.old_values
                       : JSON.stringify(expandedLog.old_values, null, 2)}
@@ -227,8 +227,8 @@ export function AuditLogViewer() {
 
               {expandedLog.new_values && (
                 <div>
-                  <h4 className="text-emerald-400 font-bold mb-1">New Values (Modified State):</h4>
-                  <pre className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 overflow-x-auto">
+                  <h4 className="text-emerald-600 dark:text-emerald-400 font-bold mb-1 font-sans">New Values (Modified State):</h4>
+                  <pre className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-300 overflow-x-auto">
                     {typeof expandedLog.new_values === 'string'
                       ? expandedLog.new_values
                       : JSON.stringify(expandedLog.new_values, null, 2)}

@@ -59,6 +59,17 @@
   - `UserRoleManagement.tsx` & `/api/users`: Company-wise user directory with Select2 company filter and scoped role assignments (`SUPER_ADMIN`, `RSO`, `TSO`, `CSR`).
   - `MasterHierarchyManagement.tsx` & `/api/hierarchy`, `/api/brands`, `/api/targets`: Dynamic CRUD for Territories, Product Pricing, and Targets.
   - `MenuManagement.tsx` & `/api/menu-management`: Role-Wise Menu Access (RWMA) and User-Wise Menu Access (UWMA) with Select2 user selection.
-- [x] Verified full Next.js 15 production build (`npm run build`) with all 22 static and dynamic routes compiling cleanly with 0 errors.
+- [x] Implemented Enterprise Authentication & Onboarding:
+  - `src/components/auth/LoginPage.tsx`: Enterprise login portal with role quick-fill buttons (`admin@afaztobacco.com`, `rso.satkania@afaztobacco.com`, etc. with default pass `123`).
+  - Google OAuth integration with Supabase SSR PKCE exchange and hash fragment fallback.
+  - Supabase OAuth Callback: `https://plqhblngwyxnovxvhaao.supabase.co/auth/v1/callback` integrated and documented with quick copy-to-clipboard button.
+  - Strict Enterprise RBAC check: Unprovisioned Google logins are rejected with descriptive guidance to contact their Super Admin.
+  - `src/components/auth/OnboardingModal.tsx`: Mandatory initial password change and profile completion modal for new or reset users.
+- [x] Implemented Comprehensive Adaptive Dark & Light Theme System:
+  - `src/components/theme/ThemeProvider.tsx`: Persistent theme state (`afaz_theme`) with `dark`, `light`, and system preference detection.
+  - `src/components/theme/ThemeToggle.tsx`: Animated toggle button with sun/moon icons and tooltip.
+  - `src/app/globals.css`: Tailwind CSS v4 `@custom-variant dark` configuration with synchronized `:root` and `.dark` CSS tokens.
+  - Full theme adaptation across all platform surfaces: Navbar, Sidebar, Executive Dashboard, Daily Sales Grid, Approval Hub, Company Management, User & Role Management, Menu Management, Master Hierarchy, Audit Log Viewer, Dynamic CRUD Modal, Select2, ServerDataTable, Import Modal, and Drive Upload Widget.
+- [x] Verified full Next.js 15 production build (`npm run build`) with all 29 static and dynamic routes compiling cleanly with 0 errors.
 - [x] Verified local server HTTP 200 response on `http://localhost:3000`.
 - [x] Committed and pushed to GitHub `https://github.com/montaherul/Sales.git` on `main`.

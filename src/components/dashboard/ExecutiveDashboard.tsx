@@ -142,8 +142,8 @@ export function ExecutiveDashboard() {
       {/* Top Welcome & Subtitle */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-bold text-white tracking-tight">Executive Operations Dashboard</h2>
-          <p className="text-xs text-slate-400">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Executive Operations Dashboard</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Real-time sales pacing, closing stock monitoring & Supabase PostgreSQL aggregation overview
           </p>
         </div>
@@ -153,13 +153,13 @@ export function ExecutiveDashboard() {
             type="date"
             value={reportDate}
             onChange={(e) => setReportDate(e.target.value)}
-            className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-white focus:border-blue-500 focus:outline-none font-mono"
+            className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:border-blue-500 focus:outline-none font-mono"
           />
 
           <button
             onClick={() => fetchDashboardData(reportDate)}
             disabled={loading}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>Refresh</span>
@@ -170,88 +170,88 @@ export function ExecutiveDashboard() {
       {/* KPI Metrics Ribbon */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {/* Metric 1 */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm shadow-sm dark:shadow-none">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Total Cigarette Sales</span>
-            <div className="rounded-lg bg-blue-950/60 p-2 text-blue-400 border border-blue-800/40">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Cigarette Sales</span>
+            <div className="rounded-lg bg-blue-50 dark:bg-blue-950/60 p-2 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/40">
               <TrendingUp className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-white font-mono">{metrics.totalCigSales}</span>
+            <span className="text-2xl font-bold text-slate-900 dark:text-white font-mono">{metrics.totalCigSales}</span>
             <span className="ml-1 text-xs text-slate-400">Mio Sticks</span>
           </div>
-          <p className="mt-1 text-[11px] text-emerald-400 font-medium">All 5 territories recorded</p>
+          <p className="mt-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">All 5 territories recorded</p>
         </div>
 
         {/* Metric 2 */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm shadow-sm dark:shadow-none">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Cigarette Closing Stock</span>
-            <div className="rounded-lg bg-emerald-950/60 p-2 text-emerald-400 border border-emerald-800/40">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Cigarette Closing Stock</span>
+            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/60 p-2 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">
               <Layers className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-white font-mono">{metrics.totalCigStock}</span>
+            <span className="text-2xl font-bold text-slate-900 dark:text-white font-mono">{metrics.totalCigStock}</span>
             <span className="ml-1 text-xs text-slate-400">Mio Sticks</span>
           </div>
-          <p className="mt-1 text-[11px] text-slate-400 font-medium">Warehouse & Route buffer</p>
+          <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 font-medium">Warehouse & Route buffer</p>
         </div>
 
         {/* Metric 3 */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm shadow-sm dark:shadow-none">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Daily Average (ADS)</span>
-            <div className="rounded-lg bg-purple-950/60 p-2 text-purple-400 border border-purple-800/40">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Daily Average (ADS)</span>
+            <div className="rounded-lg bg-purple-50 dark:bg-purple-950/60 p-2 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800/40">
               <Target className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-white font-mono">{metrics.ads}</span>
+            <span className="text-2xl font-bold text-slate-900 dark:text-white font-mono">{metrics.ads}</span>
             <span className="ml-1 text-xs text-slate-400">Mio/Day</span>
           </div>
-          <p className="mt-1 text-[11px] text-emerald-400 font-medium">Standard 26 working days</p>
+          <p className="mt-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">Standard 26 working days</p>
         </div>
 
         {/* Metric 4 */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm shadow-sm dark:shadow-none">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Zarda Sales Value</span>
-            <div className="rounded-lg bg-amber-950/60 p-2 text-amber-400 border border-amber-800/40">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Zarda Sales Value</span>
+            <div className="rounded-lg bg-amber-50 dark:bg-amber-950/60 p-2 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40">
               <Coins className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-white font-mono">৳ {metrics.totalZardaValue.toLocaleString()}</span>
+            <span className="text-2xl font-bold text-slate-900 dark:text-white font-mono">৳ {metrics.totalZardaValue.toLocaleString()}</span>
           </div>
-          <p className="mt-1 text-[11px] text-amber-400 font-medium">22/25, 99/14, 33/15 pouches</p>
+          <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium">22/25, 99/14, 33/15 pouches</p>
         </div>
 
         {/* Metric 5 */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm shadow-sm dark:shadow-none">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Empty Packets</span>
-            <div className="rounded-lg bg-rose-950/60 p-2 text-rose-400 border border-rose-800/40">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Empty Packets</span>
+            <div className="rounded-lg bg-rose-50 dark:bg-rose-950/60 p-2 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/40">
               <PackageCheck className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-white font-mono">{metrics.totalEmptyPackets.toLocaleString()}</span>
+            <span className="text-2xl font-bold text-slate-900 dark:text-white font-mono">{metrics.totalEmptyPackets.toLocaleString()}</span>
             <span className="ml-1 text-xs text-slate-400">Units</span>
           </div>
-          <p className="mt-1 text-[11px] text-slate-400 font-medium">Express promotion return</p>
+          <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 font-medium">Express promotion return</p>
         </div>
       </div>
 
       {/* Visual Analytics Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Pacing Chart */}
-        <div className="lg:col-span-2 rounded-xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm space-y-4">
+        <div className="lg:col-span-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-5 backdrop-blur-sm space-y-4 shadow-sm dark:shadow-none">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-white">Daily Sales Pacing vs Target ADS</h3>
-              <p className="text-xs text-slate-400">Comparison of daily actual sales against standard target ADS</p>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Daily Sales Pacing vs Target ADS</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Comparison of daily actual sales against standard target ADS</p>
             </div>
           </div>
           <div className="h-64 w-full">
@@ -263,11 +263,11 @@ export function ExecutiveDashboard() {
                     <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" className="stroke-slate-200 dark:stroke-slate-800" />
                 <XAxis dataKey="day" stroke="#64748b" textAnchor="end" fontSize={11} />
                 <YAxis stroke="#64748b" fontSize={11} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '12px' }}
+                  contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)', borderRadius: '8px', fontSize: '12px' }}
                 />
                 <Area type="monotone" dataKey="sales" stroke="#3b82f6" fillOpacity={1} fill="url(#salesGrad)" name="Sales (Mio)" />
               </AreaChart>
@@ -276,10 +276,10 @@ export function ExecutiveDashboard() {
         </div>
 
         {/* Brand Distribution Donut */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm space-y-4">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-5 backdrop-blur-sm space-y-4 shadow-sm dark:shadow-none">
           <div>
-            <h3 className="text-sm font-bold text-white">Brand Sales Volume Mix</h3>
-            <p className="text-xs text-slate-400">Actual sales distribution across cigarette brands</p>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Brand Sales Volume Mix</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Actual sales distribution across cigarette brands</p>
           </div>
           <div className="h-52 w-full flex items-center justify-center">
             <ResponsiveContainer width="100%" height="100%">
@@ -298,7 +298,7 @@ export function ExecutiveDashboard() {
                   ))}
                 </Pie>
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '12px' }}
+                  contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)', borderRadius: '8px', fontSize: '12px' }}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -307,8 +307,8 @@ export function ExecutiveDashboard() {
             {brandShareData.map((b) => (
               <div key={b.name} className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: b.color }}></span>
-                <span className="text-slate-300 font-medium">{b.name}</span>
-                <span className="text-slate-400 ml-auto font-mono">{b.value}M</span>
+                <span className="text-slate-700 dark:text-slate-300 font-medium">{b.name}</span>
+                <span className="text-slate-500 dark:text-slate-400 ml-auto font-mono">{b.value}M</span>
               </div>
             ))}
           </div>
@@ -316,21 +316,21 @@ export function ExecutiveDashboard() {
       </div>
 
       {/* Territory Performance Table */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-5 backdrop-blur-sm space-y-4 shadow-sm dark:shadow-none">
+        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
           <div>
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Award className="h-4 w-4 text-amber-400" />
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Award className="h-4 w-4 text-amber-500 dark:text-amber-400" />
               <span>Satkania Region Territory Performance Summary</span>
             </h3>
-            <p className="text-xs text-slate-400">Live operational figures recorded across all assigned territories</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Live operational figures recorded across all assigned territories</p>
           </div>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left">
             <thead>
-              <tr className="border-b border-slate-800 text-slate-400 font-semibold">
+              <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold">
                 <th className="pb-2">Territory</th>
                 <th className="pb-2 text-right">Daily Cigarette Sales (Mio)</th>
                 <th className="pb-2 text-right">Closing Stock (Mio)</th>
@@ -338,15 +338,15 @@ export function ExecutiveDashboard() {
                 <th className="pb-2 text-right">Target Achievement</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 font-mono">
+            <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800/60 font-mono">
               {territoryLeaderboard.map((t) => (
-                <tr key={t.name} className="hover:bg-slate-800/30">
-                  <td className="py-2.5 font-sans font-medium text-white">{t.name}</td>
-                  <td className="py-2.5 text-right font-bold text-blue-400">{t.sales.toFixed(2)}</td>
-                  <td className="py-2.5 text-right text-emerald-400">{t.stock.toFixed(2)}</td>
-                  <td className="py-2.5 text-right text-amber-300">৳ {t.zarda.toLocaleString()}</td>
+                <tr key={t.name} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-2.5 font-sans font-medium text-slate-900 dark:text-white">{t.name}</td>
+                  <td className="py-2.5 text-right font-bold text-blue-600 dark:text-blue-400">{t.sales.toFixed(2)}</td>
+                  <td className="py-2.5 text-right text-emerald-600 dark:text-emerald-400">{t.stock.toFixed(2)}</td>
+                  <td className="py-2.5 text-right text-amber-600 dark:text-amber-300">৳ {t.zarda.toLocaleString()}</td>
                   <td className="py-2.5 text-right">
-                    <span className="inline-block rounded bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-200">
+                    <span className="inline-block rounded bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-800 dark:text-slate-200">
                       {t.achievement}%
                     </span>
                   </td>

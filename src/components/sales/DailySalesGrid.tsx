@@ -456,9 +456,9 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
       {viewMode === 'listing' && (
         <div className="space-y-4">
           {/* Quick Filters Strip */}
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm grid grid-cols-1 sm:grid-cols-3 gap-3 shadow-sm dark:shadow-none transition-colors duration-200">
             <div>
-              <label className="text-[11px] font-medium text-slate-400 mb-1 block">Filter by Territory</label>
+              <label className="text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1 block">Filter by Territory</label>
               <Select2
                 value={selectedTerritoryId}
                 onChange={(val) => setSelectedTerritoryId(val)}
@@ -471,7 +471,7 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
             </div>
 
             <div>
-              <label className="text-[11px] font-medium text-slate-400 mb-1 block">Filter by Status</label>
+              <label className="text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1 block">Filter by Status</label>
               <Select2
                 value={filterStatus}
                 onChange={(val) => setFilterStatus(val)}
@@ -491,7 +491,7 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
             <div className="flex items-end gap-2">
               <button
                 onClick={handleCreateNew}
-                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 shadow-sm transition-all"
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 shadow-sm transition-all cursor-pointer"
               >
                 <PlusCircle className="h-4 w-4" />
                 <span>Create New Daily Entry</span>
@@ -519,18 +519,18 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
       {viewMode === 'form' && (
         <div className="space-y-6">
           {/* Form Context Header Bar */}
-          <div className="flex items-center justify-between bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+          <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-200 dark:border-slate-800 transition-colors duration-200">
             <button
               onClick={() => setViewMode('listing')}
-              className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white transition-colors"
+              className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
             >
               <ArrowLeft className="h-4 w-4" />
               <span>Back to Submissions History</span>
             </button>
 
             <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-400">
-                Mode: <strong className="text-white uppercase">{formMode}</strong>
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                Mode: <strong className="text-slate-900 dark:text-white uppercase">{formMode}</strong>
               </span>
               {getStatusBadge(currentStatus)}
             </div>
@@ -538,16 +538,16 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
 
           {/* Submission Feedback Alert */}
           {submittedStatus && (
-            <div className="flex items-center gap-2 rounded-xl bg-emerald-950/40 border border-emerald-800/60 p-3 text-xs text-emerald-300">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+            <div className="flex items-center gap-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 p-3 text-xs text-emerald-800 dark:text-emerald-300">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <span>{submittedStatus}</span>
             </div>
           )}
 
           {/* Operational Scope Strip */}
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm grid grid-cols-1 sm:grid-cols-3 gap-4 shadow-sm dark:shadow-none transition-colors duration-200">
             <div>
-              <label className="text-xs text-slate-400 block mb-1">Operational Territory Scope</label>
+              <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1">Operational Territory Scope</label>
               <Select2
                 value={selectedTerritoryId}
                 onChange={handleTerritoryChange}
@@ -562,67 +562,67 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
             </div>
 
             <div>
-              <label className="text-xs text-slate-400 block mb-1">Reporting Date</label>
+              <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1">Reporting Date</label>
               <div className="relative">
                 <input
                   type="date"
                   value={reportDate}
                   disabled={isReadOnly}
                   onChange={(e) => setReportDate(e.target.value)}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none font-mono disabled:opacity-50"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-blue-500 focus:outline-none font-mono disabled:opacity-50"
                 />
               </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-4">
               <div className="text-right">
-                <span className="text-[11px] text-slate-400 block">Record Status</span>
-                <span className="text-xs font-mono font-bold text-blue-400">{currentStatus}</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Record Status</span>
+                <span className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400">{currentStatus}</span>
               </div>
             </div>
           </div>
 
           {/* KPI Calculation Strip */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3.5">
-              <span className="text-[11px] text-slate-400 block">Total Cigarette Sales</span>
-              <span className="text-lg font-bold text-white font-mono">{totalSales.toFixed(2)}</span>
-              <span className="text-[10px] text-slate-500 block">Million Sticks</span>
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/40 p-3.5 shadow-sm dark:shadow-none">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Total Cigarette Sales</span>
+              <span className="text-lg font-bold text-slate-900 dark:text-white font-mono">{totalSales.toFixed(2)}</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block">Million Sticks</span>
             </div>
 
-            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3.5">
-              <span className="text-[11px] text-emerald-400 block">Total Cigarette Stock</span>
-              <span className="text-lg font-bold text-emerald-300 font-mono">{totalStock.toFixed(2)}</span>
-              <span className="text-[10px] text-slate-500 block">Million Sticks</span>
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/40 p-3.5 shadow-sm dark:shadow-none">
+              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 block">Total Cigarette Stock</span>
+              <span className="text-lg font-bold text-emerald-600 dark:text-emerald-300 font-mono">{totalStock.toFixed(2)}</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block">Million Sticks</span>
             </div>
 
-            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3.5">
-              <span className="text-[11px] text-amber-400 block">Total Zarda Sales</span>
-              <span className="text-lg font-bold text-amber-300 font-mono">৳ {totalZardaSales.toLocaleString()}</span>
-              <span className="text-[10px] text-slate-500 block">BDT Valuation</span>
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/40 p-3.5 shadow-sm dark:shadow-none">
+              <span className="text-[11px] text-amber-600 dark:text-amber-400 block">Total Zarda Sales</span>
+              <span className="text-lg font-bold text-amber-600 dark:text-amber-300 font-mono">৳ {totalZardaSales.toLocaleString()}</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block">BDT Valuation</span>
             </div>
 
-            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3.5">
-              <span className="text-[11px] text-indigo-400 block">Total Zarda Stock</span>
-              <span className="text-lg font-bold text-indigo-300 font-mono">৳ {totalZardaStock.toLocaleString()}</span>
-              <span className="text-[10px] text-slate-500 block">BDT Valuation</span>
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/40 p-3.5 shadow-sm dark:shadow-none">
+              <span className="text-[11px] text-indigo-600 dark:text-indigo-400 block">Total Zarda Stock</span>
+              <span className="text-lg font-bold text-indigo-600 dark:text-indigo-300 font-mono">৳ {totalZardaStock.toLocaleString()}</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block">BDT Valuation</span>
             </div>
           </div>
 
           {/* Form Sections */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* 1. Cigarette Brands */}
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm space-y-4">
-              <h3 className="text-sm font-bold text-white border-b border-slate-800 pb-2">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-5 backdrop-blur-sm space-y-4 shadow-sm dark:shadow-none transition-colors duration-200">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 pb-2">
                 1. Cigarette Brands (Million Sticks)
               </h3>
               <div className="grid grid-cols-2 gap-4 text-xs">
                 {/* Sales Columns */}
                 <div className="space-y-3">
-                  <span className="font-semibold text-slate-300 block">Daily Sales</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-300 block">Daily Sales</span>
                   {(['wilson', 'shahara', 'express', 'nexus', 'sb', 'sm'] as const).map((brand) => (
                     <div key={brand}>
-                      <label className="text-slate-400 capitalize block mb-1">{brand}</label>
+                      <label className="text-slate-600 dark:text-slate-400 capitalize block mb-1">{brand}</label>
                       <input
                         type="number"
                         step="0.01"
@@ -630,7 +630,7 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
                         value={sales[brand] === 0 ? '' : sales[brand]}
                         placeholder="0.00"
                         onChange={(e) => setSales({ ...sales, [brand]: parseFloat(e.target.value) || 0 })}
-                        className="w-full rounded border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-right text-xs text-white focus:border-blue-500 focus:outline-none font-mono disabled:opacity-50"
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2.5 py-1.5 text-right text-xs text-slate-900 dark:text-white focus:border-blue-500 focus:outline-none font-mono disabled:opacity-50"
                       />
                     </div>
                   ))}
@@ -638,10 +638,10 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
 
                 {/* Stock Columns */}
                 <div className="space-y-3">
-                  <span className="font-semibold text-emerald-400 block">Closing Stock</span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400 block">Closing Stock</span>
                   {(['wilson', 'shahara', 'express', 'nexus', 'sb', 'sm'] as const).map((brand) => (
                     <div key={brand}>
-                      <label className="text-slate-400 capitalize block mb-1">{brand}</label>
+                      <label className="text-slate-600 dark:text-slate-400 capitalize block mb-1">{brand}</label>
                       <input
                         type="number"
                         step="0.01"
@@ -649,7 +649,7 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
                         value={stock[brand] === 0 ? '' : stock[brand]}
                         placeholder="0.00"
                         onChange={(e) => setStock({ ...stock, [brand]: parseFloat(e.target.value) || 0 })}
-                        className="w-full rounded border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-right text-xs text-white focus:border-emerald-500 focus:outline-none font-mono disabled:opacity-50"
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2.5 py-1.5 text-right text-xs text-slate-900 dark:text-white focus:border-emerald-500 focus:outline-none font-mono disabled:opacity-50"
                       />
                     </div>
                   ))}
@@ -658,16 +658,16 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
             </div>
 
             {/* 2. Zarda Brands */}
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm space-y-4">
-              <h3 className="text-sm font-bold text-white border-b border-slate-800 pb-2">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-5 backdrop-blur-sm space-y-4 shadow-sm dark:shadow-none transition-colors duration-200">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 pb-2">
                 2. Zarda Operations (Qty & Value)
               </h3>
               <div className="grid grid-cols-2 gap-4 text-xs">
                 {/* Zarda Sales */}
                 <div className="space-y-3">
-                  <span className="font-semibold text-amber-300 block">Zarda Sales</span>
+                  <span className="font-semibold text-amber-600 dark:text-amber-300 block">Zarda Sales</span>
                   <div>
-                    <label className="text-slate-400 block mb-1">SLB (Kg)</label>
+                    <label className="text-slate-600 dark:text-slate-400 block mb-1">SLB (Kg)</label>
                     <input
                       type="number"
                       step="0.01"
@@ -675,49 +675,49 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
                       value={zardaSales.slb === 0 ? '' : zardaSales.slb}
                       placeholder="0.00"
                       onChange={(e) => setZardaSales({ ...zardaSales, slb: parseFloat(e.target.value) || 0 })}
-                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                      className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 py-1 text-right text-xs text-slate-900 dark:text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
                     />
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">22/25 (@15 Tk)</label>
+                    <label className="text-slate-600 dark:text-slate-400 block mb-1">22/25 (@15 Tk)</label>
                     <input
                       type="number"
                       disabled={isReadOnly || isLoading}
                       value={zardaSales.qty_22_25 === 0 ? '' : zardaSales.qty_22_25}
                       placeholder="0"
                       onChange={(e) => setZardaSales({ ...zardaSales, qty_22_25: parseInt(e.target.value, 10) || 0 })}
-                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                      className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 py-1 text-right text-xs text-slate-900 dark:text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
                     />
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">99/14 (@6 Tk)</label>
+                    <label className="text-slate-600 dark:text-slate-400 block mb-1">99/14 (@6 Tk)</label>
                     <input
                       type="number"
                       disabled={isReadOnly || isLoading}
                       value={zardaSales.qty_99_14 === 0 ? '' : zardaSales.qty_99_14}
                       placeholder="0"
                       onChange={(e) => setZardaSales({ ...zardaSales, qty_99_14: parseInt(e.target.value, 10) || 0 })}
-                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                      className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 py-1 text-right text-xs text-slate-900 dark:text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
                     />
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">33/15 (@8 Tk)</label>
+                    <label className="text-slate-600 dark:text-slate-400 block mb-1">33/15 (@8 Tk)</label>
                     <input
                       type="number"
                       disabled={isReadOnly || isLoading}
                       value={zardaSales.qty_33_15 === 0 ? '' : zardaSales.qty_33_15}
                       placeholder="0"
                       onChange={(e) => setZardaSales({ ...zardaSales, qty_33_15: parseInt(e.target.value, 10) || 0 })}
-                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                      className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 py-1 text-right text-xs text-slate-900 dark:text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
                     />
                   </div>
                 </div>
 
                 {/* Zarda Stock */}
                 <div className="space-y-3">
-                  <span className="font-semibold text-indigo-300 block">Zarda Closing Stock</span>
+                  <span className="font-semibold text-indigo-600 dark:text-indigo-300 block">Zarda Closing Stock</span>
                   <div>
-                    <label className="text-slate-400 block mb-1">SLB (Kg)</label>
+                    <label className="text-slate-600 dark:text-slate-400 block mb-1">SLB (Kg)</label>
                     <input
                       type="number"
                       step="0.01"
@@ -725,40 +725,40 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
                       value={zardaStock.slb === 0 ? '' : zardaStock.slb}
                       placeholder="0.00"
                       onChange={(e) => setZardaStock({ ...zardaStock, slb: parseFloat(e.target.value) || 0 })}
-                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                      className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 py-1 text-right text-xs text-slate-900 dark:text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
                     />
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">22/25 (@15 Tk)</label>
+                    <label className="text-slate-600 dark:text-slate-400 block mb-1">22/25 (@15 Tk)</label>
                     <input
                       type="number"
                       disabled={isReadOnly || isLoading}
                       value={zardaStock.qty_22_25 === 0 ? '' : zardaStock.qty_22_25}
                       placeholder="0"
                       onChange={(e) => setZardaStock({ ...zardaStock, qty_22_25: parseInt(e.target.value, 10) || 0 })}
-                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                      className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 py-1 text-right text-xs text-slate-900 dark:text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
                     />
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">99/14 (@6 Tk)</label>
+                    <label className="text-slate-600 dark:text-slate-400 block mb-1">99/14 (@6 Tk)</label>
                     <input
                       type="number"
                       disabled={isReadOnly || isLoading}
                       value={zardaStock.qty_99_14 === 0 ? '' : zardaStock.qty_99_14}
                       placeholder="0"
                       onChange={(e) => setZardaStock({ ...zardaStock, qty_99_14: parseInt(e.target.value, 10) || 0 })}
-                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                      className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 py-1 text-right text-xs text-slate-900 dark:text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
                     />
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">33/15 (@8 Tk)</label>
+                    <label className="text-slate-600 dark:text-slate-400 block mb-1">33/15 (@8 Tk)</label>
                     <input
                       type="number"
                       disabled={isReadOnly || isLoading}
                       value={zardaStock.qty_33_15 === 0 ? '' : zardaStock.qty_33_15}
                       placeholder="0"
                       onChange={(e) => setZardaStock({ ...zardaStock, qty_33_15: parseInt(e.target.value, 10) || 0 })}
-                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                      className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 py-1 text-right text-xs text-slate-900 dark:text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
                     />
                   </div>
                 </div>
@@ -767,31 +767,31 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
           </div>
 
           {/* 3. Empty Packets & Remarks */}
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm space-y-4">
-            <h3 className="text-sm font-bold text-white border-b border-slate-800 pb-2">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-5 backdrop-blur-sm space-y-4 shadow-sm dark:shadow-none transition-colors duration-200">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 pb-2">
               Operational Returns & Route Remarks
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Express Empty Packet Return (Count)</label>
+                <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1">Express Empty Packet Return (Count)</label>
                 <input
                   type="number"
                   disabled={isReadOnly || isLoading}
                   value={emptyPackets === 0 ? '' : emptyPackets}
                   placeholder="0"
                   onChange={(e) => setEmptyPackets(parseInt(e.target.value, 10) || 0)}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none font-mono disabled:opacity-50"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-blue-500 focus:outline-none font-mono disabled:opacity-50"
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="text-xs text-slate-400 block mb-1">Route & Field Remarks</label>
+                <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1">Route & Field Remarks</label>
                 <input
                   type="text"
                   disabled={isReadOnly || isLoading}
                   value={remarks}
                   placeholder="Operational remarks, route coverage notes..."
                   onChange={(e) => setRemarks(e.target.value)}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none disabled:opacity-50"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-blue-500 focus:outline-none disabled:opacity-50"
                 />
               </div>
             </div>
@@ -801,7 +801,7 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
           <div className="flex items-center justify-between pt-2">
             <button
               onClick={() => setViewMode('listing')}
-              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white"
+              className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer"
             >
               <ArrowLeft className="h-4 w-4" />
               <span>Cancel & Return to Listing</span>
@@ -811,7 +811,7 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
               <button
                 onClick={handleSaveDraft}
                 disabled={isReadOnly || isSaving || isLoading}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-40"
+                className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-40 cursor-pointer shadow-xs"
               >
                 <Save className="h-4 w-4" />
                 <span>{isSaving ? 'Saving...' : 'Save Draft'}</span>
@@ -820,7 +820,7 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
               <button
                 onClick={handleSubmit}
                 disabled={isReadOnly || isSaving || isLoading}
-                className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-5 py-2 text-xs font-semibold text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-40"
+                className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-5 py-2 text-xs font-semibold text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-40 cursor-pointer"
               >
                 <Send className="h-4 w-4" />
                 <span>Submit for TSO Review</span>

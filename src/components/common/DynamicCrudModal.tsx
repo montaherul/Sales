@@ -114,17 +114,17 @@ export function DynamicCrudModal({
   const defaultButtonLabel = mode === 'create' ? 'Create Record' : 'Save Changes';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-xl overflow-hidden rounded-xl border border-slate-800 bg-slate-900 shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
+      <div className="relative w-full max-w-xl overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl flex flex-col max-h-[90vh] transition-colors duration-200">
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4 bg-slate-950/70">
+        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 py-4 bg-slate-50 dark:bg-slate-950/70">
           <div className="flex items-center gap-2">
             {mode === 'create' ? (
-              <PlusCircle className="w-5 h-5 text-blue-400" />
+              <PlusCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             ) : (
-              <Save className="w-5 h-5 text-emerald-400" />
+              <Save className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             )}
-            <h3 className="text-base font-bold text-white tracking-tight">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
               {title || (mode === 'create' ? 'Create New Entry' : 'Edit Entry')}
             </h3>
           </div>
@@ -132,7 +132,7 @@ export function DynamicCrudModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -141,7 +141,7 @@ export function DynamicCrudModal({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
           {submitError && (
-            <div className="p-3 rounded-lg bg-rose-950/50 border border-rose-800 text-rose-200 text-xs">
+            <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-200 text-xs">
               {submitError}
             </div>
           )}
@@ -152,8 +152,8 @@ export function DynamicCrudModal({
             return (
               <div key={field.name} className="space-y-1">
                 {field.type !== 'select2' && field.type !== 'boolean' && (
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                    {field.label} {field.required && <span className="text-rose-400">*</span>}
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    {field.label} {field.required && <span className="text-rose-500">*</span>}
                   </label>
                 )}
 
@@ -170,10 +170,10 @@ export function DynamicCrudModal({
                       )
                     }
                     placeholder={field.placeholder}
-                    className={`w-full rounded-lg border px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 transition-all ${
+                    className={`w-full rounded-lg border px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 transition-all ${
                       hasError
-                        ? 'border-rose-500 bg-rose-950/20 focus:ring-rose-500'
-                        : 'border-slate-800 bg-slate-950/80 focus:border-blue-500 focus:ring-blue-500'
+                        ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/20 focus:ring-rose-500'
+                        : 'border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-950/80 focus:border-blue-500 focus:ring-blue-500'
                     }`}
                   />
                 )}
@@ -186,10 +186,10 @@ export function DynamicCrudModal({
                     disabled={field.disabled}
                     onChange={(e) => handleChange(field.name, e.target.value)}
                     placeholder={field.placeholder}
-                    className={`w-full rounded-lg border px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 transition-all ${
+                    className={`w-full rounded-lg border px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 transition-all ${
                       hasError
-                        ? 'border-rose-500 bg-rose-950/20 focus:ring-rose-500'
-                        : 'border-slate-800 bg-slate-950/80 focus:border-blue-500 focus:ring-blue-500'
+                        ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/20 focus:ring-rose-500'
+                        : 'border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-950/80 focus:border-blue-500 focus:ring-blue-500'
                     }`}
                   />
                 )}
@@ -216,9 +216,9 @@ export function DynamicCrudModal({
                       id={field.name}
                       checked={!!formData[field.name]}
                       onChange={(e) => handleChange(field.name, e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500"
+                      className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-blue-600 focus:ring-blue-500 cursor-pointer"
                     />
-                    <label htmlFor={field.name} className="text-xs font-semibold text-slate-300">
+                    <label htmlFor={field.name} className="text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
                       {field.label}
                     </label>
                   </div>
@@ -226,19 +226,19 @@ export function DynamicCrudModal({
 
                 {field.hint && <p className="text-[11px] text-slate-500">{field.hint}</p>}
                 {hasError && field.type !== 'select2' && (
-                  <p className="text-xs text-rose-400">{errors[field.name]}</p>
+                  <p className="text-xs text-rose-500">{errors[field.name]}</p>
                 )}
               </div>
             );
           })}
 
           {/* Modal Footer */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 rounded-lg border border-slate-800 bg-slate-950 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition-all disabled:opacity-50"
+              className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-all disabled:opacity-50 cursor-pointer"
             >
               Cancel
             </button>
@@ -246,7 +246,7 @@ export function DynamicCrudModal({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50"
+              className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50 cursor-pointer"
             >
               {isSubmitting ? (
                 <>

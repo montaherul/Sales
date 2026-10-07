@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { RoleType } from '@/lib/types';
 import { SessionUser } from '@/lib/auth/session';
+import { createClient } from '@/lib/supabase/client';
 import { LoginPage } from '@/components/auth/LoginPage';
 import { OnboardingModal } from '@/components/auth/OnboardingModal';
 import { Navbar } from '@/components/layout/Navbar';
@@ -28,7 +29,7 @@ export default function Home() {
   const [importOpen, setImportOpen] = useState<boolean>(false);
   const [driveOpen, setDriveOpen] = useState<boolean>(false);
 
-  // 1. Check existing session on mount
+  // 1. Check existing session and Supabase OAuth session on mount
   useEffect(() => {
     async function checkSession() {
       try {
@@ -37,6 +38,26 @@ export default function Home() {
         if (json.success && json.user) {
           setCurrentUser(json.user);
           setCurrentRole(json.user.role);
+          return;
+        }
+
+        // Check if Supabase client has an active OAuth session (e.g. from Google OAuth callback)
+        const supabase = createClient();
+        if (supabase) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user?.email) {
+            const googleRes = await fetch('/api/auth/google', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: session.user.email, idToken: session.access_token }),
+            });
+            const googleJson = await googleRes.json();
+            if (googleJson.success && googleJson.user) {
+              setCurrentUser(googleJson.user);
+              setCurrentRole(googleJson.user.role);
+              return;
+            }
+          }
         }
       } catch (err) {
         console.error('Session check failed:', err);
@@ -63,6 +84,10 @@ export default function Home() {
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
+      const supabase = createClient();
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
     } catch {}
     setCurrentUser(null);
   };
@@ -75,7 +100,7 @@ export default function Home() {
   // Loading splash while checking session
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-400">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center text-slate-600 dark:text-slate-400 transition-colors duration-200">
         <div className="h-10 w-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
         <span className="text-xs font-mono">Initializing Afaz Tobacco Intelligence Platform...</span>
       </div>
@@ -87,9 +112,9 @@ export default function Home() {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
 
-  // 3. Authenticated: Render Main Application Layout
+  // 3. Authenticated: Render Main Application Layout with Adaptive Theming
   return (
-    <div className="min-h-screen bg-slate-950 flex text-slate-100">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex text-slate-900 dark:text-slate-100 transition-colors duration-200">
       {/* 1. Collapsible Enterprise Sidebar */}
       <Sidebar
         currentRole={currentRole}
@@ -108,7 +133,7 @@ export default function Home() {
           sidebarOpen ? 'pl-64' : 'pl-16'
         }`}
       >
-        {/* Top Navbar: Shows Company Name ONLY, User Profile, Role Simulator & Logout */}
+        {/* Top Navbar: Shows Company Name ONLY, User Profile, Role Simulator, Theme Toggle & Logout */}
         <Navbar
           currentRole={currentRole}
           currentUser={currentUser}
@@ -133,7 +158,7 @@ export default function Home() {
         </main>
 
         {/* Footer */}
-        <footer className="border-t border-slate-900 bg-slate-950/80 py-4 px-6 text-center text-xs text-slate-500">
+        <footer className="border-t border-slate-200 dark:border-slate-900 bg-white/80 dark:bg-slate-950/80 py-4 px-6 text-center text-xs text-slate-500 transition-colors duration-200">
           <p>
             Afaz Tobacco Sales & Stock Intelligence Platform • Production Specification Compliant • PostgreSQL Live
           </p>

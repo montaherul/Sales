@@ -229,11 +229,11 @@ export function MenuManagement() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-blue-400" />
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             <span>Menu Management (RWMA & UWMA)</span>
           </h2>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Enterprise Access Control: Role-Wise Menu Access (RWMA) & User-Wise Menu Access (UWMA)
           </p>
         </div>
@@ -242,7 +242,7 @@ export function MenuManagement() {
           <button
             onClick={fetchData}
             disabled={loading}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 shadow-sm transition-colors"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>Refresh Rules</span>
@@ -251,20 +251,20 @@ export function MenuManagement() {
       </div>
 
       {saveToast && (
-        <div className="flex items-center gap-2 rounded-lg bg-emerald-950/60 border border-emerald-800/60 px-4 py-2 text-xs text-emerald-300 animate-in fade-in duration-200">
-          <Check className="h-4 w-4 text-emerald-400 shrink-0" />
+        <div className="flex items-center gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800/60 px-4 py-2 text-xs text-emerald-800 dark:text-emerald-300 animate-in fade-in duration-200">
+          <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
           <span>{saveToast}</span>
         </div>
       )}
 
       {/* Tabs Switcher: RWMA vs UWMA */}
-      <div className="flex items-center space-x-2 border-b border-slate-800 pb-3">
+      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-3">
         <button
           onClick={() => setActiveSubTab('RWMA')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
             activeSubTab === 'RWMA'
               ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900'
           }`}
         >
           <ShieldCheck className="h-4 w-4" />
@@ -276,7 +276,7 @@ export function MenuManagement() {
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
             activeSubTab === 'UWMA'
               ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900'
           }`}
         >
           <UserCheck className="h-4 w-4" />
@@ -287,13 +287,13 @@ export function MenuManagement() {
       {/* Search & Filter Bar */}
       <div className="flex items-center justify-between gap-4">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-500" />
+          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search system menus or categories..."
-            className="w-full rounded-lg border border-slate-800 bg-slate-900/80 pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900/80 pl-9 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:border-blue-500 focus:outline-none transition-colors"
           />
         </div>
 
@@ -317,16 +317,16 @@ export function MenuManagement() {
 
       {/* TAB 1: RWMA (Role-Wise Menu Access Matrix) */}
       {activeSubTab === 'RWMA' && (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 backdrop-blur-sm overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950/60 border-b border-slate-800 text-slate-400 font-semibold">
+              <thead className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold">
                 <tr>
                   <th className="py-3 px-4 w-64">System Menu / Module</th>
                   <th className="py-3 px-3 w-32">Category</th>
                   {roles.map((role) => (
-                    <th key={role} className="py-3 px-4 text-center border-l border-slate-800/60">
-                      <div className="font-bold text-white tracking-wide">{role}</div>
+                    <th key={role} className="py-3 px-4 text-center border-l border-slate-200 dark:border-slate-800/60">
+                      <div className="font-bold text-slate-900 dark:text-white tracking-wide">{role}</div>
                       <div className="flex items-center justify-center gap-3 text-[10px] text-slate-500 mt-0.5">
                         <span title="Can View">View</span>
                         <span>•</span>
@@ -336,15 +336,15 @@ export function MenuManagement() {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60">
                 {filteredMenus.map((menu) => (
-                  <tr key={menu.id} className="hover:bg-slate-800/20 transition-colors">
+                  <tr key={menu.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors">
                     {/* Menu details */}
                     <td className="py-3 px-4">
-                      <div className="font-medium text-white flex items-center gap-2">
+                      <div className="font-medium text-slate-900 dark:text-white flex items-center gap-2">
                         <span>{menu.title}</span>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5">{menu.description}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{menu.description}</p>
                     </td>
 
                     {/* Category */}
@@ -352,8 +352,8 @@ export function MenuManagement() {
                       <span
                         className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium ${
                           menu.category === 'ADMINISTRATIVE'
-                            ? 'bg-amber-950/60 text-amber-300 border border-amber-800/40'
-                            : 'bg-blue-950/60 text-blue-300 border border-blue-800/40'
+                            ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800/40'
+                            : 'bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-800/40'
                         }`}
                       >
                         {menu.category}
@@ -366,17 +366,17 @@ export function MenuManagement() {
                       const isSaving = savingKey === `${role}_${menu.id}`;
 
                       return (
-                        <td key={role} className="py-3 px-4 border-l border-slate-800/60 text-center">
+                        <td key={role} className="py-3 px-4 border-l border-slate-200 dark:border-slate-800/60 text-center">
                           <div className="flex items-center justify-center gap-3">
                             {/* View Toggle */}
                             <button
                               onClick={() => handleToggleRwma(role, menu.id, 'can_view')}
                               disabled={isSaving}
                               title={`Toggle View for ${role}`}
-                              className={`h-6 w-6 rounded flex items-center justify-center transition-colors ${
+                              className={`h-6 w-6 rounded flex items-center justify-center transition-colors cursor-pointer ${
                                 perm.can_view
-                                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/40 hover:bg-blue-600/30'
-                                  : 'bg-slate-950 text-slate-600 border border-slate-800 hover:text-slate-400'
+                                  ? 'bg-blue-100 dark:bg-blue-600/20 text-blue-600 dark:text-blue-400 border border-blue-300 dark:border-blue-500/40 hover:bg-blue-200 dark:hover:bg-blue-600/30'
+                                  : 'bg-slate-100 dark:bg-slate-950 text-slate-400 dark:text-slate-600 border border-slate-200 dark:border-slate-800 hover:text-slate-600 dark:hover:text-slate-400'
                               }`}
                             >
                               <Eye className="h-3.5 w-3.5" />
@@ -387,10 +387,10 @@ export function MenuManagement() {
                               onClick={() => handleToggleRwma(role, menu.id, 'can_edit')}
                               disabled={isSaving}
                               title={`Toggle Edit for ${role}`}
-                              className={`h-6 w-6 rounded flex items-center justify-center transition-colors ${
+                              className={`h-6 w-6 rounded flex items-center justify-center transition-colors cursor-pointer ${
                                 perm.can_edit
-                                  ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-600/30'
-                                  : 'bg-slate-950 text-slate-600 border border-slate-800 hover:text-slate-400'
+                                  ? 'bg-emerald-100 dark:bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/40 hover:bg-emerald-200 dark:hover:bg-emerald-600/30'
+                                  : 'bg-slate-100 dark:bg-slate-950 text-slate-400 dark:text-slate-600 border border-slate-200 dark:border-slate-800 hover:text-slate-600 dark:hover:text-slate-400'
                               }`}
                             >
                               <Edit3 className="h-3 w-3" />
@@ -410,28 +410,28 @@ export function MenuManagement() {
       {/* TAB 2: UWMA (User-Wise Menu Access Overrides) */}
       {activeSubTab === 'UWMA' && selectedUser && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm flex items-center justify-between">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4 backdrop-blur-sm flex items-center justify-between shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white text-sm">
+              <div className="h-9 w-9 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white text-sm shadow">
                 {selectedUser.full_name[0]}
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">{selectedUser.full_name}</h3>
-                <p className="text-xs text-slate-400">
-                  {selectedUser.email} • Role: <strong className="text-blue-400">{selectedUser.role_name}</strong>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">{selectedUser.full_name}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {selectedUser.email} • Role: <strong className="text-blue-600 dark:text-blue-400">{selectedUser.role_name}</strong>
                 </p>
               </div>
             </div>
 
-            <div className="text-xs text-slate-400">
+            <div className="text-xs text-slate-500 dark:text-slate-400">
               Customize or override specific menu accessibility for this individual user account.
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 backdrop-blur-sm overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-950/60 border-b border-slate-800 text-slate-400 font-semibold">
+                <thead className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold">
                   <tr>
                     <th className="py-3 px-4">System Menu / Feature</th>
                     <th className="py-3 px-4">Category</th>
@@ -439,24 +439,24 @@ export function MenuManagement() {
                     <th className="py-3 px-4 text-center">Can Edit (Modify)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60">
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60">
                   {filteredMenus.map((menu) => {
                     const perm = getUwmaPermission(selectedUser.id, menu.id);
                     const isSaving = savingKey === `${selectedUser.id}_${menu.id}`;
 
                     return (
-                      <tr key={menu.id} className="hover:bg-slate-800/20 transition-colors">
+                      <tr key={menu.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors">
                         <td className="py-3 px-4">
-                          <span className="font-medium text-white">{menu.title}</span>
-                          <p className="text-[11px] text-slate-400">{menu.description}</p>
+                          <span className="font-medium text-slate-900 dark:text-white">{menu.title}</span>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">{menu.description}</p>
                         </td>
 
                         <td className="py-3 px-4">
                           <span
                             className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium ${
                               menu.category === 'ADMINISTRATIVE'
-                                ? 'bg-amber-950/60 text-amber-300 border border-amber-800/40'
-                                : 'bg-blue-950/60 text-blue-300 border border-blue-800/40'
+                                ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800/40'
+                                : 'bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-800/40'
                             }`}
                           >
                             {menu.category}
@@ -467,10 +467,10 @@ export function MenuManagement() {
                           <button
                             onClick={() => handleToggleUwma(selectedUser.id, menu.id, 'can_view')}
                             disabled={isSaving}
-                            className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
+                            className={`px-3 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
                               perm.can_view
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-slate-800 text-slate-500 hover:bg-slate-700'
+                                ? 'bg-blue-600 text-white shadow-sm'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
                             }`}
                           >
                             {perm.can_view ? 'Enabled' : 'Disabled'}
@@ -481,10 +481,10 @@ export function MenuManagement() {
                           <button
                             onClick={() => handleToggleUwma(selectedUser.id, menu.id, 'can_edit')}
                             disabled={isSaving}
-                            className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
+                            className={`px-3 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
                               perm.can_edit
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-slate-800 text-slate-500 hover:bg-slate-700'
+                                ? 'bg-emerald-600 text-white shadow-sm'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
                             }`}
                           >
                             {perm.can_edit ? 'Allowed' : 'Read-Only'}
