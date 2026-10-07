@@ -118,7 +118,7 @@ export function Select2({
   };
 
   return (
-    <div className={`relative w-full ${className}`} ref={containerRef}>
+    <div className={`relative w-full ${isOpen ? 'z-[999]' : 'z-auto'} ${className}`} ref={containerRef}>
       {label && (
         <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
           {label}
@@ -193,7 +193,10 @@ export function Select2({
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute left-0 right-0 z-50 mt-1 max-h-64 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl dark:shadow-2xl backdrop-blur-md">
+        <div 
+          onClick={(e) => e.stopPropagation()}
+          className="absolute left-0 right-0 z-[9999] mt-1 max-h-64 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl backdrop-blur-md"
+        >
           {/* Search Bar */}
           <div className="sticky top-0 p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-900/95">
             <div className="relative">

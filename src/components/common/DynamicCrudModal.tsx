@@ -172,11 +172,15 @@ export function DynamicCrudModal({
             </div>
           )}
 
-          {fields.map((field) => {
+          {fields.map((field, idx) => {
             const hasError = !!errors[field.name];
 
             return (
-              <div key={field.name} className="space-y-1">
+              <div 
+                key={field.name} 
+                style={field.type === 'select2' ? { position: 'relative', zIndex: 50 - idx } : undefined}
+                className="space-y-1"
+              >
                 {field.type !== 'select2' && field.type !== 'boolean' && (
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                     {field.label} {field.required && <span className="text-rose-500">*</span>}

@@ -494,10 +494,10 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
       {viewMode === 'listing' && (
         <div className="space-y-4">
           {/* Quick Filters Toolbar */}
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm space-y-3.5 shadow-sm dark:shadow-none transition-colors duration-200">
+          <div className="relative z-30 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm space-y-3.5 shadow-sm dark:shadow-none transition-colors duration-200">
             {/* Top Toolbar: Territory Filter & Create Action */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-end justify-between gap-3">
-              <div className="w-full sm:w-80">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-end justify-between gap-3 relative z-40">
+              <div className="w-full sm:w-80 relative z-50">
                 <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1 block">
                   Filter by Territory Scope
                 </label>
@@ -512,7 +512,7 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
                 />
               </div>
 
-              <div className="shrink-0">
+              <div className="shrink-0 relative z-10">
                 <button
                   onClick={handleCreateNew}
                   className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 shadow-sm shadow-blue-500/20 transition-all cursor-pointer"
@@ -524,7 +524,7 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
             </div>
 
             {/* Bottom Toolbar: Interactive Status Filter Pills */}
-            <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 relative z-10">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                   <Filter className="h-3 w-3 text-blue-600 dark:text-blue-400" />
@@ -573,18 +573,20 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
           </div>
 
           {/* Server-Side Tabulator Table */}
-          <ServerDataTable
-            key={tableRefreshKey}
-            endpoint="/api/daily-submissions"
-            columns={columns}
-            searchPlaceholder="Search territory, region, status, remarks..."
-            exportFilenamePrefix="Daily_Submissions"
-            onBatchDelete={handleBatchDelete}
-            additionalParams={{
-              territoryId: selectedTerritoryId,
-              status: filterStatus,
-            }}
-          />
+          <div className="relative z-10">
+            <ServerDataTable
+              key={tableRefreshKey}
+              endpoint="/api/daily-submissions"
+              columns={columns}
+              searchPlaceholder="Search territory, region, status, remarks..."
+              exportFilenamePrefix="Daily_Submissions"
+              onBatchDelete={handleBatchDelete}
+              additionalParams={{
+                territoryId: selectedTerritoryId,
+                status: filterStatus,
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -618,8 +620,8 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
           )}
 
           {/* Operational Scope Strip */}
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm grid grid-cols-1 sm:grid-cols-3 gap-4 shadow-sm dark:shadow-none transition-colors duration-200">
-            <div>
+          <div className="relative z-30 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm grid grid-cols-1 sm:grid-cols-3 gap-4 shadow-sm dark:shadow-none transition-colors duration-200">
+            <div className="relative z-40">
               <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1">Operational Territory Scope</label>
               <Select2
                 value={selectedTerritoryId}

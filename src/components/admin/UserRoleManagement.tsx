@@ -640,7 +640,7 @@ export function UserRoleManagement() {
   return (
     <div className="space-y-6">
       {/* Module Overview Banner & Sub-Tabs */}
-      <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 backdrop-blur-md space-y-4 shadow-sm dark:shadow-none transition-colors duration-200">
+      <div className="relative z-30 p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 backdrop-blur-md space-y-4 shadow-sm dark:shadow-none transition-colors duration-200">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-600/20 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
@@ -710,7 +710,7 @@ export function UserRoleManagement() {
 
         {/* Filters (Shown for Users Tab) */}
         {activeSubTab === 'USERS' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2 border-t border-slate-200 dark:border-slate-800 relative z-40">
             <Select2
               label="Filter by Company"
               options={companies}
@@ -736,7 +736,7 @@ export function UserRoleManagement() {
 
         {/* Filters (Shown for Roles Tab) */}
         {activeSubTab === 'ROLES' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2 border-t border-slate-200 dark:border-slate-800 relative z-40">
             <Select2
               label="Filter Roles by Company"
               options={companies}
@@ -751,37 +751,41 @@ export function UserRoleManagement() {
 
       {/* SUB-TAB 1: USERS DIRECTORY */}
       {activeSubTab === 'USERS' && (
-        <ServerDataTable<UserRecord>
-          key={`users_${refreshTrigger}_${selectedCompanyId}_${selectedRole}`}
-          endpoint="/api/users"
-          columns={userColumns}
-          idField="id"
-          title="Active Personnel Directory"
-          searchPlaceholder="Search users by name, email, or role..."
-          additionalParams={{
-            companyId: selectedCompanyId,
-            roleName: selectedRole,
-          }}
-          exportFilenamePrefix="Afaz_Tobacco_Users"
-          onBatchDelete={handleUserBatchDelete}
-        />
+        <div className="relative z-10">
+          <ServerDataTable<UserRecord>
+            key={`users_${refreshTrigger}_${selectedCompanyId}_${selectedRole}`}
+            endpoint="/api/users"
+            columns={userColumns}
+            idField="id"
+            title="Active Personnel Directory"
+            searchPlaceholder="Search users by name, email, or role..."
+            additionalParams={{
+              companyId: selectedCompanyId,
+              roleName: selectedRole,
+            }}
+            exportFilenamePrefix="Afaz_Tobacco_Users"
+            onBatchDelete={handleUserBatchDelete}
+          />
+        </div>
       )}
 
       {/* SUB-TAB 2: ROLES CATALOG */}
       {activeSubTab === 'ROLES' && (
-        <ServerDataTable<RoleRecord>
-          key={`roles_${roleRefreshTrigger}_${selectedRoleCompanyId}`}
-          endpoint="/api/roles"
-          columns={roleColumns}
-          idField="id"
-          title="Role Definitions & User Allocation"
-          searchPlaceholder="Search roles by identifier or description..."
-          additionalParams={{
-            companyId: selectedRoleCompanyId,
-          }}
-          exportFilenamePrefix="Afaz_Tobacco_Roles"
-          onBatchDelete={handleRoleBatchDelete}
-        />
+        <div className="relative z-10">
+          <ServerDataTable<RoleRecord>
+            key={`roles_${roleRefreshTrigger}_${selectedRoleCompanyId}`}
+            endpoint="/api/roles"
+            columns={roleColumns}
+            idField="id"
+            title="Role Definitions & User Allocation"
+            searchPlaceholder="Search roles by identifier or description..."
+            additionalParams={{
+              companyId: selectedRoleCompanyId,
+            }}
+            exportFilenamePrefix="Afaz_Tobacco_Roles"
+            onBatchDelete={handleRoleBatchDelete}
+          />
+        </div>
       )}
 
       {/* User Create & Edit Modal Controller */}

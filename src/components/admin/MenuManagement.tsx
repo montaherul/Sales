@@ -285,7 +285,7 @@ export function MenuManagement() {
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4 relative z-30">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
           <input
@@ -298,7 +298,7 @@ export function MenuManagement() {
         </div>
 
         {activeSubTab === 'UWMA' && (
-          <div className="w-80">
+          <div className="w-80 relative z-40">
             <Select2
               options={users.map((u) => ({
                 value: u.id,
@@ -317,7 +317,7 @@ export function MenuManagement() {
 
       {/* TAB 1: RWMA (Role-Wise Menu Access Matrix) */}
       {activeSubTab === 'RWMA' && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 backdrop-blur-sm overflow-hidden shadow-sm">
+        <div className="relative z-10 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 backdrop-blur-sm overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold">
@@ -409,7 +409,7 @@ export function MenuManagement() {
 
       {/* TAB 2: UWMA (User-Wise Menu Access Overrides) */}
       {activeSubTab === 'UWMA' && selectedUser && (
-        <div className="space-y-4">
+        <div className="relative z-10 space-y-4">
           <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4 backdrop-blur-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="h-9 w-9 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white text-sm shadow shrink-0">

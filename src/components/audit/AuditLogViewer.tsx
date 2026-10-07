@@ -136,7 +136,7 @@ export function AuditLogViewer() {
   return (
     <div className="space-y-6">
       {/* Overview Banner & Filters */}
-      <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 backdrop-blur-md space-y-4 shadow-sm dark:shadow-none transition-colors duration-200">
+      <div className="relative z-30 p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 backdrop-blur-md space-y-4 shadow-sm dark:shadow-none transition-colors duration-200">
         <div className="flex items-center gap-3">
           <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-600/20 border border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400">
             <History className="w-6 h-6" />
@@ -152,7 +152,7 @@ export function AuditLogViewer() {
         </div>
 
         {/* Generic Select2 Filter Toolbar */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+        <div className="relative z-40 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
           <Select2
             label="Filter by Event Action"
             options={eventTypeOptions}
@@ -174,11 +174,12 @@ export function AuditLogViewer() {
       </div>
 
       {/* 3-Tier Tabulator Server-Side Table */}
-      <ServerDataTable<AuditLogRecord>
-        endpoint="/api/audit-logs"
-        columns={columns}
-        idField="id"
-        title="Audit Logs History"
+      <div className="relative z-10">
+        <ServerDataTable<AuditLogRecord>
+          endpoint="/api/audit-logs"
+          columns={columns}
+          idField="id"
+          title="Audit Logs History"
         searchPlaceholder="Search audit events, entities, or user emails..."
         additionalParams={{
           eventType: selectedEventType,
@@ -186,6 +187,7 @@ export function AuditLogViewer() {
         }}
         exportFilenamePrefix="Afaz_Tobacco_Audit_Trail"
       />
+      </div>
 
       {/* Payload Inspection Modal */}
       {expandedLog && (
