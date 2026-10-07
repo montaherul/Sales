@@ -218,7 +218,7 @@ export function ApprovalHub({ currentRole }: ApprovalHubProps) {
               <button
                 onClick={() => setRejectingRecord(row)}
                 disabled={actionLoading}
-                className="rounded px-2 py-1 text-[11px] font-medium border border-rose-800 text-rose-400 hover:bg-rose-950 transition-all"
+                className="rounded px-2.5 py-1 text-[11px] font-semibold border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-all cursor-pointer shadow-xs"
               >
                 Reject
               </button>
@@ -231,14 +231,14 @@ export function ApprovalHub({ currentRole }: ApprovalHubProps) {
               <button
                 onClick={() => handleApprove(row)}
                 disabled={actionLoading}
-                className="rounded px-2.5 py-1 text-[11px] font-medium bg-purple-600 text-white hover:bg-purple-500 shadow-sm transition-all"
+                className="rounded px-2.5 py-1 text-[11px] font-semibold bg-purple-600 text-white hover:bg-purple-500 shadow-sm transition-all cursor-pointer"
               >
                 Verify RSO
               </button>
               <button
                 onClick={() => setRejectingRecord(row)}
                 disabled={actionLoading}
-                className="rounded px-2 py-1 text-[11px] font-medium border border-rose-800 text-rose-400 hover:bg-rose-950 transition-all"
+                className="rounded px-2.5 py-1 text-[11px] font-semibold border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-all cursor-pointer shadow-xs"
               >
                 Reject
               </button>
@@ -250,7 +250,7 @@ export function ApprovalHub({ currentRole }: ApprovalHubProps) {
             <button
               onClick={() => handleApprove(row)}
               disabled={actionLoading}
-              className="flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-medium bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm transition-all"
+              className="flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-semibold bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm transition-all cursor-pointer"
             >
               <Lock className="h-3 w-3" />
               <span>Finalize & Lock</span>
@@ -261,7 +261,7 @@ export function ApprovalHub({ currentRole }: ApprovalHubProps) {
             <button
               onClick={() => setUnlockingRecord(row)}
               disabled={actionLoading}
-              className="flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-medium border border-amber-700 text-amber-300 hover:bg-amber-950 transition-all"
+              className="flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-semibold border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-all cursor-pointer shadow-xs"
             >
               <Unlock className="h-3 w-3" />
               <span>Unlock Record</span>

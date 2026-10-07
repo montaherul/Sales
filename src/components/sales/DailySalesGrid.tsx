@@ -113,17 +113,15 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
         const json = await res.json();
         if (json.success && json.data.territories?.length > 0) {
           setTerritories(json.data.territories);
-          if (!selectedTerritoryId) {
-            setSelectedTerritoryId(json.data.territories[0].id);
-            setSelectedTerritoryName(json.data.territories[0].name);
-          }
+          setSelectedTerritoryId((prev) => prev || json.data.territories[0].id);
+          setSelectedTerritoryName((prev) => prev || json.data.territories[0].name);
         }
       } catch (err) {
         console.error('Failed to load master territories:', err);
       }
     }
     loadMasterData();
-  }, [selectedTerritoryId]);
+  }, []);
 
   // Real-time calculations via centralized engine
   const totalSales = useMemo(() => calculateCigaretteSalesTotal(sales), [sales]);
@@ -307,19 +305,19 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'DRAFT':
-        return <span className="rounded-full bg-slate-800 text-slate-300 px-2.5 py-0.5 text-[10px] font-medium border border-slate-700">Draft</span>;
+        return <span className="rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-0.5 text-[10px] font-medium border border-slate-200 dark:border-slate-700">Draft</span>;
       case 'SUBMITTED':
-        return <span className="rounded-full bg-blue-950/80 text-blue-400 px-2.5 py-0.5 text-[10px] font-medium border border-blue-800/60">TSO Pending</span>;
+        return <span className="rounded-full bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-400 px-2.5 py-0.5 text-[10px] font-medium border border-blue-200 dark:border-blue-800/60">TSO Pending</span>;
       case 'TSO_APPROVED':
-        return <span className="rounded-full bg-amber-950/80 text-amber-400 px-2.5 py-0.5 text-[10px] font-medium border border-amber-800/60">TSO Approved</span>;
+        return <span className="rounded-full bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 px-2.5 py-0.5 text-[10px] font-medium border border-amber-200 dark:border-amber-800/60">TSO Approved</span>;
       case 'RSO_APPROVED':
-        return <span className="rounded-full bg-purple-950/80 text-purple-400 px-2.5 py-0.5 text-[10px] font-medium border border-purple-800/60">RSO Verified</span>;
+        return <span className="rounded-full bg-purple-50 dark:bg-purple-950/80 text-purple-700 dark:text-purple-400 px-2.5 py-0.5 text-[10px] font-medium border border-purple-200 dark:border-purple-800/60">RSO Verified</span>;
       case 'FINALIZED':
-        return <span className="rounded-full bg-emerald-950/80 text-emerald-400 px-2.5 py-0.5 text-[10px] font-medium border border-emerald-800/60 flex items-center gap-1"><Lock className="h-2.5 w-2.5" /> Finalized</span>;
+        return <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 px-2.5 py-0.5 text-[10px] font-medium border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-1"><Lock className="h-2.5 w-2.5" /> Finalized</span>;
       case 'REJECTED':
-        return <span className="rounded-full bg-rose-950/80 text-rose-400 px-2.5 py-0.5 text-[10px] font-medium border border-rose-800/60">Rejected</span>;
+        return <span className="rounded-full bg-rose-50 dark:bg-rose-950/80 text-rose-700 dark:text-rose-400 px-2.5 py-0.5 text-[10px] font-medium border border-rose-200 dark:border-rose-800/60">Rejected</span>;
       default:
-        return <span className="rounded-full bg-slate-800 text-slate-400 px-2.5 py-0.5 text-[10px] font-medium">{status}</span>;
+        return <span className="rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2.5 py-0.5 text-[10px] font-medium border border-slate-200 dark:border-slate-700">{status}</span>;
     }
   };
 
@@ -331,8 +329,8 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
       sortable: true,
       render: (row) => (
         <div>
-          <span className="font-semibold text-white block">{row.territory_name}</span>
-          <span className="text-[10px] text-slate-400">{row.region_name || 'Satkania'}</span>
+          <span className="font-semibold text-slate-900 dark:text-white block">{row.territory_name}</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400">{row.region_name || 'Satkania'}</span>
         </div>
       ),
     },
@@ -340,31 +338,31 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
       key: 'reporting_date',
       header: 'Date',
       sortable: true,
-      render: (row) => <span className="font-mono text-slate-300">{row.reporting_date}</span>,
+      render: (row) => <span className="font-mono text-slate-700 dark:text-slate-300">{row.reporting_date}</span>,
     },
     {
       key: 'total_cigarette_sales',
       header: 'Cig. Sales (Mio)',
       align: 'right',
-      render: (row) => <span className="font-mono font-semibold text-white">{parseFloat(row.total_cigarette_sales || 0).toFixed(2)}</span>,
+      render: (row) => <span className="font-mono font-semibold text-slate-900 dark:text-white">{parseFloat(row.total_cigarette_sales || 0).toFixed(2)}</span>,
     },
     {
       key: 'total_cigarette_stock',
       header: 'Cig. Stock (Mio)',
       align: 'right',
-      render: (row) => <span className="font-mono text-emerald-400">{parseFloat(row.total_cigarette_stock || 0).toFixed(2)}</span>,
+      render: (row) => <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">{parseFloat(row.total_cigarette_stock || 0).toFixed(2)}</span>,
     },
     {
       key: 'total_zarda_sales_value',
       header: 'Zarda (BDT)',
       align: 'right',
-      render: (row) => <span className="font-mono text-amber-300">৳ {parseFloat(row.total_zarda_sales_value || 0).toLocaleString()}</span>,
+      render: (row) => <span className="font-mono text-amber-700 dark:text-amber-300 font-semibold">৳ {parseFloat(row.total_zarda_sales_value || 0).toLocaleString()}</span>,
     },
     {
       key: 'empty_packets',
       header: 'Empty Pkts',
       align: 'right',
-      render: (row) => <span className="font-mono text-slate-300">{parseInt(row.empty_packets || 0, 10).toLocaleString()}</span>,
+      render: (row) => <span className="font-mono text-slate-700 dark:text-slate-300">{parseInt(row.empty_packets || 0, 10).toLocaleString()}</span>,
     },
     {
       key: 'status',
@@ -380,7 +378,7 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
         <div className="flex items-center justify-end gap-1.5">
           <button
             onClick={() => loadSubmissionData(row, 'edit')}
-            className="rounded-lg bg-blue-950/60 text-blue-300 hover:bg-blue-900/60 border border-blue-800/40 px-2.5 py-1 text-xs font-medium flex items-center gap-1 transition-all"
+            className="rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/60 dark:border-blue-800/40 px-2.5 py-1 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
             title="Open in Operational Entry Form"
           >
             <FileEdit className="h-3 w-3" />

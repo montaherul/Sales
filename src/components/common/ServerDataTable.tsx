@@ -70,12 +70,26 @@ export function ServerDataTable<T extends Record<string, any>>({
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [batchActionLoading, setBatchActionLoading] = useState<boolean>(false);
 
+  // Serialize additionalParams to primitive string so reference instability in parent components does not trigger continuous re-fetch loops
+  const serializedAdditionalParams = JSON.stringify(additionalParams || {});
+
+  // Reset to page 1 ONLY when search or filter params genuinely change
+  const prevSearchRef = React.useRef(debouncedSearch);
+  const prevParamsRef = React.useRef(serializedAdditionalParams);
+
+  useEffect(() => {
+    if (prevSearchRef.current !== debouncedSearch || prevParamsRef.current !== serializedAdditionalParams) {
+      prevSearchRef.current = debouncedSearch;
+      prevParamsRef.current = serializedAdditionalParams;
+      setPage(1);
+    }
+  }, [debouncedSearch, serializedAdditionalParams]);
+
   // Debounce search input
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(search);
-      setPage(1); // Reset to page 1 on new search
-    }, 400);
+    }, 350);
     return () => clearTimeout(handler);
   }, [search]);
 
@@ -83,13 +97,14 @@ export function ServerDataTable<T extends Record<string, any>>({
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      const extra = JSON.parse(serializedAdditionalParams || '{}');
       const params = new URLSearchParams({
         page: String(page),
         pageSize: String(pageSize),
         search: debouncedSearch,
         sortBy,
         sortOrder,
-        ...Object.entries(additionalParams).reduce((acc, [k, v]) => {
+        ...Object.entries(extra).reduce((acc, [k, v]) => {
           if (v !== undefined && v !== null && v !== '') acc[k] = String(v);
           return acc;
         }, {} as Record<string, string>),
@@ -110,7 +125,7 @@ export function ServerDataTable<T extends Record<string, any>>({
     } finally {
       setLoading(false);
     }
-  }, [endpoint, page, pageSize, debouncedSearch, sortBy, sortOrder, additionalParams]);
+  }, [endpoint, page, pageSize, debouncedSearch, sortBy, sortOrder, serializedAdditionalParams]);
 
   useEffect(() => {
     fetchData();
@@ -150,12 +165,13 @@ export function ServerDataTable<T extends Record<string, any>>({
   const handleExportCsv = async () => {
     setIsExporting(true);
     try {
+      const extra = JSON.parse(serializedAdditionalParams || '{}');
       const params = new URLSearchParams({
         export: 'csv',
         search: debouncedSearch,
         sortBy,
         sortOrder,
-        ...Object.entries(additionalParams).reduce((acc, [k, v]) => {
+        ...Object.entries(extra).reduce((acc, [k, v]) => {
           if (v !== undefined && v !== null && v !== '') acc[k] = String(v);
           return acc;
         }, {} as Record<string, string>),
