@@ -298,32 +298,52 @@ export function ApprovalHub({ currentRole }: ApprovalHubProps) {
         </div>
       </div>
 
-      {/* Filter Strip */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4 backdrop-blur-sm grid grid-cols-1 sm:grid-cols-2 gap-4 shadow-sm">
-        <div>
-          <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 block">Workflow Status Filter</label>
-          <Select2
-            value={statusFilter}
-            onChange={(val) => setStatusFilter(val)}
-            options={[
-              { value: 'ALL', label: 'All Submission States' },
-              { value: 'SUBMITTED', label: 'Pending TSO Review' },
-              { value: 'TSO_APPROVED', label: 'TSO Approved (Pending RSO)' },
-              { value: 'RSO_APPROVED', label: 'RSO Verified (Pending Finalize)' },
-              { value: 'FINALIZED', label: 'Finalized & Locked' },
-              { value: 'REJECTED', label: 'Rejected' },
-            ]}
-            placeholder="Select Status"
-          />
-        </div>
-
-        <div>
-          <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 block">Active Role Scope</label>
-          <div className="flex items-center gap-2 pt-1">
-            <span className="font-mono text-xs px-2.5 py-1 rounded-md bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 font-semibold">
-              Acting Role: {currentRole}
+      {/* Workflow Queue Status Filter Toolbar */}
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm space-y-3 shadow-sm">
+        {/* Top Scope Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+              Verification & Approval Workflow Queue
             </span>
           </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">Authorized Scope:</span>
+            <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-bold">
+              {currentRole} Access
+            </span>
+          </div>
+        </div>
+
+        {/* Interactive Segmented Queue Status Chips */}
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-2.5 border-t border-slate-200 dark:border-slate-800">
+          {[
+            { id: 'ALL', label: 'All Records', dot: 'bg-slate-400', activeBg: 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' },
+            { id: 'SUBMITTED', label: 'Pending TSO Review', dot: 'bg-blue-500', activeBg: 'bg-blue-600 text-white dark:bg-blue-500 dark:text-white' },
+            { id: 'TSO_APPROVED', label: 'TSO Approved (RSO Queue)', dot: 'bg-amber-500', activeBg: 'bg-amber-600 text-white dark:bg-amber-500 dark:text-white' },
+            { id: 'RSO_APPROVED', label: 'RSO Verified (Super Admin)', dot: 'bg-purple-600', activeBg: 'bg-purple-600 text-white dark:bg-purple-500 dark:text-white' },
+            { id: 'FINALIZED', label: 'Finalized & Locked', dot: 'bg-emerald-500', activeBg: 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-white' },
+            { id: 'REJECTED', label: 'Rejected', dot: 'bg-rose-500', activeBg: 'bg-rose-600 text-white dark:bg-rose-500 dark:text-white' },
+          ].map((opt) => {
+            const isSelected = statusFilter === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setStatusFilter(opt.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer select-none ${
+                  isSelected
+                    ? `${opt.activeBg} shadow-sm ring-2 ring-blue-500/30`
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                <span className={`h-2 w-2 rounded-full ${isSelected ? 'bg-white dark:bg-slate-900' : opt.dot}`} />
+                <span>{opt.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 

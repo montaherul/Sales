@@ -281,14 +281,14 @@ export function ServerDataTable<T extends Record<string, any>>({
               <button
                 onClick={handleBatchDeleteClick}
                 disabled={batchActionLoading}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-rose-600 hover:bg-rose-700 dark:bg-rose-900/60 dark:hover:bg-rose-800 text-white dark:text-rose-200 border border-transparent dark:border-rose-700 font-medium transition-colors disabled:opacity-50 cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs shadow-md shadow-rose-600/30 border border-rose-500 transition-all disabled:opacity-50 cursor-pointer"
               >
                 {batchActionLoading ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
                 ) : (
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <Trash2 className="w-4 h-4 text-white" />
                 )}
-                <span>Delete Selected</span>
+                <span>Delete ({selectedIds.length}) Selected</span>
               </button>
             )}
           </div>

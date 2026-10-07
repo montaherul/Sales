@@ -29,7 +29,9 @@ import {
   FileEdit,
   Eye,
   Building2,
-  Calendar
+  Calendar,
+  Trash2,
+  Filter
 } from 'lucide-react';
 import { ServerDataTable, ColumnDef } from '@/components/common/ServerDataTable';
 import { Select2, Select2Option } from '@/components/common/Select2';
@@ -375,7 +377,7 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
       header: 'Actions',
       align: 'right',
       render: (row) => (
-        <div className="flex items-center justify-end gap-1.5">
+        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => loadSubmissionData(row, 'edit')}
             className="rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/60 dark:border-blue-800/40 px-2.5 py-1 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
@@ -384,10 +386,38 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
             <FileEdit className="h-3 w-3" />
             <span>Open / Edit</span>
           </button>
+          <button
+            onClick={(e) => handleDeleteSingle(row.id, e)}
+            className="rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-400 dark:hover:bg-rose-900/60 dark:border-rose-800/40 px-2.5 py-1 text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+            title="Delete this daily submission"
+          >
+            <Trash2 className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+            <span>Delete</span>
+          </button>
         </div>
       ),
     },
   ];
+
+  const handleDeleteSingle = async (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!confirm('Are you sure you want to delete this daily submission record?')) return;
+    try {
+      const res = await fetch('/api/daily-submissions', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [id] }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setTableRefreshKey(k => k + 1);
+      } else {
+        alert(json.error || 'Failed to delete submission');
+      }
+    } catch (e: any) {
+      alert(e.message || 'Error deleting submission');
+    }
+  };
 
   const handleBatchDelete = async (selectedIds: string[]) => {
     if (!confirm(`Are you sure you want to delete ${selectedIds.length} submission(s)?`)) return;
@@ -453,47 +483,82 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
       {/* 2. SUBMISSIONS LISTING VIEW (ServerDataTable + PostgreSQL Stored Procedure) */}
       {viewMode === 'listing' && (
         <div className="space-y-4">
-          {/* Quick Filters Strip */}
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 shadow-sm dark:shadow-none transition-colors duration-200">
-            <div>
-              <label className="text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1 block">Filter by Territory</label>
-              <Select2
-                value={selectedTerritoryId}
-                onChange={(val) => setSelectedTerritoryId(val)}
-                options={[
-                  { value: 'ALL', label: 'All Territories' },
-                  ...territories.map(t => ({ value: t.id, label: t.name, subLabel: t.region_name }))
-                ]}
-                placeholder="Select Territory"
-              />
+          {/* Quick Filters Toolbar */}
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm space-y-3.5 shadow-sm dark:shadow-none transition-colors duration-200">
+            {/* Top Toolbar: Territory Filter & Create Action */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-end justify-between gap-3">
+              <div className="w-full sm:w-80">
+                <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1 block">
+                  Filter by Territory Scope
+                </label>
+                <Select2
+                  value={selectedTerritoryId}
+                  onChange={(val) => setSelectedTerritoryId(val)}
+                  options={[
+                    { value: 'ALL', label: 'All Territories (Satkania Region)' },
+                    ...territories.map(t => ({ value: t.id, label: t.name, subLabel: t.region_name }))
+                  ]}
+                  placeholder="Select Territory"
+                />
+              </div>
+
+              <div className="shrink-0">
+                <button
+                  onClick={handleCreateNew}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 shadow-sm shadow-blue-500/20 transition-all cursor-pointer"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  <span>Create New Daily Entry</span>
+                </button>
+              </div>
             </div>
 
-            <div>
-              <label className="text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1 block">Filter by Status</label>
-              <Select2
-                value={filterStatus}
-                onChange={(val) => setFilterStatus(val)}
-                options={[
-                  { value: 'ALL', label: 'All Submission States' },
-                  { value: 'DRAFT', label: 'Draft' },
-                  { value: 'SUBMITTED', label: 'Submitted (TSO Review)' },
-                  { value: 'TSO_APPROVED', label: 'TSO Approved' },
-                  { value: 'RSO_APPROVED', label: 'RSO Approved' },
-                  { value: 'FINALIZED', label: 'Finalized & Locked' },
-                  { value: 'REJECTED', label: 'Rejected' },
-                ]}
-                placeholder="Select Status"
-              />
-            </div>
+            {/* Bottom Toolbar: Interactive Status Filter Pills */}
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  <Filter className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                  <span>Workflow Status Filter:</span>
+                </div>
+                {filterStatus !== 'ALL' && (
+                  <button
+                    onClick={() => setFilterStatus('ALL')}
+                    className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-semibold cursor-pointer"
+                  >
+                    Reset Filter (Show All)
+                  </button>
+                )}
+              </div>
 
-            <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-1">
-              <button
-                onClick={handleCreateNew}
-                className="w-full flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 shadow-sm transition-all cursor-pointer"
-              >
-                <PlusCircle className="h-4 w-4" />
-                <span>Create New Daily Entry</span>
-              </button>
+              {/* Status Chips Row */}
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                {[
+                  { id: 'ALL', label: 'All Submissions', dot: 'bg-slate-400 dark:bg-slate-300', activeBg: 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' },
+                  { id: 'DRAFT', label: 'Draft', dot: 'bg-slate-400', activeBg: 'bg-slate-700 text-white dark:bg-slate-300 dark:text-slate-900' },
+                  { id: 'SUBMITTED', label: 'TSO Pending', dot: 'bg-blue-500', activeBg: 'bg-blue-600 text-white dark:bg-blue-500 dark:text-white' },
+                  { id: 'TSO_APPROVED', label: 'TSO Approved', dot: 'bg-amber-500', activeBg: 'bg-amber-600 text-white dark:bg-amber-500 dark:text-white' },
+                  { id: 'RSO_APPROVED', label: 'RSO Verified', dot: 'bg-purple-600', activeBg: 'bg-purple-600 text-white dark:bg-purple-500 dark:text-white' },
+                  { id: 'FINALIZED', label: 'Finalized & Locked', dot: 'bg-emerald-500', activeBg: 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-white' },
+                  { id: 'REJECTED', label: 'Rejected', dot: 'bg-rose-500', activeBg: 'bg-rose-600 text-white dark:bg-rose-500 dark:text-white' },
+                ].map((opt) => {
+                  const isSelected = filterStatus === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setFilterStatus(opt.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer select-none ${
+                        isSelected
+                          ? `${opt.activeBg} shadow-sm ring-2 ring-blue-500/30`
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700/80 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <span className={`h-2 w-2 rounded-full ${isSelected ? 'bg-white dark:bg-slate-900' : opt.dot}`} />
+                      <span>{opt.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 

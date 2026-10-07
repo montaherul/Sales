@@ -109,14 +109,14 @@ export function CompanyManagement() {
         <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => handleEditClick(row)}
-            className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-400 dark:hover:bg-blue-900/60 dark:border-blue-800/50 transition-all cursor-pointer shadow-xs"
             title="Edit Company"
           >
             <Edit className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => handleDeleteSingle(row.id)}
-            className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-400 dark:hover:bg-rose-900/60 dark:border-rose-800/50 transition-all cursor-pointer shadow-xs"
             title="Delete Company"
           >
             <Trash2 className="w-3.5 h-3.5" />
