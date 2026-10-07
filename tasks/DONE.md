@@ -1,0 +1,28 @@
+# COMPLETED TASKS (DONE)
+
+- [x] Initialized structured specification repository architecture (`docs/`, `excel/`, `tasks/`).
+- [x] Formulated and committed master AI agent instructions (`AGENTS.md`).
+- [x] Formulated and committed complete product overview (`README.md`).
+- [x] Formulated and committed exhaustive business requirements (`PROJECT_REQUIREMENTS.md`).
+- [x] Formulated and committed all 18 modular specifications in `docs/`:
+  - `01-PRODUCT-SPEC.md`
+  - `02-ARCHITECTURE.md`
+  - `03-DATABASE.md`
+  - `04-AUTH-RBAC.md`
+  - `05-BUSINESS-RULES.md`
+  - `06-DAILY-DATA-WORKFLOW.md`
+  - `07-IMPORT-SPEC.md`
+  - `08-EXPORT-SPEC.md`
+  - `09-EXCEL-FORMULAS.md`
+  - `10-GOOGLE-DRIVE.md`
+  - `11-GOOGLE-SHEETS.md`
+  - `12-FRONTEND.md`
+  - `13-BACKEND.md`
+  - `14-SECURITY.md`
+  - `15-AUDIT-VERSIONING.md`
+  - `16-REPORTING.md`
+  - `17-TESTING.md`
+  - `18-DEPLOYMENT.md`
+  - `DECISIONS.md` (ADRs 001–008)
+- [x] Placed verified authoritative 34-sheet workbook at `excel/TEMPLATE.xlsx`.
+- [x] Extracted and documented exact cell/sheet mapping in `excel/EXCEL-MAPPING.md`.
