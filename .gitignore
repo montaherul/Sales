@@ -29,3 +29,4 @@ Thumbs.db
 # Office & Temporary lock files
 ~$*
 *.tmp
+*.tsbuildinfo
