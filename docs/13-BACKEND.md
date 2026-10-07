@@ -78,28 +78,30 @@ Supabase PostgreSQL Database
 
 ## 3. Server-Side Pagination & Search Specifications
 
-All administrative endpoints utilize `PaginationHelper` (`src/shared/database/pagination.ts`):
+### 3. PostgreSQL Stored Procedures / Functions Architecture (Database Tier 3)
+
+All server-side listings are executed via native PostgreSQL Stored Functions (`supabase/migrations/00006_stored_procedures.sql`), ensuring pre-compiled query plans, atomic counting, and elimination of SQL injection:
+
+1. `sp_get_companies_paginated(p_page, p_page_size, p_search, p_sort_by, p_sort_order)`
+2. `sp_get_users_paginated(p_page, p_page_size, p_search, p_company_id, p_role_name, p_sort_by, p_sort_order)`
+3. `sp_get_daily_submissions_paginated(p_page, p_page_size, p_search, p_report_date, p_territory_id, p_status, p_company_id, p_sort_by, p_sort_order)`
+4. `sp_get_territories_paginated(p_page, p_page_size, p_search, p_region_id, p_company_id, p_sort_by, p_sort_order)`
+5. `sp_get_brands_paginated(p_page, p_page_size, p_search, p_type, p_sort_by, p_sort_order)`
+6. `sp_get_targets_paginated(p_page, p_page_size, p_search, p_year, p_month, p_territory_id, p_sort_by, p_sort_order)`
+7. `sp_get_audit_logs_paginated(p_page, p_page_size, p_search, p_event_type, p_user_id, p_start_date, p_end_date, p_sort_by, p_sort_order)`
+
+Invoked in TypeScript controllers via `PaginationHelper.executeFunction()`:
 
 ```typescript
-const result = await PaginationHelper.paginate(
-  baseSelect,
-  fromClause,
-  {
-    page: 1,
-    pageSize: 10,
-    search: 'query',
-    searchFields: ['name', 'code'],
-    sortBy: 'created_at',
-    sortOrder: 'desc',
-    filters: { company_id: '...' }
-  }
+const result = await PaginationHelper.executeFunction(
+  'sp_get_companies_paginated',
+  [page, pageSize, search || null, sortBy, sortOrder]
 );
 ```
 
-- Safe from SQL injection via indexed parameters (`$1, $2, ...`).
-- When `?export=csv` is supplied, streaming CSV format is returned immediately with appropriate headers:
-  `Content-Type: text/csv; charset=utf-8`
-  `Content-Disposition: attachment; filename="Export.csv"`
+- Each procedure returns a structured `JSONB` document containing `{ items: [...], totalCount, page, pageSize, totalPages }`.
+- When `pageSize <= 0` (export mode), all records are streamed into RFC-compliant CSV via `PaginationHelper.toCsv()`.
+
 
 ---
 

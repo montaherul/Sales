@@ -22,38 +22,19 @@ export async function GET(request: NextRequest) {
     const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc';
     const isExport = searchParams.get('export') === 'csv';
 
-    const baseSelect = `
-      SELECT 
-        tg.id, 
-        tg.territory_id, 
-        tg.brand_id, 
-        tg.year, 
-        tg.month, 
-        tg.target_quantity, 
-        tg.route_count, 
-        tg.outlet_count, 
-        tg.created_at,
-        t.name as territory_name,
-        b.name as brand_name,
-        b.type as brand_type
-    `;
+    const cleanSortBy = sortBy.replace(/^tg\./, '');
+    const actualPageSize = isExport ? -1 : pageSize;
+    const filterTerritoryId = territoryId && territoryId !== 'ALL' ? territoryId : null;
 
-    const fromClause = `
-      FROM targets tg
-      JOIN territories t ON tg.territory_id = t.id
-      JOIN brands b ON tg.brand_id = b.id
-    `;
+    // PostgreSQL Stored Procedure: sp_get_targets_paginated
+    const result = await PaginationHelper.executeFunction(
+      'sp_get_targets_paginated',
+      [page, actualPageSize, search || null, year, month, filterTerritoryId, cleanSortBy, sortOrder]
+    );
 
     // Handle CSV Export
     if (isExport) {
-      const allRows = await dbQuery(`
-        ${baseSelect}
-        ${fromClause}
-        WHERE tg.year = $1 AND tg.month = $2
-        ORDER BY t.name, b.name ASC
-      `, [year, month]);
-
-      const csv = PaginationHelper.toCsv(allRows.rows, {
+      const csv = PaginationHelper.toCsv(result.data, {
         id: 'Target ID',
         territory_name: 'Territory',
         brand_name: 'Brand',
@@ -73,29 +54,6 @@ export async function GET(request: NextRequest) {
         },
       });
     }
-
-    const filters: Record<string, any> = {
-      'tg.year': year,
-      'tg.month': month,
-    };
-    if (territoryId && territoryId !== 'ALL') {
-      filters['tg.territory_id'] = territoryId;
-    }
-
-    const result = await PaginationHelper.paginate(
-      baseSelect,
-      fromClause,
-      {
-        page,
-        pageSize,
-        search,
-        searchFields: ['t.name', 'b.name'],
-        sortBy,
-        sortOrder,
-        filters,
-      },
-      'tg.target_quantity'
-    );
 
     return NextResponse.json({
       success: true,

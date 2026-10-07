@@ -19,36 +19,18 @@ export async function GET(request: NextRequest) {
     const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc';
     const isExport = searchParams.get('export') === 'csv';
 
-    const baseSelect = `
-      SELECT c.id, c.name, c.code, c.created_at,
-             COUNT(DISTINCT d.id) as division_count,
-             COUNT(DISTINCT t.id) as territory_count,
-             COUNT(DISTINCT u.id) as user_count
-    `;
+    const cleanSortBy = sortBy.replace(/^c\./, '');
+    const actualPageSize = isExport ? -1 : pageSize;
 
-    const fromClause = `
-      FROM companies c
-      LEFT JOIN divisions d ON c.id = d.company_id
-      LEFT JOIN wings w ON d.id = w.division_id
-      LEFT JOIN regions r ON w.id = r.wing_id
-      LEFT JOIN territories t ON r.id = t.region_id
-      LEFT JOIN user_scopes us ON us.company_id = c.id
-      LEFT JOIN user_profiles u ON us.user_id = u.id
-      GROUP BY c.id, c.name, c.code, c.created_at
-    `;
+    // PostgreSQL Stored Procedure: sp_get_companies_paginated
+    const result = await PaginationHelper.executeFunction(
+      'sp_get_companies_paginated',
+      [page, actualPageSize, search || null, cleanSortBy, sortOrder]
+    );
 
     // Handle CSV Export
     if (isExport) {
-      const allData = await dbQuery(`
-        SELECT c.id, c.name, c.code, c.created_at,
-               COUNT(DISTINCT d.id) as division_count,
-               COUNT(DISTINCT t.id) as territory_count,
-               COUNT(DISTINCT u.id) as user_count
-        ${fromClause}
-        ORDER BY c.name ASC
-      `);
-
-      const csv = PaginationHelper.toCsv(allData.rows, {
+      const csv = PaginationHelper.toCsv(result.data, {
         id: 'Company ID',
         name: 'Company Name',
         code: 'Company Code',
@@ -66,20 +48,6 @@ export async function GET(request: NextRequest) {
         },
       });
     }
-
-    const result = await PaginationHelper.paginate(
-      baseSelect,
-      fromClause,
-      {
-        page,
-        pageSize,
-        search,
-        searchFields: ['c.name', 'c.code'],
-        sortBy,
-        sortOrder,
-      },
-      'c.created_at'
-    );
 
     return NextResponse.json({
       success: true,

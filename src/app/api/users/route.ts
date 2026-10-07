@@ -21,41 +21,20 @@ export async function GET(request: NextRequest) {
     const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc';
     const isExport = searchParams.get('export') === 'csv';
 
-    const baseSelect = `
-      SELECT 
-        u.id, 
-        u.email, 
-        u.full_name, 
-        u.phone, 
-        r.name as role_name, 
-        u.is_active, 
-        u.created_at,
-        c.id as company_id,
-        c.name as company_name,
-        t.id as territory_id,
-        t.name as territory_name,
-        reg.id as region_id,
-        reg.name as region_name
-    `;
+    const cleanSortBy = sortBy.replace(/^u\./, '');
+    const actualPageSize = isExport ? -1 : pageSize;
+    const filterCompanyId = companyId && companyId !== 'ALL' ? companyId : null;
+    const filterRoleName = roleName && roleName !== 'ALL' ? roleName : null;
 
-    const fromClause = `
-      FROM user_profiles u
-      JOIN roles r ON u.role_id = r.id
-      LEFT JOIN user_scopes s ON s.user_id = u.id
-      LEFT JOIN companies c ON s.company_id = c.id
-      LEFT JOIN territories t ON s.territory_id = t.id
-      LEFT JOIN regions reg ON s.region_id = reg.id
-    `;
+    // PostgreSQL Stored Procedure: sp_get_users_paginated
+    const result = await PaginationHelper.executeFunction(
+      'sp_get_users_paginated',
+      [page, actualPageSize, search || null, filterCompanyId, filterRoleName, cleanSortBy, sortOrder]
+    );
 
     // Handle CSV Export
     if (isExport) {
-      const exportSql = `
-        ${baseSelect}
-        ${fromClause}
-        ORDER BY u.full_name ASC
-      `;
-      const allRows = await dbQuery(exportSql);
-      const csv = PaginationHelper.toCsv(allRows.rows, {
+      const csv = PaginationHelper.toCsv(result.data, {
         id: 'User ID',
         full_name: 'Full Name',
         email: 'Email',
@@ -76,29 +55,6 @@ export async function GET(request: NextRequest) {
         },
       });
     }
-
-    const filters: Record<string, any> = {};
-    if (companyId && companyId !== 'ALL') {
-      filters['s.company_id'] = companyId;
-    }
-    if (roleName && roleName !== 'ALL') {
-      filters['r.name'] = roleName;
-    }
-
-    const result = await PaginationHelper.paginate(
-      baseSelect,
-      fromClause,
-      {
-        page,
-        pageSize,
-        search,
-        searchFields: ['u.full_name', 'u.email', 'u.phone', 'r.name'],
-        sortBy,
-        sortOrder,
-        filters,
-      },
-      'u.created_at'
-    );
 
     return NextResponse.json({
       success: true,

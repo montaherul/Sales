@@ -98,6 +98,36 @@ export class PaginationHelper {
   }
 
   /**
+   * Executes a PostgreSQL Stored Procedure / Function that returns JSONB pagination result.
+   */
+  public static async executeFunction<T = any>(
+    functionName: string,
+    params: any[] = []
+  ): Promise<PaginatedResult<T>> {
+    const placeholders = params.map((_, i) => `$${i + 1}`).join(', ');
+    const sql = `SELECT ${functionName}(${placeholders}) as result`;
+    const res = await dbQuery(sql, params);
+    const json = res.rows[0]?.result || { items: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0 };
+    const items = json.items || [];
+    const totalRecords = parseInt(json.totalCount || '0', 10);
+    const page = parseInt(json.page || '1', 10);
+    const pageSize = parseInt(json.pageSize || '10', 10);
+    const totalPages = parseInt(json.totalPages || '0', 10);
+
+    return {
+      data: items,
+      pagination: {
+        page,
+        pageSize,
+        totalRecords,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    };
+  }
+
+  /**
    * Generates a CSV string from an array of objects for server-side export.
    */
   public static toCsv(rows: Record<string, any>[], columnHeaders?: Record<string, string>): string {
@@ -120,3 +150,4 @@ export class PaginationHelper {
     return [headerRow, ...dataRows].join('\n');
   }
 }
+

@@ -20,38 +20,19 @@ export async function GET(request: NextRequest) {
     const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc';
     const isExport = searchParams.get('export') === 'csv';
 
-    const baseSelect = `
-      SELECT 
-        b.id, 
-        b.name, 
-        b.type, 
-        b.sort_order, 
-        b.is_active, 
-        b.created_at,
-        p.unit_price,
-        p.effective_from
-    `;
+    const cleanSortBy = sortBy.replace(/^b\./, '');
+    const actualPageSize = isExport ? -1 : pageSize;
+    const filterType = type && type !== 'ALL' ? type : null;
 
-    const fromClause = `
-      FROM brands b
-      LEFT JOIN LATERAL (
-        SELECT unit_price, effective_from 
-        FROM prices 
-        WHERE brand_id = b.id 
-        ORDER BY effective_from DESC 
-        LIMIT 1
-      ) p ON true
-    `;
+    // PostgreSQL Stored Procedure: sp_get_brands_paginated
+    const result = await PaginationHelper.executeFunction(
+      'sp_get_brands_paginated',
+      [page, actualPageSize, search || null, filterType, cleanSortBy, sortOrder]
+    );
 
     // Handle CSV Export
     if (isExport) {
-      const allRows = await dbQuery(`
-        ${baseSelect}
-        ${fromClause}
-        ORDER BY b.type, b.sort_order ASC
-      `);
-
-      const csv = PaginationHelper.toCsv(allRows.rows, {
+      const csv = PaginationHelper.toCsv(result.data, {
         id: 'Brand ID',
         name: 'Brand Name',
         type: 'Product Category',
@@ -69,26 +50,6 @@ export async function GET(request: NextRequest) {
         },
       });
     }
-
-    const filters: Record<string, any> = {};
-    if (type && type !== 'ALL') {
-      filters['b.type'] = type;
-    }
-
-    const result = await PaginationHelper.paginate(
-      baseSelect,
-      fromClause,
-      {
-        page,
-        pageSize,
-        search,
-        searchFields: ['b.name', 'b.type'],
-        sortBy,
-        sortOrder,
-        filters,
-      },
-      'b.sort_order'
-    );
 
     return NextResponse.json({
       success: true,

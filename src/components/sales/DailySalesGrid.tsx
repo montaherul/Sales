@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { 
   CigaretteBrandSales, 
   CigaretteBrandStock, 
@@ -22,8 +22,16 @@ import {
   Info,
   Lock,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  List,
+  PlusCircle,
+  ArrowLeft,
+  FileEdit,
+  Eye,
+  Building2,
+  Calendar
 } from 'lucide-react';
+import { ServerDataTable, ColumnDef } from '@/components/common/ServerDataTable';
 import { Select2, Select2Option } from '@/components/common/Select2';
 
 interface TerritoryItem {
@@ -39,14 +47,24 @@ interface DailySalesGridProps {
 }
 
 export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGridProps) {
+  // Mode Controller: 'listing' | 'form'
+  const [viewMode, setViewMode] = useState<'listing' | 'form'>('listing');
+  const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
+  const [currentSubmissionId, setCurrentSubmissionId] = useState<string | null>(null);
+
+  // Filter & Master States
   const [territories, setTerritories] = useState<TerritoryItem[]>([]);
   const [selectedTerritoryId, setSelectedTerritoryId] = useState<string>('');
   const [selectedTerritoryName, setSelectedTerritoryName] = useState<string>('Kerani hat');
   const [reportDate, setReportDate] = useState('2026-10-06');
+  const [filterStatus, setFilterStatus] = useState<string>('ALL');
+
+  // Operational State
   const [submittedStatus, setSubmittedStatus] = useState<string | null>(null);
   const [currentStatus, setCurrentStatus] = useState<SubmissionStatus | 'NEW'>('NEW');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [tableRefreshKey, setTableRefreshKey] = useState(0);
 
   // Cigarette Sales State
   const [sales, setSales] = useState<CigaretteBrandSales>({
@@ -95,55 +113,17 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
         const json = await res.json();
         if (json.success && json.data.territories?.length > 0) {
           setTerritories(json.data.territories);
-          setSelectedTerritoryId(json.data.territories[0].id);
-          setSelectedTerritoryName(json.data.territories[0].name);
+          if (!selectedTerritoryId) {
+            setSelectedTerritoryId(json.data.territories[0].id);
+            setSelectedTerritoryName(json.data.territories[0].name);
+          }
         }
       } catch (err) {
         console.error('Failed to load master territories:', err);
       }
     }
     loadMasterData();
-  }, []);
-
-  // 2. Fetch Submission for Selected Territory & Date
-  const fetchSubmission = useCallback(async (terrId: string, terrName: string, date: string) => {
-    if (!terrId && !terrName) return;
-    setIsLoading(true);
-    setSubmittedStatus(null);
-    try {
-      const res = await fetch(`/api/daily-submissions?date=${date}&territoryId=${terrId}`);
-      const json = await res.json();
-      if (json.success && json.data && json.data.length > 0) {
-        const rec = json.data[0];
-        setSales(rec.cigaretteSales || { wilson: 0, shahara: 0, express: 0, nexus: 0, sb: 0, sm: 0 });
-        setStock(rec.cigaretteStock || { wilson: 0, shahara: 0, express: 0, nexus: 0, sb: 0, sm: 0 });
-        setZardaSales(rec.zardaSales || { slb: 0, qty_22_25: 0, qty_99_14: 0, qty_33_15: 0 });
-        setZardaStock(rec.zardaStock || { slb: 0, qty_22_25: 0, qty_99_14: 0, qty_33_15: 0 });
-        setEmptyPackets(rec.emptyPackets || 0);
-        setRemarks(rec.remarks || '');
-        setCurrentStatus(rec.status || 'DRAFT');
-      } else {
-        // Reset to empty fields if no submission exists yet
-        setSales({ wilson: 0, shahara: 0, express: 0, nexus: 0, sb: 0, sm: 0 });
-        setStock({ wilson: 0, shahara: 0, express: 0, nexus: 0, sb: 0, sm: 0 });
-        setZardaSales({ slb: 0, qty_22_25: 0, qty_99_14: 0, qty_33_15: 0 });
-        setZardaStock({ slb: 0, qty_22_25: 0, qty_99_14: 0, qty_33_15: 0 });
-        setEmptyPackets(0);
-        setRemarks('');
-        setCurrentStatus('NEW');
-      }
-    } catch (err) {
-      console.error('Failed to fetch submission:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (selectedTerritoryId || selectedTerritoryName) {
-      fetchSubmission(selectedTerritoryId, selectedTerritoryName, reportDate);
-    }
-  }, [selectedTerritoryId, selectedTerritoryName, reportDate, fetchSubmission]);
+  }, [selectedTerritoryId]);
 
   // Real-time calculations via centralized engine
   const totalSales = useMemo(() => calculateCigaretteSalesTotal(sales), [sales]);
@@ -153,6 +133,67 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
 
   const isReadOnly = currentStatus === 'FINALIZED';
 
+  // 2. Load submission into form state
+  const loadSubmissionData = (record: any, mode: 'create' | 'edit') => {
+    setFormMode(mode);
+    setCurrentSubmissionId(record.id || null);
+    setSelectedTerritoryId(record.territory_id || record.territoryId || '');
+    setSelectedTerritoryName(record.territory_name || record.territoryName || 'Kerani hat');
+    setReportDate(record.reporting_date || record.reportDate || '2026-10-06');
+    setCurrentStatus(record.status || (mode === 'create' ? 'NEW' : 'DRAFT'));
+    setSubmittedStatus(null);
+
+    if (mode === 'create') {
+      setSales({ wilson: 0, shahara: 0, express: 0, nexus: 0, sb: 0, sm: 0 });
+      setStock({ wilson: 0, shahara: 0, express: 0, nexus: 0, sb: 0, sm: 0 });
+      setZardaSales({ slb: 0, qty_22_25: 0, qty_99_14: 0, qty_33_15: 0 });
+      setZardaStock({ slb: 0, qty_22_25: 0, qty_99_14: 0, qty_33_15: 0 });
+      setEmptyPackets(0);
+      setRemarks('');
+    } else {
+      setSales({
+        wilson: parseFloat(record.c_wilson_sales ?? record.cigaretteSales?.wilson ?? 0),
+        shahara: parseFloat(record.c_shahara_sales ?? record.cigaretteSales?.shahara ?? 0),
+        express: parseFloat(record.c_express_sales ?? record.cigaretteSales?.express ?? 0),
+        nexus: parseFloat(record.c_nexus_sales ?? record.cigaretteSales?.nexus ?? 0),
+        sb: parseFloat(record.c_sb_sales ?? record.cigaretteSales?.sb ?? 0),
+        sm: parseFloat(record.c_sm_sales ?? record.cigaretteSales?.sm ?? 0),
+      });
+      setStock({
+        wilson: parseFloat(record.c_wilson_stock ?? record.cigaretteStock?.wilson ?? 0),
+        shahara: parseFloat(record.c_shahara_stock ?? record.cigaretteStock?.shahara ?? 0),
+        express: parseFloat(record.c_express_stock ?? record.cigaretteStock?.express ?? 0),
+        nexus: parseFloat(record.c_nexus_stock ?? record.cigaretteStock?.nexus ?? 0),
+        sb: parseFloat(record.c_sb_stock ?? record.cigaretteStock?.sb ?? 0),
+        sm: parseFloat(record.c_sm_stock ?? record.cigaretteStock?.sm ?? 0),
+      });
+      setZardaSales({
+        slb: parseFloat(record.z_slb_sales ?? record.zardaSales?.slb ?? 0),
+        qty_22_25: parseInt(record.z_22_25_sales ?? record.zardaSales?.qty_22_25 ?? 0, 10),
+        qty_99_14: parseInt(record.z_99_14_sales ?? record.zardaSales?.qty_99_14 ?? 0, 10),
+        qty_33_15: parseInt(record.z_33_15_sales ?? record.zardaSales?.qty_33_15 ?? 0, 10),
+      });
+      setZardaStock({
+        slb: parseFloat(record.z_slb_stock ?? record.zardaStock?.slb ?? 0),
+        qty_22_25: parseInt(record.z_22_25_stock ?? record.zardaStock?.qty_22_25 ?? 0, 10),
+        qty_99_14: parseInt(record.z_99_14_stock ?? record.zardaStock?.qty_99_14 ?? 0, 10),
+        qty_33_15: parseInt(record.z_33_15_stock ?? record.zardaStock?.qty_33_15 ?? 0, 10),
+      });
+      setEmptyPackets(parseInt(record.empty_packets ?? record.emptyPackets ?? 0, 10));
+      setRemarks(record.remarks || '');
+    }
+
+    setViewMode('form');
+  };
+
+  const handleCreateNew = () => {
+    loadSubmissionData({
+      territory_id: selectedTerritoryId || (territories[0]?.id || ''),
+      territory_name: selectedTerritoryName || (territories[0]?.name || 'Kerani hat'),
+      reporting_date: reportDate,
+    }, 'create');
+  };
+
   const handleTerritoryChange = (terrId: string) => {
     const terr = territories.find(t => t.id === terrId);
     if (terr) {
@@ -161,6 +202,7 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
     }
   };
 
+  // 3. Save Draft Handler
   const handleSaveDraft = async () => {
     setIsSaving(true);
     try {
@@ -192,7 +234,8 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
       const json = await res.json();
       if (json.success) {
         setCurrentStatus('DRAFT');
-        setSubmittedStatus('Draft saved to Supabase PostgreSQL database.');
+        setSubmittedStatus('Draft saved to PostgreSQL database.');
+        setTableRefreshKey(k => k + 1);
       } else {
         alert(json.error || 'Failed to save draft');
       }
@@ -203,6 +246,7 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
     }
   };
 
+  // 4. Submit for Review Handler
   const handleSubmit = async () => {
     setIsSaving(true);
     try {
@@ -225,376 +269,566 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
         totalZardaStockValue: totalZardaStock,
       };
 
-      // 1. Save submission
-      await fetch('/api/daily-submissions', {
+      const res = await fetch('/api/daily-submissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ record, userId: 'csr.keranihat@afaztobacco.com' }),
       });
 
-      // 2. Transition workflow state
-      const res = await fetch('/api/daily-submissions/workflow', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          territoryId: selectedTerritoryId,
-          reportDate,
-          toStatus: 'SUBMITTED',
-          userId: 'csr.keranihat@afaztobacco.com',
-          comments: 'Submitted by CSR for TSO review',
-        }),
-      });
-
       const json = await res.json();
       if (json.success) {
+        // Trigger workflow
+        await fetch('/api/daily-submissions/workflow', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            territoryId: selectedTerritoryId,
+            reportDate,
+            toStatus: 'SUBMITTED',
+            userId: 'csr.keranihat@afaztobacco.com',
+            comments: 'Submitted by Field CSR for TSO Review',
+          }),
+        });
+
         setCurrentStatus('SUBMITTED');
-        setSubmittedStatus('Successfully submitted to Territory Sales Officer (TSO) for review.');
+        setSubmittedStatus('Daily submission published and forwarded for TSO Review.');
+        setTableRefreshKey(k => k + 1);
       } else {
-        alert(json.error || 'Failed to submit for review');
+        alert(json.error || 'Failed to submit daily record');
       }
     } catch (err: any) {
-      alert(err.message || 'Error submitting for review');
+      alert(err.message || 'Error submitting daily record');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const getStatusBadge = () => {
-    switch (currentStatus) {
-      case 'FINALIZED':
-        return <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400 border border-emerald-500/20"><Lock className="h-3 w-3" /> Finalized & Locked</span>;
-      case 'RSO_APPROVED':
-        return <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/10 px-2.5 py-1 text-xs font-semibold text-cyan-400 border border-cyan-500/20"><CheckCircle2 className="h-3 w-3" /> RSO Approved</span>;
-      case 'TSO_APPROVED':
-        return <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-400 border border-blue-500/20"><CheckCircle2 className="h-3 w-3" /> TSO Approved</span>;
-      case 'SUBMITTED':
-        return <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-400 border border-amber-500/20"><AlertCircle className="h-3 w-3" /> Submitted (In Review)</span>;
+  // Status Badge Helper
+  const getStatusBadge = (status: string) => {
+    switch (status) {
       case 'DRAFT':
-        return <span className="inline-flex items-center gap-1 rounded-full bg-slate-500/10 px-2.5 py-1 text-xs font-semibold text-slate-400 border border-slate-500/20">Draft (Unsubmitted)</span>;
+        return <span className="rounded-full bg-slate-800 text-slate-300 px-2.5 py-0.5 text-[10px] font-medium border border-slate-700">Draft</span>;
+      case 'SUBMITTED':
+        return <span className="rounded-full bg-blue-950/80 text-blue-400 px-2.5 py-0.5 text-[10px] font-medium border border-blue-800/60">TSO Pending</span>;
+      case 'TSO_APPROVED':
+        return <span className="rounded-full bg-amber-950/80 text-amber-400 px-2.5 py-0.5 text-[10px] font-medium border border-amber-800/60">TSO Approved</span>;
+      case 'RSO_APPROVED':
+        return <span className="rounded-full bg-purple-950/80 text-purple-400 px-2.5 py-0.5 text-[10px] font-medium border border-purple-800/60">RSO Verified</span>;
+      case 'FINALIZED':
+        return <span className="rounded-full bg-emerald-950/80 text-emerald-400 px-2.5 py-0.5 text-[10px] font-medium border border-emerald-800/60 flex items-center gap-1"><Lock className="h-2.5 w-2.5" /> Finalized</span>;
+      case 'REJECTED':
+        return <span className="rounded-full bg-rose-950/80 text-rose-400 px-2.5 py-0.5 text-[10px] font-medium border border-rose-800/60">Rejected</span>;
       default:
-        return <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 px-2.5 py-1 text-xs font-semibold text-purple-400 border border-purple-500/20">New Entry</span>;
+        return <span className="rounded-full bg-slate-800 text-slate-400 px-2.5 py-0.5 text-[10px] font-medium">{status}</span>;
+    }
+  };
+
+  // Table Columns Definition
+  const columns: ColumnDef<any>[] = [
+    {
+      key: 'territory_name',
+      header: 'Territory & Region',
+      sortable: true,
+      render: (row) => (
+        <div>
+          <span className="font-semibold text-white block">{row.territory_name}</span>
+          <span className="text-[10px] text-slate-400">{row.region_name || 'Satkania'}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'reporting_date',
+      header: 'Date',
+      sortable: true,
+      render: (row) => <span className="font-mono text-slate-300">{row.reporting_date}</span>,
+    },
+    {
+      key: 'total_cigarette_sales',
+      header: 'Cig. Sales (Mio)',
+      align: 'right',
+      render: (row) => <span className="font-mono font-semibold text-white">{parseFloat(row.total_cigarette_sales || 0).toFixed(2)}</span>,
+    },
+    {
+      key: 'total_cigarette_stock',
+      header: 'Cig. Stock (Mio)',
+      align: 'right',
+      render: (row) => <span className="font-mono text-emerald-400">{parseFloat(row.total_cigarette_stock || 0).toFixed(2)}</span>,
+    },
+    {
+      key: 'total_zarda_sales_value',
+      header: 'Zarda (BDT)',
+      align: 'right',
+      render: (row) => <span className="font-mono text-amber-300">৳ {parseFloat(row.total_zarda_sales_value || 0).toLocaleString()}</span>,
+    },
+    {
+      key: 'empty_packets',
+      header: 'Empty Pkts',
+      align: 'right',
+      render: (row) => <span className="font-mono text-slate-300">{parseInt(row.empty_packets || 0, 10).toLocaleString()}</span>,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      sortable: true,
+      render: (row) => getStatusBadge(row.status),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (row) => (
+        <div className="flex items-center justify-end gap-1.5">
+          <button
+            onClick={() => loadSubmissionData(row, 'edit')}
+            className="rounded-lg bg-blue-950/60 text-blue-300 hover:bg-blue-900/60 border border-blue-800/40 px-2.5 py-1 text-xs font-medium flex items-center gap-1 transition-all"
+            title="Open in Operational Entry Form"
+          >
+            <FileEdit className="h-3 w-3" />
+            <span>Open / Edit</span>
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  const handleBatchDelete = async (selectedIds: string[]) => {
+    if (!confirm(`Are you sure you want to delete ${selectedIds.length} submission(s)?`)) return;
+    try {
+      const res = await fetch('/api/daily-submissions', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedIds }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setTableRefreshKey(k => k + 1);
+      } else {
+        alert(json.error || 'Failed to delete submissions');
+      }
+    } catch (e: any) {
+      alert(e.message || 'Error deleting submissions');
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Header Controls */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="w-56">
-            <Select2
-              label="Territory"
-              options={territories.map((t) => ({
-                value: t.id,
-                label: t.name,
-                badge: `SL #${t.sort_order}`,
-              }))}
-              value={selectedTerritoryId}
-              onChange={(val) => {
-                const terr = territories.find((t) => t.id === val);
-                if (terr) {
-                  setSelectedTerritoryId(terr.id);
-                  setSelectedTerritoryName(terr.name);
-                }
-              }}
-              disabled={isLoading}
-              isClearable={false}
-            />
-          </div>
-
-          <div>
-            <label className="text-xs text-slate-400 block mb-1">Report Date</label>
-            <input
-              type="date"
-              value={reportDate}
-              onChange={(e) => setReportDate(e.target.value)}
-              disabled={isLoading}
-              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-white focus:border-blue-500 focus:outline-none font-mono"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs text-slate-400 block mb-1">Workflow Status</label>
-            <div>{getStatusBadge()}</div>
-          </div>
+      {/* 1. Module Header & View Mode Switcher */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-4">
+        <div>
+          <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+            <FileEdit className="h-5 w-5 text-blue-400" />
+            <span>Daily Sales & Closing Stock Operations</span>
+          </h2>
+          <p className="text-xs text-slate-400">
+            PostgreSQL-backed operational workflow: field sales, brand closing stock, zarda, empty packets & approval states
+          </p>
         </div>
 
-        {/* Live Calculation Preview Pills */}
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-blue-950/60 border border-blue-800/40 px-3 py-1.5 text-right">
-            <span className="text-[10px] text-blue-300 font-medium block">Total Cigarette Sales</span>
-            <span className="text-sm font-bold text-white font-mono">{totalSales.toFixed(2)} Mio</span>
-          </div>
-          <div className="rounded-lg bg-emerald-950/60 border border-emerald-800/40 px-3 py-1.5 text-right">
-            <span className="text-[10px] text-emerald-300 font-medium block">Total Closing Stock</span>
-            <span className="text-sm font-bold text-white font-mono">{totalStock.toFixed(2)} Mio</span>
-          </div>
+        {/* View Mode Switcher Tabs */}
+        <div className="flex items-center gap-2 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+          <button
+            onClick={() => setViewMode('listing')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              viewMode === 'listing'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <List className="h-3.5 w-3.5" />
+            <span>Submissions History</span>
+          </button>
+
+          <button
+            onClick={handleCreateNew}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              viewMode === 'form'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <PlusCircle className="h-3.5 w-3.5" />
+            <span>{formMode === 'create' ? 'New Daily Entry' : 'Edit Entry Form'}</span>
+          </button>
         </div>
       </div>
 
-      {submittedStatus && (
-        <div className="flex items-center gap-2 rounded-lg bg-emerald-950/60 border border-emerald-800/60 px-4 py-2.5 text-xs text-emerald-300">
-          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-          <span>{submittedStatus}</span>
-        </div>
-      )}
+      {/* 2. SUBMISSIONS LISTING VIEW (ServerDataTable + PostgreSQL Stored Procedure) */}
+      {viewMode === 'listing' && (
+        <div className="space-y-4">
+          {/* Quick Filters Strip */}
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="text-[11px] font-medium text-slate-400 mb-1 block">Filter by Territory</label>
+              <Select2
+                value={selectedTerritoryId}
+                onChange={(val) => setSelectedTerritoryId(val)}
+                options={[
+                  { value: 'ALL', label: 'All Territories' },
+                  ...territories.map(t => ({ value: t.id, label: t.name, subLabel: t.region_name }))
+                ]}
+                placeholder="Select Territory"
+              />
+            </div>
 
-      {isReadOnly && (
-        <div className="flex items-center gap-2 rounded-lg bg-amber-950/60 border border-amber-800/60 px-4 py-2.5 text-xs text-amber-300">
-          <Lock className="h-4 w-4 text-amber-400 shrink-0" />
-          <span>This record is <strong>FINALIZED</strong>. Direct field editing is locked. Super Admin can unlock this submission with mandatory audit justification.</span>
-        </div>
-      )}
+            <div>
+              <label className="text-[11px] font-medium text-slate-400 mb-1 block">Filter by Status</label>
+              <Select2
+                value={filterStatus}
+                onChange={(val) => setFilterStatus(val)}
+                options={[
+                  { value: 'ALL', label: 'All Submission States' },
+                  { value: 'DRAFT', label: 'Draft' },
+                  { value: 'SUBMITTED', label: 'Submitted (TSO Review)' },
+                  { value: 'TSO_APPROVED', label: 'TSO Approved' },
+                  { value: 'RSO_APPROVED', label: 'RSO Approved' },
+                  { value: 'FINALIZED', label: 'Finalized & Locked' },
+                  { value: 'REJECTED', label: 'Rejected' },
+                ]}
+                placeholder="Select Status"
+              />
+            </div>
 
-      {/* 1. Cigarette Section */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div>
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <span>Brand Wise Cigarette Sales & Closing Stock</span>
-              <span className="text-[10px] font-normal px-2 py-0.5 rounded bg-slate-800 text-slate-300">BITCL Brands (Mio)</span>
-            </h3>
-            <p className="text-xs text-slate-400">Values in Millions of sticks. Totals computed by centralized formula engine.</p>
+            <div className="flex items-end gap-2">
+              <button
+                onClick={handleCreateNew}
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 shadow-sm transition-all"
+              >
+                <PlusCircle className="h-4 w-4" />
+                <span>Create New Daily Entry</span>
+              </button>
+            </div>
           </div>
-        </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
-            <thead>
-              <tr className="border-b border-slate-800 text-slate-400 font-semibold">
-                <th className="pb-2 w-32">Metric</th>
-                <th className="pb-2 text-right">Wilson</th>
-                <th className="pb-2 text-right">Shahara</th>
-                <th className="pb-2 text-right">Express</th>
-                <th className="pb-2 text-right">Nexus</th>
-                <th className="pb-2 text-right">SB</th>
-                <th className="pb-2 text-right">SM</th>
-                <th className="pb-2 text-right text-blue-400 bg-blue-950/30 px-3 rounded-t">TOTAL</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {/* Daily Sales Row */}
-              <tr>
-                <td className="py-2.5 font-medium text-slate-300">Daily Sales (Mio)</td>
-                {(['wilson', 'shahara', 'express', 'nexus', 'sb', 'sm'] as const).map((brand) => (
-                  <td key={brand} className="py-2.5 text-right pl-2">
+          {/* Server-Side Tabulator Table */}
+          <ServerDataTable
+            key={tableRefreshKey}
+            endpoint="/api/daily-submissions"
+            columns={columns}
+            searchPlaceholder="Search territory, region, status, remarks..."
+            exportFilenamePrefix="Daily_Submissions"
+            onBatchDelete={handleBatchDelete}
+            additionalParams={{
+              territoryId: selectedTerritoryId,
+              status: filterStatus,
+            }}
+          />
+        </div>
+      )}
+
+      {/* 3. OPERATIONAL ENTRY FORM VIEW (Single-Page Form Controller) */}
+      {viewMode === 'form' && (
+        <div className="space-y-6">
+          {/* Form Context Header Bar */}
+          <div className="flex items-center justify-between bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+            <button
+              onClick={() => setViewMode('listing')}
+              className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Back to Submissions History</span>
+            </button>
+
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-slate-400">
+                Mode: <strong className="text-white uppercase">{formMode}</strong>
+              </span>
+              {getStatusBadge(currentStatus)}
+            </div>
+          </div>
+
+          {/* Submission Feedback Alert */}
+          {submittedStatus && (
+            <div className="flex items-center gap-2 rounded-xl bg-emerald-950/40 border border-emerald-800/60 p-3 text-xs text-emerald-300">
+              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+              <span>{submittedStatus}</span>
+            </div>
+          )}
+
+          {/* Operational Scope Strip */}
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-sm grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">Operational Territory Scope</label>
+              <Select2
+                value={selectedTerritoryId}
+                onChange={handleTerritoryChange}
+                disabled={isReadOnly}
+                options={territories.map((t) => ({
+                  value: t.id,
+                  label: t.name,
+                  subLabel: t.region_name,
+                }))}
+                placeholder="Select Territory"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">Reporting Date</label>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={reportDate}
+                  disabled={isReadOnly}
+                  onChange={(e) => setReportDate(e.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none font-mono disabled:opacity-50"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-4">
+              <div className="text-right">
+                <span className="text-[11px] text-slate-400 block">Record Status</span>
+                <span className="text-xs font-mono font-bold text-blue-400">{currentStatus}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* KPI Calculation Strip */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3.5">
+              <span className="text-[11px] text-slate-400 block">Total Cigarette Sales</span>
+              <span className="text-lg font-bold text-white font-mono">{totalSales.toFixed(2)}</span>
+              <span className="text-[10px] text-slate-500 block">Million Sticks</span>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3.5">
+              <span className="text-[11px] text-emerald-400 block">Total Cigarette Stock</span>
+              <span className="text-lg font-bold text-emerald-300 font-mono">{totalStock.toFixed(2)}</span>
+              <span className="text-[10px] text-slate-500 block">Million Sticks</span>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3.5">
+              <span className="text-[11px] text-amber-400 block">Total Zarda Sales</span>
+              <span className="text-lg font-bold text-amber-300 font-mono">৳ {totalZardaSales.toLocaleString()}</span>
+              <span className="text-[10px] text-slate-500 block">BDT Valuation</span>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3.5">
+              <span className="text-[11px] text-indigo-400 block">Total Zarda Stock</span>
+              <span className="text-lg font-bold text-indigo-300 font-mono">৳ {totalZardaStock.toLocaleString()}</span>
+              <span className="text-[10px] text-slate-500 block">BDT Valuation</span>
+            </div>
+          </div>
+
+          {/* Form Sections */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 1. Cigarette Brands */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm space-y-4">
+              <h3 className="text-sm font-bold text-white border-b border-slate-800 pb-2">
+                1. Cigarette Brands (Million Sticks)
+              </h3>
+              <div className="grid grid-cols-2 gap-4 text-xs">
+                {/* Sales Columns */}
+                <div className="space-y-3">
+                  <span className="font-semibold text-slate-300 block">Daily Sales</span>
+                  {(['wilson', 'shahara', 'express', 'nexus', 'sb', 'sm'] as const).map((brand) => (
+                    <div key={brand}>
+                      <label className="text-slate-400 capitalize block mb-1">{brand}</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        disabled={isReadOnly || isLoading}
+                        value={sales[brand] === 0 ? '' : sales[brand]}
+                        placeholder="0.00"
+                        onChange={(e) => setSales({ ...sales, [brand]: parseFloat(e.target.value) || 0 })}
+                        className="w-full rounded border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-right text-xs text-white focus:border-blue-500 focus:outline-none font-mono disabled:opacity-50"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Stock Columns */}
+                <div className="space-y-3">
+                  <span className="font-semibold text-emerald-400 block">Closing Stock</span>
+                  {(['wilson', 'shahara', 'express', 'nexus', 'sb', 'sm'] as const).map((brand) => (
+                    <div key={brand}>
+                      <label className="text-slate-400 capitalize block mb-1">{brand}</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        disabled={isReadOnly || isLoading}
+                        value={stock[brand] === 0 ? '' : stock[brand]}
+                        placeholder="0.00"
+                        onChange={(e) => setStock({ ...stock, [brand]: parseFloat(e.target.value) || 0 })}
+                        className="w-full rounded border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-right text-xs text-white focus:border-emerald-500 focus:outline-none font-mono disabled:opacity-50"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Zarda Brands */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm space-y-4">
+              <h3 className="text-sm font-bold text-white border-b border-slate-800 pb-2">
+                2. Zarda Operations (Qty & Value)
+              </h3>
+              <div className="grid grid-cols-2 gap-4 text-xs">
+                {/* Zarda Sales */}
+                <div className="space-y-3">
+                  <span className="font-semibold text-amber-300 block">Zarda Sales</span>
+                  <div>
+                    <label className="text-slate-400 block mb-1">SLB (Kg)</label>
                     <input
                       type="number"
                       step="0.01"
                       disabled={isReadOnly || isLoading}
-                      value={sales[brand] === 0 ? '' : sales[brand]}
+                      value={zardaSales.slb === 0 ? '' : zardaSales.slb}
                       placeholder="0.00"
-                      onChange={(e) => setSales({ ...sales, [brand]: parseFloat(e.target.value) || 0 })}
-                      className="w-20 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-blue-500 focus:outline-none font-mono disabled:opacity-50"
+                      onChange={(e) => setZardaSales({ ...zardaSales, slb: parseFloat(e.target.value) || 0 })}
+                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
                     />
-                  </td>
-                ))}
-                <td className="py-2.5 text-right font-mono font-bold text-blue-400 bg-blue-950/30 px-3">
-                  {totalSales.toFixed(2)}
-                </td>
-              </tr>
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">22/25 (@15 Tk)</label>
+                    <input
+                      type="number"
+                      disabled={isReadOnly || isLoading}
+                      value={zardaSales.qty_22_25 === 0 ? '' : zardaSales.qty_22_25}
+                      placeholder="0"
+                      onChange={(e) => setZardaSales({ ...zardaSales, qty_22_25: parseInt(e.target.value, 10) || 0 })}
+                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">99/14 (@6 Tk)</label>
+                    <input
+                      type="number"
+                      disabled={isReadOnly || isLoading}
+                      value={zardaSales.qty_99_14 === 0 ? '' : zardaSales.qty_99_14}
+                      placeholder="0"
+                      onChange={(e) => setZardaSales({ ...zardaSales, qty_99_14: parseInt(e.target.value, 10) || 0 })}
+                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">33/15 (@8 Tk)</label>
+                    <input
+                      type="number"
+                      disabled={isReadOnly || isLoading}
+                      value={zardaSales.qty_33_15 === 0 ? '' : zardaSales.qty_33_15}
+                      placeholder="0"
+                      onChange={(e) => setZardaSales({ ...zardaSales, qty_33_15: parseInt(e.target.value, 10) || 0 })}
+                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                    />
+                  </div>
+                </div>
 
-              {/* Closing Stock Row */}
-              <tr>
-                <td className="py-2.5 font-medium text-slate-300">Closing Stock (Mio)</td>
-                {(['wilson', 'shahara', 'express', 'nexus', 'sb', 'sm'] as const).map((brand) => (
-                  <td key={brand} className="py-2.5 text-right pl-2">
+                {/* Zarda Stock */}
+                <div className="space-y-3">
+                  <span className="font-semibold text-indigo-300 block">Zarda Closing Stock</span>
+                  <div>
+                    <label className="text-slate-400 block mb-1">SLB (Kg)</label>
                     <input
                       type="number"
                       step="0.01"
                       disabled={isReadOnly || isLoading}
-                      value={stock[brand] === 0 ? '' : stock[brand]}
+                      value={zardaStock.slb === 0 ? '' : zardaStock.slb}
                       placeholder="0.00"
-                      onChange={(e) => setStock({ ...stock, [brand]: parseFloat(e.target.value) || 0 })}
-                      className="w-20 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-emerald-500 focus:outline-none font-mono disabled:opacity-50"
+                      onChange={(e) => setZardaStock({ ...zardaStock, slb: parseFloat(e.target.value) || 0 })}
+                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
                     />
-                  </td>
-                ))}
-                <td className="py-2.5 text-right font-mono font-bold text-emerald-400 bg-emerald-950/30 px-3">
-                  {totalStock.toFixed(2)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">22/25 (@15 Tk)</label>
+                    <input
+                      type="number"
+                      disabled={isReadOnly || isLoading}
+                      value={zardaStock.qty_22_25 === 0 ? '' : zardaStock.qty_22_25}
+                      placeholder="0"
+                      onChange={(e) => setZardaStock({ ...zardaStock, qty_22_25: parseInt(e.target.value, 10) || 0 })}
+                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">99/14 (@6 Tk)</label>
+                    <input
+                      type="number"
+                      disabled={isReadOnly || isLoading}
+                      value={zardaStock.qty_99_14 === 0 ? '' : zardaStock.qty_99_14}
+                      placeholder="0"
+                      onChange={(e) => setZardaStock({ ...zardaStock, qty_99_14: parseInt(e.target.value, 10) || 0 })}
+                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">33/15 (@8 Tk)</label>
+                    <input
+                      type="number"
+                      disabled={isReadOnly || isLoading}
+                      value={zardaStock.qty_33_15 === 0 ? '' : zardaStock.qty_33_15}
+                      placeholder="0"
+                      onChange={(e) => setZardaStock({ ...zardaStock, qty_33_15: parseInt(e.target.value, 10) || 0 })}
+                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-      {/* 2. Zarda Section */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div>
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <span>Brand Wise Zarda Sales & Closing Stock</span>
-              <span className="text-[10px] font-normal px-2 py-0.5 rounded bg-slate-800 text-slate-300">Standard Packets & Pouches</span>
+          {/* 3. Empty Packets & Remarks */}
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm space-y-4">
+            <h3 className="text-sm font-bold text-white border-b border-slate-800 pb-2">
+              Operational Returns & Route Remarks
             </h3>
-            <p className="text-xs text-slate-400">Formula Value: 22/25 × 15 BDT + 99/14 × 6 BDT + 33/15 × 8 BDT</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Zarda Sales */}
-          <div className="rounded-lg border border-slate-800/80 bg-slate-950/40 p-4 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <span className="text-xs font-semibold text-slate-300">Zarda Sales Quantities</span>
-              <span className="text-xs font-bold text-amber-400 font-mono">Value: {totalZardaSales.toLocaleString()} BDT</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="text-slate-400 block mb-1">SLB (Qty)</label>
+                <label className="text-xs text-slate-400 block mb-1">Express Empty Packet Return (Count)</label>
                 <input
                   type="number"
-                  step="0.01"
                   disabled={isReadOnly || isLoading}
-                  value={zardaSales.slb === 0 ? '' : zardaSales.slb}
-                  placeholder="0.00"
-                  onChange={(e) => setZardaSales({ ...zardaSales, slb: parseFloat(e.target.value) || 0 })}
-                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                  value={emptyPackets === 0 ? '' : emptyPackets}
+                  placeholder="0"
+                  onChange={(e) => setEmptyPackets(parseInt(e.target.value, 10) || 0)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none font-mono disabled:opacity-50"
                 />
               </div>
-              <div>
-                <label className="text-slate-400 block mb-1">22/25 (@15 Tk)</label>
+              <div className="sm:col-span-2">
+                <label className="text-xs text-slate-400 block mb-1">Route & Field Remarks</label>
                 <input
-                  type="number"
+                  type="text"
                   disabled={isReadOnly || isLoading}
-                  value={zardaSales.qty_22_25 === 0 ? '' : zardaSales.qty_22_25}
-                  placeholder="0"
-                  onChange={(e) => setZardaSales({ ...zardaSales, qty_22_25: parseInt(e.target.value, 10) || 0 })}
-                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
-                />
-              </div>
-              <div>
-                <label className="text-slate-400 block mb-1">99/14 (@6 Tk)</label>
-                <input
-                  type="number"
-                  disabled={isReadOnly || isLoading}
-                  value={zardaSales.qty_99_14 === 0 ? '' : zardaSales.qty_99_14}
-                  placeholder="0"
-                  onChange={(e) => setZardaSales({ ...zardaSales, qty_99_14: parseInt(e.target.value, 10) || 0 })}
-                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
-                />
-              </div>
-              <div>
-                <label className="text-slate-400 block mb-1">33/15 (@8 Tk)</label>
-                <input
-                  type="number"
-                  disabled={isReadOnly || isLoading}
-                  value={zardaSales.qty_33_15 === 0 ? '' : zardaSales.qty_33_15}
-                  placeholder="0"
-                  onChange={(e) => setZardaSales({ ...zardaSales, qty_33_15: parseInt(e.target.value, 10) || 0 })}
-                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                  value={remarks}
+                  placeholder="Operational remarks, route coverage notes..."
+                  onChange={(e) => setRemarks(e.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none disabled:opacity-50"
                 />
               </div>
             </div>
           </div>
 
-          {/* Zarda Closing Stock */}
-          <div className="rounded-lg border border-slate-800/80 bg-slate-950/40 p-4 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <span className="text-xs font-semibold text-slate-300">Zarda Closing Stock</span>
-              <span className="text-xs font-bold text-amber-400 font-mono">Value: {totalZardaStock.toLocaleString()} BDT</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <label className="text-slate-400 block mb-1">SLB (Qty)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  disabled={isReadOnly || isLoading}
-                  value={zardaStock.slb === 0 ? '' : zardaStock.slb}
-                  placeholder="0.00"
-                  onChange={(e) => setZardaStock({ ...zardaStock, slb: parseFloat(e.target.value) || 0 })}
-                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
-                />
-              </div>
-              <div>
-                <label className="text-slate-400 block mb-1">22/25 (@15 Tk)</label>
-                <input
-                  type="number"
-                  disabled={isReadOnly || isLoading}
-                  value={zardaStock.qty_22_25 === 0 ? '' : zardaStock.qty_22_25}
-                  placeholder="0"
-                  onChange={(e) => setZardaStock({ ...zardaStock, qty_22_25: parseInt(e.target.value, 10) || 0 })}
-                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
-                />
-              </div>
-              <div>
-                <label className="text-slate-400 block mb-1">99/14 (@6 Tk)</label>
-                <input
-                  type="number"
-                  disabled={isReadOnly || isLoading}
-                  value={zardaStock.qty_99_14 === 0 ? '' : zardaStock.qty_99_14}
-                  placeholder="0"
-                  onChange={(e) => setZardaStock({ ...zardaStock, qty_99_14: parseInt(e.target.value, 10) || 0 })}
-                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
-                />
-              </div>
-              <div>
-                <label className="text-slate-400 block mb-1">33/15 (@8 Tk)</label>
-                <input
-                  type="number"
-                  disabled={isReadOnly || isLoading}
-                  value={zardaStock.qty_33_15 === 0 ? '' : zardaStock.qty_33_15}
-                  placeholder="0"
-                  onChange={(e) => setZardaStock({ ...zardaStock, qty_33_15: parseInt(e.target.value, 10) || 0 })}
-                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
-                />
-              </div>
+          {/* Action Footer */}
+          <div className="flex items-center justify-between pt-2">
+            <button
+              onClick={() => setViewMode('listing')}
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Cancel & Return to Listing</span>
+            </button>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleSaveDraft}
+                disabled={isReadOnly || isSaving || isLoading}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-40"
+              >
+                <Save className="h-4 w-4" />
+                <span>{isSaving ? 'Saving...' : 'Save Draft'}</span>
+              </button>
+
+              <button
+                onClick={handleSubmit}
+                disabled={isReadOnly || isSaving || isLoading}
+                className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-5 py-2 text-xs font-semibold text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-40"
+              >
+                <Send className="h-4 w-4" />
+                <span>Submit for TSO Review</span>
+              </button>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* 3. Empty Packets & Remarks */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm space-y-4">
-        <h3 className="text-sm font-bold text-white border-b border-slate-800 pb-2">
-          Operational Returns & Route Remarks
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label className="text-xs text-slate-400 block mb-1">Express Empty Packet Return (Count)</label>
-            <input
-              type="number"
-              disabled={isReadOnly || isLoading}
-              value={emptyPackets === 0 ? '' : emptyPackets}
-              placeholder="0"
-              onChange={(e) => setEmptyPackets(parseInt(e.target.value, 10) || 0)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none font-mono disabled:opacity-50"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="text-xs text-slate-400 block mb-1">Route & Field Remarks</label>
-            <input
-              type="text"
-              disabled={isReadOnly || isLoading}
-              value={remarks}
-              placeholder="Operational remarks, route coverage notes..."
-              onChange={(e) => setRemarks(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none disabled:opacity-50"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Action Footer */}
-      <div className="flex items-center justify-end gap-3 pt-2">
-        <button
-          onClick={handleSaveDraft}
-          disabled={isReadOnly || isSaving || isLoading}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-40"
-        >
-          <Save className="h-4 w-4" />
-          <span>{isSaving ? 'Saving...' : 'Save Draft'}</span>
-        </button>
-
-        <button
-          onClick={handleSubmit}
-          disabled={isReadOnly || isSaving || isLoading}
-          className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-5 py-2 text-xs font-semibold text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-40"
-        >
-          <Send className="h-4 w-4" />
-          <span>Submit for TSO Review</span>
-        </button>
-      </div>
+      )}
     </div>
   );
 }

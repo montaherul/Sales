@@ -21,39 +21,22 @@ export async function GET(request: NextRequest) {
     const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc';
     const isExport = searchParams.get('export') === 'csv';
 
-    const baseSelect = `
-      SELECT 
-        t.id, 
-        t.name as territory_name, 
-        t.sort_order, 
-        t.created_at,
-        r.id as region_id,
-        r.name as region_name,
-        w.name as wing_name,
-        d.name as division_name,
-        c.id as company_id,
-        c.name as company_name
-    `;
+    const cleanSortBy = sortBy.replace(/^t\./, '');
+    const actualPageSize = isExport ? -1 : pageSize;
+    const filterCompanyId = companyId && companyId !== 'ALL' ? companyId : null;
+    const filterRegionId = regionId && regionId !== 'ALL' ? regionId : null;
 
-    const fromClause = `
-      FROM territories t
-      JOIN regions r ON t.region_id = r.id
-      JOIN wings w ON r.wing_id = w.id
-      JOIN divisions d ON w.division_id = d.id
-      JOIN companies c ON d.company_id = c.id
-    `;
+    // PostgreSQL Stored Procedure: sp_get_territories_paginated
+    const result = await PaginationHelper.executeFunction(
+      'sp_get_territories_paginated',
+      [page, actualPageSize, search || null, filterRegionId, filterCompanyId, cleanSortBy, sortOrder]
+    );
 
     // Handle CSV Export
     if (isExport) {
-      const allRows = await dbQuery(`
-        ${baseSelect}
-        ${fromClause}
-        ORDER BY t.sort_order ASC
-      `);
-
-      const csv = PaginationHelper.toCsv(allRows.rows, {
+      const csv = PaginationHelper.toCsv(result.data, {
         id: 'Territory ID',
-        territory_name: 'Territory Name',
+        name: 'Territory Name',
         region_name: 'Region',
         wing_name: 'Wing',
         division_name: 'Division',
@@ -70,29 +53,6 @@ export async function GET(request: NextRequest) {
         },
       });
     }
-
-    const filters: Record<string, any> = {};
-    if (companyId && companyId !== 'ALL') {
-      filters['c.id'] = companyId;
-    }
-    if (regionId && regionId !== 'ALL') {
-      filters['r.id'] = regionId;
-    }
-
-    const result = await PaginationHelper.paginate(
-      baseSelect,
-      fromClause,
-      {
-        page,
-        pageSize,
-        search,
-        searchFields: ['t.name', 'r.name', 'w.name', 'd.name', 'c.name'],
-        sortBy,
-        sortOrder,
-        filters,
-      },
-      't.sort_order'
-    );
 
     return NextResponse.json({
       success: true,
