@@ -2,6 +2,7 @@
 // Full CRUD with Server-Side Pagination, Company-Wise Scoping, Search, Sorting & CSV Export
 
 import { NextRequest, NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs';
 import { dbQuery, getDbPool } from '@/shared/database/db';
 import { PaginationHelper } from '@/shared/database/pagination';
 import { getAuthenticatedUser } from '@/shared/auth';
@@ -90,14 +91,18 @@ export async function POST(request: NextRequest) {
       throw new ValidationError(`Invalid role: ${roleName}`);
     }
 
-    // Insert user_profile
+    // Hash initial password (default '123')
+    const initialPassword = body.password || '123';
+    const passwordHash = bcrypt.hashSync(initialPassword, 10);
+
+    // Insert user_profile with hashed password and onboarding flag
     const userRes = await dbQuery(
-      `INSERT INTO user_profiles (email, full_name, phone, role_id, is_active)
-       VALUES ($1, $2, $3, $4, TRUE)
+      `INSERT INTO user_profiles (email, full_name, phone, role_id, is_active, password_hash, must_change_password, is_onboarded)
+       VALUES ($1, $2, $3, $4, TRUE, $5, TRUE, FALSE)
        ON CONFLICT (email) DO UPDATE
        SET full_name = EXCLUDED.full_name, phone = EXCLUDED.phone, role_id = EXCLUDED.role_id, updated_at = NOW()
        RETURNING id, email, full_name, role_id`,
-      [email.trim().toLowerCase(), fullName.trim(), phone || null, roleId]
+      [email.trim().toLowerCase(), fullName.trim(), phone || null, roleId, passwordHash]
     );
 
     const userId = userRes.rows[0].id;

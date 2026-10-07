@@ -17,6 +17,7 @@ async function runMigrations() {
       '00004_seed_users_and_targets.sql',
       '00005_menu_management.sql',
       '00006_stored_procedures.sql',
+      '00007_auth_passwords.sql',
     ];
 
     for (const mig of migrations) {

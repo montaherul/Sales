@@ -158,3 +158,31 @@ USING (
     )
 );
 ```
+
+---
+
+## 7. User Provisioning, Initial Seed Accounts & Onboarding Flow
+
+### 7.1 No Public Registration Policy
+Public self-registration is strictly **disabled**. There is no registration page. All users, roles, and geographical scopes (Division, Region, Territory) are provisioned exclusively by the `SUPER_ADMIN` in the **User & Role Directory** (`/api/users`).
+
+### 7.2 Initial Seed Accounts (Password: `123`)
+Every role has an initial seeded user in PostgreSQL with bcrypt password hashing (cost factor: 10):
+
+| Role | Seed Email | Initial Password | Assigned Scope |
+| :--- | :--- | :--- | :--- |
+| `SUPER_ADMIN` | `admin@afaztobacco.com` | `123` | Afaz Tobacco Company (All) |
+| `RSO` | `rso.satkania@afaztobacco.com` | `123` | Satkania Region |
+| `TSO` | `tso.keranihat@afaztobacco.com` | `123` | Kerani Hat Territory |
+| `CSR` | `csr.keranihat@afaztobacco.com` | `123` | Kerani Hat Territory |
+
+### 7.3 Google OAuth Restriction
+Users may sign in using **Sign in with Google**. However, the Google account's email address must already be provisioned by the `SUPER_ADMIN`. Any attempt to sign in with an unprovisioned Google email is blocked with HTTP `403 Forbidden` (`AUTH_RESTRICTED`).
+
+### 7.4 Onboarding Protocol
+When a newly provisioned user logs in for the first time (where `must_change_password = true` or `is_onboarded = false`), the application enforces an **Account Activation Modal**:
+1. Displays the user's provisioned company, region, and territory scope.
+2. Requires setting a personal secure password (replacing temporary `123`).
+3. Prompts confirmation of phone number and full name.
+4. Transitions smoothly into the user's role-scoped dashboard.
+

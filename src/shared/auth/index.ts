@@ -5,8 +5,23 @@ import { NextRequest } from 'next/server';
 import { UserAuthContext } from '../authorization';
 import { ROLES, RoleType } from '../constants';
 
+import { getSessionUser } from '@/lib/auth/session';
+
 export async function getAuthenticatedUser(request?: NextRequest): Promise<UserAuthContext> {
-  // If role simulation or specific header is provided
+  // 1. Check real cryptographically verified session cookie
+  const sessionUser = await getSessionUser();
+  if (sessionUser) {
+    return {
+      id: sessionUser.id,
+      email: sessionUser.email,
+      role: sessionUser.role,
+      territoryId: sessionUser.territoryId || null,
+      regionId: sessionUser.regionId || null,
+      permissions: [],
+    };
+  }
+
+  // 2. Check role simulation header if provided
   if (request) {
     const roleHeader = request.headers.get('x-user-role') as RoleType | null;
     const emailHeader = request.headers.get('x-user-email');
@@ -24,7 +39,7 @@ export async function getAuthenticatedUser(request?: NextRequest): Promise<UserA
     }
   }
 
-  // Default fallback for demo / dev simulator
+  // 3. Default fallback for dev simulator
   return {
     id: 'admin-1',
     email: 'admin@afaztobacco.com',
