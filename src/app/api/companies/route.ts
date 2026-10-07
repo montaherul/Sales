@@ -49,6 +49,22 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Server-side scope: Non-super admins only see their assigned company
+    const actor = await getAuthenticatedUser(request);
+    if (actor.role !== 'SUPER_ADMIN') {
+      const filteredItems = (result.data || []).filter((c: any) => c.id === actor.companyId);
+      return NextResponse.json({
+        success: true,
+        data: filteredItems,
+        pagination: {
+          page: 1,
+          pageSize: filteredItems.length,
+          totalRecords: filteredItems.length,
+          totalPages: 1,
+        },
+      });
+    }
+
     return NextResponse.json({
       success: true,
       ...result,

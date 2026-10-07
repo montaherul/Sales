@@ -25,7 +25,11 @@ import {
   Cell 
 } from 'recharts';
 
-export function ExecutiveDashboard() {
+interface ExecutiveDashboardProps {
+  companyId?: string;
+}
+
+export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProps) {
   const [reportDate, setReportDate] = useState('2026-10-06');
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -33,7 +37,8 @@ export function ExecutiveDashboard() {
   const fetchDashboardData = async (date: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/daily-submissions?date=${date}`);
+      const companyParam = companyId && companyId !== 'ALL' ? `&companyId=${companyId}` : '';
+      const res = await fetch(`/api/daily-submissions?date=${date}${companyParam}`);
       const json = await res.json();
       if (json.success && json.data) {
         setRecords(json.data);
@@ -47,7 +52,7 @@ export function ExecutiveDashboard() {
 
   useEffect(() => {
     fetchDashboardData(reportDate);
-  }, [reportDate]);
+  }, [reportDate, companyId]);
 
   // Aggregate metrics from live records
   const metrics = useMemo(() => {

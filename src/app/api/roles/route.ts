@@ -24,7 +24,13 @@ export async function GET(request: NextRequest) {
     const isAll = searchParams.get('all') === 'true';
 
     const actualPageSize = isExport || isAll ? -1 : pageSize;
-    const filterCompanyId = companyId && companyId !== 'ALL' ? companyId : null;
+    let filterCompanyId = companyId && companyId !== 'ALL' ? companyId : null;
+
+    // Server-side company scope enforcement
+    const actor = await getAuthenticatedUser(request);
+    if (actor.role !== 'SUPER_ADMIN') {
+      filterCompanyId = actor.companyId || null;
+    }
 
     // PostgreSQL Stored Procedure: sp_get_roles_paginated
     const result = await PaginationHelper.executeFunction(

@@ -44,11 +44,12 @@ interface TerritoryItem {
 }
 
 interface DailySalesGridProps {
+  companyId?: string;
   onSaveDraft?: (record: any) => void;
   onSubmitForReview?: (record: any) => void;
 }
 
-export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGridProps) {
+export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForReview }: DailySalesGridProps) {
   // Mode Controller: 'listing' | 'form'
   const [viewMode, setViewMode] = useState<'listing' | 'form'>('listing');
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
@@ -107,23 +108,30 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
   const [emptyPackets, setEmptyPackets] = useState<number>(0);
   const [remarks, setRemarks] = useState<string>('');
 
-  // 1. Load Master Territories
+  // 1. Load Master Territories (Scoped to Company)
   useEffect(() => {
     async function loadMasterData() {
       try {
-        const res = await fetch('/api/master-data');
+        const query = companyId && companyId !== 'ALL' ? `?companyId=${companyId}` : '';
+        const res = await fetch(`/api/master-data${query}`);
         const json = await res.json();
         if (json.success && json.data.territories?.length > 0) {
           setTerritories(json.data.territories);
-          setSelectedTerritoryId((prev) => prev || json.data.territories[0].id);
-          setSelectedTerritoryName((prev) => prev || json.data.territories[0].name);
+          setSelectedTerritoryId((prev) => {
+            const exists = json.data.territories.some((t: any) => t.id === prev);
+            return exists ? prev : (json.data.territories[0]?.id || 'ALL');
+          });
+          setSelectedTerritoryName((prev) => {
+            const match = json.data.territories.find((t: any) => t.id === selectedTerritoryId);
+            return match ? match.name : (json.data.territories[0]?.name || '');
+          });
         }
       } catch (err) {
         console.error('Failed to load master territories:', err);
       }
     }
     loadMasterData();
-  }, []);
+  }, [companyId]);
 
   // Real-time calculations via centralized engine
   const totalSales = useMemo(() => calculateCigaretteSalesTotal(sales), [sales]);
@@ -575,7 +583,7 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
           {/* Server-Side Tabulator Table */}
           <div className="relative z-10">
             <ServerDataTable
-              key={tableRefreshKey}
+              key={`${tableRefreshKey}_${companyId}`}
               endpoint="/api/daily-submissions"
               columns={columns}
               searchPlaceholder="Search territory, region, status, remarks..."
@@ -584,6 +592,7 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
               additionalParams={{
                 territoryId: selectedTerritoryId,
                 status: filterStatus,
+                companyId: companyId !== 'ALL' ? companyId : undefined,
               }}
             />
           </div>

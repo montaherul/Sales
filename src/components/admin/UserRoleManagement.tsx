@@ -67,7 +67,11 @@ interface RoleRecord {
   created_at: string;
 }
 
-export function UserRoleManagement() {
+interface UserRoleManagementProps {
+  companyId?: string;
+}
+
+export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProps) {
   const [activeSubTab, setActiveSubTab] = useState<'USERS' | 'ROLES'>('USERS');
 
   // Master Data Cache
@@ -77,7 +81,7 @@ export function UserRoleManagement() {
   const [roles, setRoles] = useState<Select2Option[]>([]);
 
   // User Tab State
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('ALL');
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>(companyId);
   const [selectedRole, setSelectedRole] = useState<string>('ALL');
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
@@ -89,11 +93,19 @@ export function UserRoleManagement() {
   const [modalUserRoleName, setModalUserRoleName] = useState<string>('CSR');
 
   // Role Tab State
-  const [selectedRoleCompanyId, setSelectedRoleCompanyId] = useState<string>('ALL');
+  const [selectedRoleCompanyId, setSelectedRoleCompanyId] = useState<string>(companyId);
   const [roleModalOpen, setRoleModalOpen] = useState(false);
   const [roleModalMode, setRoleModalMode] = useState<'create' | 'edit'>('create');
   const [currentRoleItem, setCurrentRoleItem] = useState<RoleRecord | null>(null);
   const [roleRefreshTrigger, setRoleRefreshTrigger] = useState(0);
+
+  // Sync external companyId change
+  useEffect(() => {
+    if (companyId) {
+      setSelectedCompanyId(companyId);
+      setSelectedRoleCompanyId(companyId);
+    }
+  }, [companyId]);
 
   // Load companies, regions, territories, and dynamic roles
   useEffect(() => {

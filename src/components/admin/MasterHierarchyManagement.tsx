@@ -20,14 +20,25 @@ import {
   ShieldAlert
 } from 'lucide-react';
 
-export function MasterHierarchyManagement() {
+interface MasterHierarchyManagementProps {
+  companyId?: string;
+}
+
+export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchyManagementProps) {
   const [activeTab, setActiveTab] = useState<'TERRITORIES' | 'BRANDS' | 'TARGETS'>('TERRITORIES');
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('ALL');
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>(companyId);
   const [companies, setCompanies] = useState<Select2Option[]>([]);
   const [regions, setRegions] = useState<Select2Option[]>([]);
   const [brands, setBrands] = useState<Select2Option[]>([]);
   const [territories, setTerritories] = useState<Select2Option[]>([]);
   const [refreshKey, setRefreshKey] = useState<number>(0);
+
+  // Sync external companyId change
+  useEffect(() => {
+    if (companyId) {
+      setSelectedCompanyId(companyId);
+    }
+  }, [companyId]);
 
   // Modal Controller State
   const [modalOpen, setModalOpen] = useState(false);

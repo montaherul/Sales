@@ -6,7 +6,7 @@ import { SessionUser } from '@/lib/auth/session';
 import { createClient } from '@/lib/supabase/client';
 import { LoginPage } from '@/components/auth/LoginPage';
 import { OnboardingModal } from '@/components/auth/OnboardingModal';
-import { Navbar } from '@/components/layout/Navbar';
+import { Navbar, CompanyOption } from '@/components/layout/Navbar';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { ExecutiveDashboard } from '@/components/dashboard/ExecutiveDashboard';
 import { DailySalesGrid } from '@/components/sales/DailySalesGrid';
@@ -30,6 +30,32 @@ export default function Home() {
   const [importOpen, setImportOpen] = useState<boolean>(false);
   const [driveOpen, setDriveOpen] = useState<boolean>(false);
 
+  // Global Company Scoping State
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('ALL');
+
+  // Load Companies Catalog on mount
+  useEffect(() => {
+    async function fetchCompanies() {
+      try {
+        const res = await fetch('/api/companies?pageSize=100');
+        const json = await res.json();
+        if (json.success && json.data) {
+          setCompanies(
+            json.data.map((c: any) => ({
+              id: c.id,
+              name: c.name,
+              code: c.code,
+            }))
+          );
+        }
+      } catch (err) {
+        console.error('Failed to load companies list:', err);
+      }
+    }
+    fetchCompanies();
+  }, []);
+
   // 1. Check existing session and Supabase OAuth session on mount
   useEffect(() => {
     async function checkSession() {
@@ -39,6 +65,9 @@ export default function Home() {
         if (json.success && json.user) {
           setCurrentUser(json.user);
           setCurrentRole(json.user.role);
+          if (json.user.role !== 'SUPER_ADMIN' && json.user.companyId) {
+            setSelectedCompanyId(json.user.companyId);
+          }
           return;
         }
 
@@ -56,6 +85,9 @@ export default function Home() {
             if (googleJson.success && googleJson.user) {
               setCurrentUser(googleJson.user);
               setCurrentRole(googleJson.user.role);
+              if (googleJson.user.role !== 'SUPER_ADMIN' && googleJson.user.companyId) {
+                setSelectedCompanyId(googleJson.user.companyId);
+              }
               return;
             }
           }
@@ -72,6 +104,9 @@ export default function Home() {
   const handleLoginSuccess = (user: SessionUser) => {
     setCurrentUser(user);
     setCurrentRole(user.role);
+    if (user.role !== 'SUPER_ADMIN' && user.companyId) {
+      setSelectedCompanyId(user.companyId);
+    }
     // CSRs start directly on entry form; executives start on dashboard
     if (user.role === 'CSR') {
       setActiveTab('entry');
@@ -97,6 +132,10 @@ export default function Home() {
     // Triggers direct download of authoritative 34-sheet Excel report
     window.location.href = '/api/exports/xlsx?year=2026&month=10&day=6';
   };
+
+  // Determine effective company scope based on user role
+  const isSuperAdmin = (currentUser?.role || currentRole) === 'SUPER_ADMIN';
+  const effectiveCompanyId = isSuperAdmin ? selectedCompanyId : (currentUser?.companyId || 'ALL');
 
   // Loading splash while checking session
   if (authLoading) {
@@ -134,10 +173,13 @@ export default function Home() {
           sidebarOpen ? 'lg:pl-64' : 'lg:pl-16'
         } pl-0`}
       >
-        {/* Top Navbar: Shows Company Name ONLY, User Profile, Role Simulator, Theme Toggle & Logout */}
+        {/* Top Navbar: Super Admin Company Switcher, User Profile, Theme Toggle & Logout */}
         <Navbar
           currentRole={currentRole}
           currentUser={currentUser}
+          selectedCompanyId={effectiveCompanyId}
+          onCompanyChange={setSelectedCompanyId}
+          companies={companies}
           onRoleChange={setCurrentRole}
           onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
           onLogout={handleLogout}
@@ -146,15 +188,15 @@ export default function Home() {
         {/* Dynamic Tab Body */}
         <main className="flex-1 p-3 sm:p-5 lg:p-8 pb-24 lg:pb-8 max-w-7xl w-full mx-auto">
           {/* Operational Modules */}
-          {activeTab === 'dashboard' && <ExecutiveDashboard />}
-          {activeTab === 'entry' && <DailySalesGrid />}
-          {activeTab === 'approvals' && <ApprovalHub currentRole={currentRole} />}
+          {activeTab === 'dashboard' && <ExecutiveDashboard companyId={effectiveCompanyId} />}
+          {activeTab === 'entry' && <DailySalesGrid companyId={effectiveCompanyId} />}
+          {activeTab === 'approvals' && <ApprovalHub currentRole={currentRole} companyId={effectiveCompanyId} />}
 
           {/* Super Admin Administrative Modules */}
           {activeTab === 'companies' && currentRole === 'SUPER_ADMIN' && <CompanyManagement />}
-          {activeTab === 'users' && currentRole === 'SUPER_ADMIN' && <UserRoleManagement />}
+          {activeTab === 'users' && currentRole === 'SUPER_ADMIN' && <UserRoleManagement companyId={effectiveCompanyId} />}
           {activeTab === 'menu_management' && currentRole === 'SUPER_ADMIN' && <MenuManagement />}
-          {activeTab === 'master_hierarchy' && currentRole === 'SUPER_ADMIN' && <MasterHierarchyManagement />}
+          {activeTab === 'master_hierarchy' && currentRole === 'SUPER_ADMIN' && <MasterHierarchyManagement companyId={effectiveCompanyId} />}
           {activeTab === 'audit' && <AuditLogViewer />}
         </main>
 

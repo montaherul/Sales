@@ -8,14 +8,26 @@ import {
   UserCheck, 
   ShieldAlert,
   Sparkles,
-  LogOut
+  LogOut,
+  ChevronDown,
+  Lock,
+  Globe
 } from 'lucide-react';
 import { SessionUser } from '@/lib/auth/session';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
 
+export interface CompanyOption {
+  id: string;
+  name: string;
+  code?: string;
+}
+
 interface NavbarProps {
   currentRole: RoleType;
   currentUser?: SessionUser | null;
+  selectedCompanyId?: string;
+  onCompanyChange?: (companyId: string) => void;
+  companies?: CompanyOption[];
   onRoleChange: (role: RoleType) => void;
   onToggleSidebar: () => void;
   onLogout?: () => void;
@@ -24,16 +36,19 @@ interface NavbarProps {
 export function Navbar({
   currentRole,
   currentUser,
+  selectedCompanyId = 'ALL',
+  onCompanyChange,
+  companies = [],
   onRoleChange,
   onToggleSidebar,
   onLogout,
 }: NavbarProps) {
-  const roles: RoleType[] = ['SUPER_ADMIN', 'RSO', 'TSO', 'CSR'];
+  const isSuperAdmin = (currentUser?.role || currentRole) === 'SUPER_ADMIN';
 
   return (
     <header className="sticky top-0 z-30 h-16 border-b border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md transition-colors duration-200">
-      <div className="flex h-full items-center justify-between px-3 sm:px-6">
-        {/* Left: Sidebar Toggle & Company Name ONLY */}
+      <div className="flex h-full items-center justify-between px-3 sm:px-6 gap-2">
+        {/* Left: Sidebar Toggle & Company Scoping Context */}
         <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
           <button
             onClick={onToggleSidebar}
@@ -43,17 +58,50 @@ export function Navbar({
             <Menu className="h-5 w-5" />
           </button>
 
-          <div className="min-w-0">
-            <h1 className="text-sm sm:text-base md:text-lg font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2 truncate">
-              <span className="truncate max-w-[140px] xs:max-w-[180px] sm:max-w-xs md:max-w-md">
-                {currentUser?.companyName || 'Afaz Tobacco Company'}
+          {/* SUPER ADMIN: Global Project Scope vs Company-Wise Switcher */}
+          {isSuperAdmin ? (
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="relative">
+                <select
+                  value={selectedCompanyId}
+                  onChange={(e) => onCompanyChange?.(e.target.value)}
+                  className="appearance-none text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 py-1.5 pl-8 pr-8 text-slate-900 dark:text-white shadow-xs hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer max-w-[200px] xs:max-w-[260px] sm:max-w-xs md:max-w-md truncate"
+                  title="Switch Company Context"
+                >
+                  <option value="ALL">🌐 All Companies (Global Project)</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      🏢 {c.name} {c.code ? `(${c.code})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <Building2 className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-blue-600 dark:text-blue-400 pointer-events-none" />
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              </div>
+              <span className="hidden xl:inline text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shrink-0">
+                {selectedCompanyId === 'ALL' ? 'GLOBAL PROJECT ADMIN' : 'COMPANY FILTERED'}
               </span>
-              <span className="hidden md:inline text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700/40 shrink-0">
-                Sales & Stock Platform
+            </div>
+          ) : (
+            /* NON-SUPER ADMIN: Strictly Assigned Company Scope (Locked) */
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 min-w-0">
+                <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                <span className="truncate max-w-[140px] xs:max-w-[200px] sm:max-w-xs">
+                  {currentUser?.companyName || 'Afaz Tobacco Company'}
+                </span>
+                <span className="text-[10px] text-slate-500 font-mono shrink-0">
+                  {currentUser?.companyId ? '(Scope)' : '(ATC)'}
+                </span>
+                <span title="Company scope is locked to your assigned organization">
+                  <Lock className="h-3 w-3 text-slate-400 shrink-0" />
+                </span>
+              </div>
+              <span className="hidden md:inline text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700/40 shrink-0">
+                Company Scoped
               </span>
-            </h1>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 md:hidden truncate">Sales & Stock Intelligence</p>
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Right: Active Role, Theme Toggle, User Profile & Logout */}

@@ -21,9 +21,10 @@ import { Select2 } from '@/components/common/Select2';
 
 interface ApprovalHubProps {
   currentRole: RoleType;
+  companyId?: string;
 }
 
-export function ApprovalHub({ currentRole }: ApprovalHubProps) {
+export function ApprovalHub({ currentRole, companyId = 'ALL' }: ApprovalHubProps) {
   const [reportDate, setReportDate] = useState('2026-10-06');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [tableRefreshKey, setTableRefreshKey] = useState(0);
@@ -359,13 +360,14 @@ export function ApprovalHub({ currentRole }: ApprovalHubProps) {
 
       {/* ServerDataTable Calling PostgreSQL Stored Procedure */}
       <ServerDataTable
-        key={tableRefreshKey}
+        key={`${tableRefreshKey}_${companyId}`}
         endpoint="/api/daily-submissions"
         columns={columns}
         searchPlaceholder="Search territory, status, remarks..."
         exportFilenamePrefix="Approval_Queue"
         additionalParams={{
           status: statusFilter,
+          companyId: companyId !== 'ALL' ? companyId : undefined,
         }}
       />
 

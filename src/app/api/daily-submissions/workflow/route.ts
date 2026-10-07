@@ -22,6 +22,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Company scope verification
+    const { getAuthenticatedUser } = await import('@/shared/auth');
+    const { dbQuery } = await import('@/lib/db');
+    const actor = await getAuthenticatedUser(request);
+    if (actor.role !== 'SUPER_ADMIN' && actor.companyId) {
+      const terrCheck = await dbQuery(
+        `SELECT d.company_id 
+         FROM territories t 
+         JOIN regions r ON t.region_id = r.id 
+         JOIN wings w ON r.wing_id = w.id 
+         JOIN divisions d ON w.division_id = d.id 
+         WHERE t.id = $1 LIMIT 1`,
+        [territoryId]
+      );
+      if (terrCheck.rows.length > 0 && terrCheck.rows[0].company_id !== actor.companyId) {
+        return NextResponse.json(
+          { success: false, error: 'Cannot transition submissions from another company' },
+          { status: 403 }
+        );
+      }
+    }
+
     const updated = await SubmissionRepository.transitionStatus({
       territoryId,
       reportDate,

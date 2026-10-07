@@ -24,8 +24,14 @@ export async function GET(request: NextRequest) {
 
     const cleanSortBy = sortBy.replace(/^u\./, '');
     const actualPageSize = isExport ? -1 : pageSize;
-    const filterCompanyId = companyId && companyId !== 'ALL' ? companyId : null;
+    let filterCompanyId = companyId && companyId !== 'ALL' ? companyId : null;
     const filterRoleName = roleName && roleName !== 'ALL' ? roleName : null;
+
+    // Server-side company scope enforcement
+    const actor = await getAuthenticatedUser(request);
+    if (actor.role !== 'SUPER_ADMIN') {
+      filterCompanyId = actor.companyId || null;
+    }
 
     // PostgreSQL Stored Procedure: sp_get_users_paginated
     const result = await PaginationHelper.executeFunction(
