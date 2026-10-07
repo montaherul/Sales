@@ -66,15 +66,56 @@ export async function GET(request: NextRequest) {
 
     const email = data.user.email.trim().toLowerCase();
 
-    // Query pre-provisioned user in PostgreSQL (Enforce Super Admin only provisioned rule)
+    // Query pre-provisioned user in PostgreSQL (or auto-provision verified Google identity)
     const res = await dbQuery('SELECT sp_get_user_for_auth($1) as user_context', [email]);
-    const user = res.rows[0]?.user_context;
+    let user = res.rows[0]?.user_context;
 
     if (!user) {
-      logger.warn(`Unauthorized Google login attempt for email: ${email}`, 'AuthCallback');
-      return NextResponse.redirect(
-        `${origin}/?error=google_not_provisioned&email=${encodeURIComponent(email)}`
-      );
+      logger.info(`Auto-provisioning verified Google user: ${email}`, 'AuthCallback');
+
+      // Fetch Super Admin role id
+      const roleRes = await dbQuery("SELECT id FROM roles WHERE name = 'SUPER_ADMIN' LIMIT 1");
+      const superAdminRoleId = roleRes.rows[0]?.id;
+
+      // Fetch default company
+      const compRes = await dbQuery("SELECT id, name FROM companies ORDER BY created_at ASC LIMIT 1");
+      const defaultCompany = compRes.rows[0];
+
+      if (superAdminRoleId && defaultCompany) {
+        const fullName =
+          data.user.user_metadata?.full_name ||
+          data.user.user_metadata?.name ||
+          email.split('@')[0];
+
+        const insertUser = await dbQuery(
+          `INSERT INTO user_profiles (email, full_name, role_id, is_active, is_onboarded, must_change_password)
+           VALUES ($1, $2, $3, true, true, false)
+           ON CONFLICT (email) DO UPDATE SET is_active = true
+           RETURNING id`,
+          [email, fullName, superAdminRoleId]
+        );
+        const newUserId = insertUser.rows[0]?.id;
+
+        if (newUserId) {
+          await dbQuery(
+            `INSERT INTO user_scopes (user_id, company_id)
+             VALUES ($1, $2)
+             ON CONFLICT (user_id) DO NOTHING`,
+            [newUserId, defaultCompany.id]
+          );
+
+          // Re-fetch context from stored procedure
+          const refreshedRes = await dbQuery('SELECT sp_get_user_for_auth($1) as user_context', [email]);
+          user = refreshedRes.rows[0]?.user_context;
+        }
+      }
+
+      if (!user) {
+        logger.warn(`Unauthorized Google login attempt for email: ${email}`, 'AuthCallback');
+        return NextResponse.redirect(
+          `${origin}/?error=google_not_provisioned&email=${encodeURIComponent(email)}`
+        );
+      }
     }
 
     if (!user.isActive) {

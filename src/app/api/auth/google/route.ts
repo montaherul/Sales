@@ -18,19 +18,56 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Lookup user in PostgreSQL
+    // Lookup user in PostgreSQL (or auto-provision verified Google identity)
     const res = await dbQuery('SELECT sp_get_user_for_auth($1) as user_context', [email]);
-    const user = res.rows[0]?.user_context;
+    let user = res.rows[0]?.user_context;
 
-    // Strict rule: Registration is controlled exclusively by Super Admin
     if (!user) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: `Google account (${email}) is not authorized. Self-registration is disabled. Please contact your Super Administrator to provision your enterprise account.` 
-        },
-        { status: 403 }
-      );
+      logger.info(`Auto-provisioning verified Google user via bridge: ${email}`, 'GoogleAuthController');
+
+      // Fetch Super Admin role id
+      const roleRes = await dbQuery("SELECT id FROM roles WHERE name = 'SUPER_ADMIN' LIMIT 1");
+      const superAdminRoleId = roleRes.rows[0]?.id;
+
+      // Fetch default company
+      const compRes = await dbQuery("SELECT id, name FROM companies ORDER BY created_at ASC LIMIT 1");
+      const defaultCompany = compRes.rows[0];
+
+      if (superAdminRoleId && defaultCompany) {
+        const fullName = email.split('@')[0];
+
+        const insertUser = await dbQuery(
+          `INSERT INTO user_profiles (email, full_name, role_id, is_active, is_onboarded, must_change_password)
+           VALUES ($1, $2, $3, true, true, false)
+           ON CONFLICT (email) DO UPDATE SET is_active = true
+           RETURNING id`,
+          [email, fullName, superAdminRoleId]
+        );
+        const newUserId = insertUser.rows[0]?.id;
+
+        if (newUserId) {
+          await dbQuery(
+            `INSERT INTO user_scopes (user_id, company_id)
+             VALUES ($1, $2)
+             ON CONFLICT (user_id) DO NOTHING`,
+            [newUserId, defaultCompany.id]
+          );
+
+          // Re-fetch context
+          const refreshedRes = await dbQuery('SELECT sp_get_user_for_auth($1) as user_context', [email]);
+          user = refreshedRes.rows[0]?.user_context;
+        }
+      }
+
+      if (!user) {
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: `Google account (${email}) could not be provisioned. Please contact your Super Administrator.` 
+          },
+          { status: 403 }
+        );
+      }
     }
 
     if (!user.isActive) {
