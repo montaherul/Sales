@@ -8,6 +8,7 @@ import { ExecutiveDashboard } from '@/components/dashboard/ExecutiveDashboard';
 import { DailySalesGrid } from '@/components/sales/DailySalesGrid';
 import { ApprovalHub } from '@/components/approval/ApprovalHub';
 import { MenuManagement } from '@/components/admin/MenuManagement';
+import { CompanyManagement } from '@/components/admin/CompanyManagement';
 import { UserRoleManagement } from '@/components/admin/UserRoleManagement';
 import { MasterHierarchyManagement } from '@/components/admin/MasterHierarchyManagement';
 import { AuditLogViewer } from '@/components/audit/AuditLogViewer';
@@ -61,8 +62,9 @@ export default function Home() {
           {activeTab === 'approvals' && <ApprovalHub currentRole={currentRole} />}
 
           {/* Super Admin Administrative Modules */}
-          {activeTab === 'menu_management' && currentRole === 'SUPER_ADMIN' && <MenuManagement />}
+          {activeTab === 'companies' && currentRole === 'SUPER_ADMIN' && <CompanyManagement />}
           {activeTab === 'users' && currentRole === 'SUPER_ADMIN' && <UserRoleManagement />}
+          {activeTab === 'menu_management' && currentRole === 'SUPER_ADMIN' && <MenuManagement />}
           {activeTab === 'master_hierarchy' && currentRole === 'SUPER_ADMIN' && <MasterHierarchyManagement />}
           {activeTab === 'audit' && <AuditLogViewer />}
         </main>

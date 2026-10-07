@@ -49,9 +49,10 @@ export function Sidebar({
   ];
 
   const adminNav = [
-    { id: 'menu_management', label: 'Menu Access (RWMA / UWMA)', icon: ShieldAlert },
+    { id: 'companies', label: 'Company Management', icon: Building2 },
     { id: 'users', label: 'User & Role Directory', icon: Users },
-    { id: 'master_hierarchy', label: 'Hierarchy & Pricing', icon: Building2 },
+    { id: 'menu_management', label: 'Menu Access (RWMA / UWMA)', icon: ShieldAlert },
+    { id: 'master_hierarchy', label: 'Hierarchy & Pricing', icon: Database },
     { id: 'audit', label: 'Audit & Governance Trail', icon: History },
   ];
 

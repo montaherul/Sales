@@ -1,52 +1,66 @@
-# 02 - TECHNICAL ARCHITECTURE
+# 02 - TECHNICAL ARCHITECTURE (FINAL LOCKED ARCHITECTURE)
 
 ## 1. System Architecture Overview
 
-The Afaz Tobacco Sales & Stock Intelligence Platform is architected as a modern, decoupled full-stack application utilizing Next.js (App Router), Supabase PostgreSQL, and cloud service integrations.
+The Afaz Tobacco Sales & Stock Intelligence Platform is architected as a **Modular Monolith following Clean Architecture principles**.
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                         PRESENTATION LAYER                             │
-│      Next.js App Router • React 19 • Tailwind CSS • shadcn/ui          │
-│          TanStack Table • TanStack Query • Recharts • Lucide           │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                   SERVER-SIDE AUTHORIZATION & MIDDLEWARE                │
-│    Next.js Middleware • Supabase Auth Session • Scoped RBAC Check      │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                             SERVICE LAYER                              │
-│  ┌──────────────────────┐ ┌──────────────────────┐ ┌────────────────┐  │
-│  │  Calculation Engine  │ │   Workflow Service   │ │ Import Service │  │
-│  └──────────────────────┘ └──────────────────────┘ └────────────────┘  │
-│  ┌──────────────────────┐ ┌──────────────────────┐ ┌────────────────┐  │
-│  │ 34-Sheet Export Svc  │ │ Google Drive Service │ │ Audit Service  │  │
-│  └──────────────────────┘ └──────────────────────┘ └────────────────┘  │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                      DATA ACCESS & REPOSITORY LAYER                    │
-│      Parameterized Queries • Database Transactions • Zod Schemas       │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                       SUPABASE POSTGRESQL DATABASE                     │
-│    PostgreSQL 16 • Row Level Security (RLS) • Normalized Schema        │
-│       Foreign Keys • Unique Constraints • Audit Triggers & History     │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-         ┌──────────────────────────┴──────────────────────────┐
-         ▼                                                     ▼
-┌─────────────────────────────────┐           ┌─────────────────────────────────┐
-│     GOOGLE DRIVE API (v3)       │           │     GOOGLE SHEETS API (v4)      │
-│  Super Admin Archival Storage   │           │    Reporting & Sync Artifacts   │
-└─────────────────────────────────┘           └─────────────────────────────────┘
+```text
+                         ┌─────────────────────────────┐
+                         │        NEXT.JS FRONTEND     │
+                         │ React + TypeScript          │
+                         │ Tailwind + shadcn/ui        │
+                         └──────────────┬──────────────┘
+                                        │
+                                  HTTPS / REST
+                                        │
+                                        ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         APPLICATION API                         │
+│                    Next.js Route Handlers                       │
+│                                                                 │
+│ Auth │ Daily Sales │ Approval │ Target │ Reports │ Import       │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    APPLICATION LAYER                            │
+│                                                                 │
+│ Commands │ Queries │ DTOs │ Validators │ Authorization Policies │
+│                                                                 │
+│ CreateDailyEntry                                                │
+│ SubmitDailyEntry                                                │
+│ ApproveByTSO                                                    │
+│ ApproveByRSO                                                    │
+│ FinalizeReport                                                  │
+│ ImportWorkbook                                                  │
+│ GenerateMonthlyReport                                           │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       DOMAIN LAYER                              │
+│                                                                 │
+│ Organization │ Sales │ Stock │ Product │ Target │ Approval      │
+│ Reporting │ Import │ Audit                                       │
+│                                                                 │
+│ Entities │ Value Objects │ Domain Rules │ State Machine         │
+│ Calculation Rules │ Business Policies                           │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    INFRASTRUCTURE LAYER                         │
+│                                                                 │
+│ PostgreSQL │ Excel Engine │ Google Drive │ Storage              │
+│ Authentication │ Logging │ Background Jobs                      │
+└──────────────┬──────────────────────┬───────────────────────────┘
+               │                      │
+               ▼                      ▼
+        ┌───────────────┐      ┌─────────────────┐
+        │  PostgreSQL   │      │ External APIs   │
+        │ Single Source │      │ Google Drive    │
+        │   of Truth    │      │ Google Sheets   │
+        └───────────────┘      └─────────────────┘
 ```
 
 ---
