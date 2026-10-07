@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { generate34SheetMonthlyReport } from '@/lib/excel/export';
 import { SubmissionRepository } from '@/lib/repositories/submission.repository';
 import { MonthlyWorkbookData } from '@/lib/types';
+import { dbQuery, getDbPool } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
@@ -59,10 +60,35 @@ export async function POST(request: NextRequest) {
     // 4. Simulated or Real Drive File ID
     const driveFileId = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
 
-    // 5. Audit Logging
+    // 5. Persist to google_drive_files in PostgreSQL
+    if (getDbPool()) {
+      try {
+        await dbQuery(`
+          INSERT INTO google_drive_files (
+            file_name,
+            drive_file_id,
+            drive_folder_path,
+            sha256_checksum,
+            file_size,
+            report_date
+          ) VALUES ($1, $2, $3, $4, $5, $6);
+        `, [
+          fileName,
+          driveFileId,
+          folderPath,
+          sha256,
+          buffer.length,
+          `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+        ]);
+      } catch (dbErr) {
+        console.warn('Failed to insert into google_drive_files table:', dbErr);
+      }
+    }
+
+    // 6. Audit Logging
     await SubmissionRepository.recordAuditLog(
       'DRIVE_UPLOAD',
-      body.userId || 'super-admin-id',
+      body.userId || 'admin@afaztobacco.com',
       'google_drive_files',
       driveFileId,
       undefined,

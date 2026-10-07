@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   CigaretteBrandSales, 
   CigaretteBrandStock, 
   ZardaSalesQty, 
-  ZardaStockQty 
+  ZardaStockQty,
+  SubmissionStatus
 } from '@/lib/types';
 import { 
   calculateCigaretteSalesTotal, 
@@ -18,8 +19,18 @@ import {
   Send, 
   CheckCircle2, 
   Calculator, 
-  Info 
+  Info,
+  Lock,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
+
+interface TerritoryItem {
+  id: string;
+  name: string;
+  region_name: string;
+  sort_order: number;
+}
 
 interface DailySalesGridProps {
   onSaveDraft?: (record: any) => void;
@@ -27,15 +38,20 @@ interface DailySalesGridProps {
 }
 
 export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGridProps) {
-  const [selectedTerritory, setSelectedTerritory] = useState('Kerani hat');
+  const [territories, setTerritories] = useState<TerritoryItem[]>([]);
+  const [selectedTerritoryId, setSelectedTerritoryId] = useState<string>('');
+  const [selectedTerritoryName, setSelectedTerritoryName] = useState<string>('Kerani hat');
   const [reportDate, setReportDate] = useState('2026-10-06');
   const [submittedStatus, setSubmittedStatus] = useState<string | null>(null);
+  const [currentStatus, setCurrentStatus] = useState<SubmissionStatus | 'NEW'>('NEW');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Cigarette Sales State
   const [sales, setSales] = useState<CigaretteBrandSales>({
     wilson: 0.00,
     shahara: 0.00,
-    express: 0.68,
+    express: 0.00,
     nexus: 0.00,
     sb: 0.00,
     sm: 0.00,
@@ -43,9 +59,9 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
 
   // Cigarette Stock State
   const [stock, setStock] = useState<CigaretteBrandStock>({
-    wilson: 0.19,
+    wilson: 0.00,
     shahara: 0.00,
-    express: 0.84,
+    express: 0.00,
     nexus: 0.00,
     sb: 0.00,
     sm: 0.00,
@@ -53,22 +69,80 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
 
   // Zarda Sales State
   const [zardaSales, setZardaSales] = useState<ZardaSalesQty>({
-    slb: 0.01,
-    qty_22_25: 5,
+    slb: 0.00,
+    qty_22_25: 0,
     qty_99_14: 0,
     qty_33_15: 0,
   });
 
   // Zarda Stock State
   const [zardaStock, setZardaStock] = useState<ZardaStockQty>({
-    slb: 0.97,
-    qty_22_25: 1298,
+    slb: 0.00,
+    qty_22_25: 0,
     qty_99_14: 0,
     qty_33_15: 0,
   });
 
-  const [emptyPackets, setEmptyPackets] = useState<number>(6660);
-  const [remarks, setRemarks] = useState<string>('Standard field operational day');
+  const [emptyPackets, setEmptyPackets] = useState<number>(0);
+  const [remarks, setRemarks] = useState<string>('');
+
+  // 1. Load Master Territories
+  useEffect(() => {
+    async function loadMasterData() {
+      try {
+        const res = await fetch('/api/master-data');
+        const json = await res.json();
+        if (json.success && json.data.territories?.length > 0) {
+          setTerritories(json.data.territories);
+          setSelectedTerritoryId(json.data.territories[0].id);
+          setSelectedTerritoryName(json.data.territories[0].name);
+        }
+      } catch (err) {
+        console.error('Failed to load master territories:', err);
+      }
+    }
+    loadMasterData();
+  }, []);
+
+  // 2. Fetch Submission for Selected Territory & Date
+  const fetchSubmission = useCallback(async (terrId: string, terrName: string, date: string) => {
+    if (!terrId && !terrName) return;
+    setIsLoading(true);
+    setSubmittedStatus(null);
+    try {
+      const res = await fetch(`/api/daily-submissions?date=${date}&territoryId=${terrId}`);
+      const json = await res.json();
+      if (json.success && json.data && json.data.length > 0) {
+        const rec = json.data[0];
+        setSales(rec.cigaretteSales || { wilson: 0, shahara: 0, express: 0, nexus: 0, sb: 0, sm: 0 });
+        setStock(rec.cigaretteStock || { wilson: 0, shahara: 0, express: 0, nexus: 0, sb: 0, sm: 0 });
+        setZardaSales(rec.zardaSales || { slb: 0, qty_22_25: 0, qty_99_14: 0, qty_33_15: 0 });
+        setZardaStock(rec.zardaStock || { slb: 0, qty_22_25: 0, qty_99_14: 0, qty_33_15: 0 });
+        setEmptyPackets(rec.emptyPackets || 0);
+        setRemarks(rec.remarks || '');
+        setCurrentStatus(rec.status || 'DRAFT');
+      } else {
+        // Reset to empty fields if no submission exists yet
+        setSales({ wilson: 0, shahara: 0, express: 0, nexus: 0, sb: 0, sm: 0 });
+        setStock({ wilson: 0, shahara: 0, express: 0, nexus: 0, sb: 0, sm: 0 });
+        setZardaSales({ slb: 0, qty_22_25: 0, qty_99_14: 0, qty_33_15: 0 });
+        setZardaStock({ slb: 0, qty_22_25: 0, qty_99_14: 0, qty_33_15: 0 });
+        setEmptyPackets(0);
+        setRemarks('');
+        setCurrentStatus('NEW');
+      }
+    } catch (err) {
+      console.error('Failed to fetch submission:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedTerritoryId || selectedTerritoryName) {
+      fetchSubmission(selectedTerritoryId, selectedTerritoryName, reportDate);
+    }
+  }, [selectedTerritoryId, selectedTerritoryName, reportDate, fetchSubmission]);
 
   // Real-time calculations via centralized engine
   const totalSales = useMemo(() => calculateCigaretteSalesTotal(sales), [sales]);
@@ -76,20 +150,22 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
   const totalZardaSales = useMemo(() => calculateZardaSalesValuation(zardaSales), [zardaSales]);
   const totalZardaStock = useMemo(() => calculateZardaStockValuation(zardaStock), [zardaStock]);
 
-  const territoryMapping: Record<string, string> = {
-    'Kerani hat': 'satkania-1',
-    'Satkania': 'satkania-2',
-    'Bandarban': 'satkania-3',
-    'Rajasthali': 'satkania-4',
-    'Dohazari': 'satkania-5',
+  const isReadOnly = currentStatus === 'FINALIZED';
+
+  const handleTerritoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const terr = territories.find(t => t.id === e.target.value);
+    if (terr) {
+      setSelectedTerritoryId(terr.id);
+      setSelectedTerritoryName(terr.name);
+    }
   };
 
   const handleSaveDraft = async () => {
+    setIsSaving(true);
     try {
-      const terrId = territoryMapping[selectedTerritory] || 'satkania-1';
       const record = {
-        territoryId: terrId,
-        territoryName: selectedTerritory,
+        territoryId: selectedTerritoryId,
+        territoryName: selectedTerritoryName,
         regionName: 'Satkania',
         reportDate,
         dayNumber: parseInt(reportDate.split('-')[2] || '6', 10),
@@ -109,26 +185,29 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
       const res = await fetch('/api/daily-submissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ record, userId: 'csr-field-id' }),
+        body: JSON.stringify({ record, userId: 'csr.keranihat@afaztobacco.com' }),
       });
 
       const json = await res.json();
       if (json.success) {
-        setSubmittedStatus('Draft saved and persisted successfully.');
+        setCurrentStatus('DRAFT');
+        setSubmittedStatus('Draft saved to Supabase PostgreSQL database.');
       } else {
         alert(json.error || 'Failed to save draft');
       }
     } catch (err: any) {
       alert(err.message || 'Error saving draft');
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleSubmit = async () => {
+    setIsSaving(true);
     try {
-      const terrId = territoryMapping[selectedTerritory] || 'satkania-1';
       const record = {
-        territoryId: terrId,
-        territoryName: selectedTerritory,
+        territoryId: selectedTerritoryId,
+        territoryName: selectedTerritoryName,
         regionName: 'Satkania',
         reportDate,
         dayNumber: parseInt(reportDate.split('-')[2] || '6', 10),
@@ -145,33 +224,54 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
         totalZardaStockValue: totalZardaStock,
       };
 
-      // Save submission first
+      // 1. Save submission
       await fetch('/api/daily-submissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ record, userId: 'csr-field-id' }),
+        body: JSON.stringify({ record, userId: 'csr.keranihat@afaztobacco.com' }),
       });
 
-      // Transition to SUBMITTED
+      // 2. Transition workflow state
       const res = await fetch('/api/daily-submissions/workflow', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          territoryId: terrId,
+          territoryId: selectedTerritoryId,
           reportDate,
           toStatus: 'SUBMITTED',
-          userId: 'csr-field-id',
+          userId: 'csr.keranihat@afaztobacco.com',
+          comments: 'Submitted by CSR for TSO review',
         }),
       });
 
       const json = await res.json();
       if (json.success) {
-        setSubmittedStatus('Submitted to Territory Sales Officer (TSO) for review.');
+        setCurrentStatus('SUBMITTED');
+        setSubmittedStatus('Successfully submitted to Territory Sales Officer (TSO) for review.');
       } else {
         alert(json.error || 'Failed to submit for review');
       }
     } catch (err: any) {
       alert(err.message || 'Error submitting for review');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const getStatusBadge = () => {
+    switch (currentStatus) {
+      case 'FINALIZED':
+        return <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400 border border-emerald-500/20"><Lock className="h-3 w-3" /> Finalized & Locked</span>;
+      case 'RSO_APPROVED':
+        return <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/10 px-2.5 py-1 text-xs font-semibold text-cyan-400 border border-cyan-500/20"><CheckCircle2 className="h-3 w-3" /> RSO Approved</span>;
+      case 'TSO_APPROVED':
+        return <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-400 border border-blue-500/20"><CheckCircle2 className="h-3 w-3" /> TSO Approved</span>;
+      case 'SUBMITTED':
+        return <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-400 border border-amber-500/20"><AlertCircle className="h-3 w-3" /> Submitted (In Review)</span>;
+      case 'DRAFT':
+        return <span className="inline-flex items-center gap-1 rounded-full bg-slate-500/10 px-2.5 py-1 text-xs font-semibold text-slate-400 border border-slate-500/20">Draft (Unsubmitted)</span>;
+      default:
+        return <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 px-2.5 py-1 text-xs font-semibold text-purple-400 border border-purple-500/20">New Entry</span>;
     }
   };
 
@@ -183,15 +283,16 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
           <div>
             <label className="text-xs text-slate-400 block mb-1">Territory</label>
             <select
-              value={selectedTerritory}
-              onChange={(e) => setSelectedTerritory(e.target.value)}
+              value={selectedTerritoryId}
+              onChange={handleTerritoryChange}
+              disabled={isLoading}
               className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white focus:border-blue-500 focus:outline-none"
             >
-              <option value="Kerani hat">Kerani hat (SL 1)</option>
-              <option value="Satkania">Satkania (SL 2)</option>
-              <option value="Bandarban">Bandarban (SL 3)</option>
-              <option value="Rajasthali">Rajasthali (SL 4)</option>
-              <option value="Dohazari">Dohazari (SL 5)</option>
+              {territories.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} (SL {t.sort_order})
+                </option>
+              ))}
             </select>
           </div>
 
@@ -201,26 +302,25 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
               type="date"
               value={reportDate}
               onChange={(e) => setReportDate(e.target.value)}
+              disabled={isLoading}
               className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-white focus:border-blue-500 focus:outline-none font-mono"
             />
           </div>
 
           <div>
-            <label className="text-xs text-slate-400 block mb-1">Region Scope</label>
-            <span className="inline-flex items-center rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300">
-              Satkania Region (Division: Ctg South)
-            </span>
+            <label className="text-xs text-slate-400 block mb-1">Workflow Status</label>
+            <div>{getStatusBadge()}</div>
           </div>
         </div>
 
         {/* Live Calculation Preview Pills */}
         <div className="flex items-center gap-3">
           <div className="rounded-lg bg-blue-950/60 border border-blue-800/40 px-3 py-1.5 text-right">
-            <span className="text-[10px] text-blue-300 font-medium block">Total Sales</span>
+            <span className="text-[10px] text-blue-300 font-medium block">Total Cigarette Sales</span>
             <span className="text-sm font-bold text-white font-mono">{totalSales.toFixed(2)} Mio</span>
           </div>
           <div className="rounded-lg bg-emerald-950/60 border border-emerald-800/40 px-3 py-1.5 text-right">
-            <span className="text-[10px] text-emerald-300 font-medium block">Total Stock</span>
+            <span className="text-[10px] text-emerald-300 font-medium block">Total Closing Stock</span>
             <span className="text-sm font-bold text-white font-mono">{totalStock.toFixed(2)} Mio</span>
           </div>
         </div>
@@ -228,8 +328,15 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
 
       {submittedStatus && (
         <div className="flex items-center gap-2 rounded-lg bg-emerald-950/60 border border-emerald-800/60 px-4 py-2.5 text-xs text-emerald-300">
-          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
           <span>{submittedStatus}</span>
+        </div>
+      )}
+
+      {isReadOnly && (
+        <div className="flex items-center gap-2 rounded-lg bg-amber-950/60 border border-amber-800/60 px-4 py-2.5 text-xs text-amber-300">
+          <Lock className="h-4 w-4 text-amber-400 shrink-0" />
+          <span>This record is <strong>FINALIZED</strong>. Direct field editing is locked. Super Admin can unlock this submission with mandatory audit justification.</span>
         </div>
       )}
 
@@ -259,41 +366,45 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
                 <th className="pb-2 text-right text-blue-400 bg-blue-950/30 px-3 rounded-t">TOTAL</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 font-mono">
-              {/* Sales Row */}
+            <tbody className="divide-y divide-slate-800/60">
+              {/* Daily Sales Row */}
               <tr>
-                <td className="py-2.5 font-sans font-medium text-slate-300">Daily Sales</td>
-                {(['wilson', 'shahara', 'express', 'nexus', 'sb', 'sm'] as const).map((b) => (
-                  <td key={b} className="py-2 px-1 text-right">
+                <td className="py-2.5 font-medium text-slate-300">Daily Sales (Mio)</td>
+                {(['wilson', 'shahara', 'express', 'nexus', 'sb', 'sm'] as const).map((brand) => (
+                  <td key={brand} className="py-2.5 text-right pl-2">
                     <input
                       type="number"
                       step="0.01"
-                      value={sales[b]}
-                      onChange={(e) => setSales({ ...sales, [b]: parseFloat(e.target.value) || 0 })}
-                      className="w-20 rounded bg-slate-950 border border-slate-700 px-2 py-1 text-right text-xs text-white focus:border-blue-500 focus:outline-none"
+                      disabled={isReadOnly || isLoading}
+                      value={sales[brand] === 0 ? '' : sales[brand]}
+                      placeholder="0.00"
+                      onChange={(e) => setSales({ ...sales, [brand]: parseFloat(e.target.value) || 0 })}
+                      className="w-20 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-blue-500 focus:outline-none font-mono disabled:opacity-50"
                     />
                   </td>
                 ))}
-                <td className="py-2 px-3 text-right font-bold text-white bg-blue-950/30">
+                <td className="py-2.5 text-right font-mono font-bold text-blue-400 bg-blue-950/30 px-3">
                   {totalSales.toFixed(2)}
                 </td>
               </tr>
 
               {/* Closing Stock Row */}
               <tr>
-                <td className="py-2.5 font-sans font-medium text-slate-300">Closing Stock</td>
-                {(['wilson', 'shahara', 'express', 'nexus', 'sb', 'sm'] as const).map((b) => (
-                  <td key={b} className="py-2 px-1 text-right">
+                <td className="py-2.5 font-medium text-slate-300">Closing Stock (Mio)</td>
+                {(['wilson', 'shahara', 'express', 'nexus', 'sb', 'sm'] as const).map((brand) => (
+                  <td key={brand} className="py-2.5 text-right pl-2">
                     <input
                       type="number"
                       step="0.01"
-                      value={stock[b]}
-                      onChange={(e) => setStock({ ...stock, [b]: parseFloat(e.target.value) || 0 })}
-                      className="w-20 rounded bg-slate-950 border border-slate-700 px-2 py-1 text-right text-xs text-white focus:border-emerald-500 focus:outline-none"
+                      disabled={isReadOnly || isLoading}
+                      value={stock[brand] === 0 ? '' : stock[brand]}
+                      placeholder="0.00"
+                      onChange={(e) => setStock({ ...stock, [brand]: parseFloat(e.target.value) || 0 })}
+                      className="w-20 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-emerald-500 focus:outline-none font-mono disabled:opacity-50"
                     />
                   </td>
                 ))}
-                <td className="py-2 px-3 text-right font-bold text-emerald-400 bg-blue-950/30">
+                <td className="py-2.5 text-right font-mono font-bold text-emerald-400 bg-emerald-950/30 px-3">
                   {totalStock.toFixed(2)}
                 </td>
               </tr>
@@ -308,134 +419,153 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
           <div>
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <span>Brand Wise Zarda Sales & Closing Stock</span>
-              <span className="text-[10px] font-normal px-2 py-0.5 rounded bg-slate-800 text-slate-300">Prices: 22/25=15৳, 99/14=6৳, 33/15=8৳</span>
+              <span className="text-[10px] font-normal px-2 py-0.5 rounded bg-slate-800 text-slate-300">Standard Packets & Pouches</span>
             </h3>
-            <p className="text-xs text-slate-400">Quantities in units. Valuations calculated automatically in BDT.</p>
+            <p className="text-xs text-slate-400">Formula Value: 22/25 × 15 BDT + 99/14 × 6 BDT + 33/15 × 8 BDT</p>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
-            <thead>
-              <tr className="border-b border-slate-800 text-slate-400 font-semibold">
-                <th className="pb-2 w-32">Metric</th>
-                <th className="pb-2 text-right">SLB (Kg)</th>
-                <th className="pb-2 text-right">22/25 (Qty)</th>
-                <th className="pb-2 text-right">99/14 (Qty)</th>
-                <th className="pb-2 text-right">33/15 (Qty)</th>
-                <th className="pb-2 text-right text-emerald-400 bg-emerald-950/30 px-3 rounded-t">Total Valuation (BDT)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60 font-mono">
-              {/* Zarda Sales Row */}
-              <tr>
-                <td className="py-2.5 font-sans font-medium text-slate-300">Zarda Sales</td>
-                <td className="py-2 px-1 text-right">
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={zardaSales.slb}
-                    onChange={(e) => setZardaSales({ ...zardaSales, slb: parseFloat(e.target.value) || 0 })}
-                    className="w-20 rounded bg-slate-950 border border-slate-700 px-2 py-1 text-right text-xs text-white"
-                  />
-                </td>
-                <td className="py-2 px-1 text-right">
-                  <input
-                    type="number"
-                    value={zardaSales.qty_22_25}
-                    onChange={(e) => setZardaSales({ ...zardaSales, qty_22_25: parseInt(e.target.value, 10) || 0 })}
-                    className="w-20 rounded bg-slate-950 border border-slate-700 px-2 py-1 text-right text-xs text-white"
-                  />
-                </td>
-                <td className="py-2 px-1 text-right">
-                  <input
-                    type="number"
-                    value={zardaSales.qty_99_14}
-                    onChange={(e) => setZardaSales({ ...zardaSales, qty_99_14: parseInt(e.target.value, 10) || 0 })}
-                    className="w-20 rounded bg-slate-950 border border-slate-700 px-2 py-1 text-right text-xs text-white"
-                  />
-                </td>
-                <td className="py-2 px-1 text-right">
-                  <input
-                    type="number"
-                    value={zardaSales.qty_33_15}
-                    onChange={(e) => setZardaSales({ ...zardaSales, qty_33_15: parseInt(e.target.value, 10) || 0 })}
-                    className="w-20 rounded bg-slate-950 border border-slate-700 px-2 py-1 text-right text-xs text-white"
-                  />
-                </td>
-                <td className="py-2 px-3 text-right font-bold text-white bg-emerald-950/30">
-                  ৳ {totalZardaSales.toLocaleString()}
-                </td>
-              </tr>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Zarda Sales */}
+          <div className="rounded-lg border border-slate-800/80 bg-slate-950/40 p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="text-xs font-semibold text-slate-300">Zarda Sales Quantities</span>
+              <span className="text-xs font-bold text-amber-400 font-mono">Value: {totalZardaSales.toLocaleString()} BDT</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <label className="text-slate-400 block mb-1">SLB (Qty)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  disabled={isReadOnly || isLoading}
+                  value={zardaSales.slb === 0 ? '' : zardaSales.slb}
+                  placeholder="0.00"
+                  onChange={(e) => setZardaSales({ ...zardaSales, slb: parseFloat(e.target.value) || 0 })}
+                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 block mb-1">22/25 (@15 Tk)</label>
+                <input
+                  type="number"
+                  disabled={isReadOnly || isLoading}
+                  value={zardaSales.qty_22_25 === 0 ? '' : zardaSales.qty_22_25}
+                  placeholder="0"
+                  onChange={(e) => setZardaSales({ ...zardaSales, qty_22_25: parseInt(e.target.value, 10) || 0 })}
+                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 block mb-1">99/14 (@6 Tk)</label>
+                <input
+                  type="number"
+                  disabled={isReadOnly || isLoading}
+                  value={zardaSales.qty_99_14 === 0 ? '' : zardaSales.qty_99_14}
+                  placeholder="0"
+                  onChange={(e) => setZardaSales({ ...zardaSales, qty_99_14: parseInt(e.target.value, 10) || 0 })}
+                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 block mb-1">33/15 (@8 Tk)</label>
+                <input
+                  type="number"
+                  disabled={isReadOnly || isLoading}
+                  value={zardaSales.qty_33_15 === 0 ? '' : zardaSales.qty_33_15}
+                  placeholder="0"
+                  onChange={(e) => setZardaSales({ ...zardaSales, qty_33_15: parseInt(e.target.value, 10) || 0 })}
+                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                />
+              </div>
+            </div>
+          </div>
 
-              {/* Zarda Stock Row */}
-              <tr>
-                <td className="py-2.5 font-sans font-medium text-slate-300">Closing Stock</td>
-                <td className="py-2 px-1 text-right">
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={zardaStock.slb}
-                    onChange={(e) => setZardaStock({ ...zardaStock, slb: parseFloat(e.target.value) || 0 })}
-                    className="w-20 rounded bg-slate-950 border border-slate-700 px-2 py-1 text-right text-xs text-white"
-                  />
-                </td>
-                <td className="py-2 px-1 text-right">
-                  <input
-                    type="number"
-                    value={zardaStock.qty_22_25}
-                    onChange={(e) => setZardaStock({ ...zardaStock, qty_22_25: parseInt(e.target.value, 10) || 0 })}
-                    className="w-20 rounded bg-slate-950 border border-slate-700 px-2 py-1 text-right text-xs text-white"
-                  />
-                </td>
-                <td className="py-2 px-1 text-right">
-                  <input
-                    type="number"
-                    value={zardaStock.qty_99_14}
-                    onChange={(e) => setZardaStock({ ...zardaStock, qty_99_14: parseInt(e.target.value, 10) || 0 })}
-                    className="w-20 rounded bg-slate-950 border border-slate-700 px-2 py-1 text-right text-xs text-white"
-                  />
-                </td>
-                <td className="py-2 px-1 text-right">
-                  <input
-                    type="number"
-                    value={zardaStock.qty_33_15}
-                    onChange={(e) => setZardaStock({ ...zardaStock, qty_33_15: parseInt(e.target.value, 10) || 0 })}
-                    className="w-20 rounded bg-slate-950 border border-slate-700 px-2 py-1 text-right text-xs text-white"
-                  />
-                </td>
-                <td className="py-2 px-3 text-right font-bold text-emerald-400 bg-emerald-950/30">
-                  ৳ {totalZardaStock.toLocaleString()}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          {/* Zarda Closing Stock */}
+          <div className="rounded-lg border border-slate-800/80 bg-slate-950/40 p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="text-xs font-semibold text-slate-300">Zarda Closing Stock</span>
+              <span className="text-xs font-bold text-amber-400 font-mono">Value: {totalZardaStock.toLocaleString()} BDT</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <label className="text-slate-400 block mb-1">SLB (Qty)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  disabled={isReadOnly || isLoading}
+                  value={zardaStock.slb === 0 ? '' : zardaStock.slb}
+                  placeholder="0.00"
+                  onChange={(e) => setZardaStock({ ...zardaStock, slb: parseFloat(e.target.value) || 0 })}
+                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 block mb-1">22/25 (@15 Tk)</label>
+                <input
+                  type="number"
+                  disabled={isReadOnly || isLoading}
+                  value={zardaStock.qty_22_25 === 0 ? '' : zardaStock.qty_22_25}
+                  placeholder="0"
+                  onChange={(e) => setZardaStock({ ...zardaStock, qty_22_25: parseInt(e.target.value, 10) || 0 })}
+                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 block mb-1">99/14 (@6 Tk)</label>
+                <input
+                  type="number"
+                  disabled={isReadOnly || isLoading}
+                  value={zardaStock.qty_99_14 === 0 ? '' : zardaStock.qty_99_14}
+                  placeholder="0"
+                  onChange={(e) => setZardaStock({ ...zardaStock, qty_99_14: parseInt(e.target.value, 10) || 0 })}
+                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 block mb-1">33/15 (@8 Tk)</label>
+                <input
+                  type="number"
+                  disabled={isReadOnly || isLoading}
+                  value={zardaStock.qty_33_15 === 0 ? '' : zardaStock.qty_33_15}
+                  placeholder="0"
+                  onChange={(e) => setZardaStock({ ...zardaStock, qty_33_15: parseInt(e.target.value, 10) || 0 })}
+                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs text-white focus:border-amber-500 focus:outline-none font-mono disabled:opacity-50"
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* 3. Empty Packets & Remarks */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-          <label className="text-xs font-semibold text-white block mb-1">Express Empty Packets Recovered</label>
-          <p className="text-[11px] text-slate-400 mb-2">Count of returned packets collected from retail accounts.</p>
-          <input
-            type="number"
-            value={emptyPackets}
-            onChange={(e) => setEmptyPackets(parseInt(e.target.value, 10) || 0)}
-            className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white font-mono"
-          />
-        </div>
-
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-          <label className="text-xs font-semibold text-white block mb-1">Operational Remarks</label>
-          <p className="text-[11px] text-slate-400 mb-2">Field observations, market conditions, or weather notes.</p>
-          <input
-            type="text"
-            value={remarks}
-            onChange={(e) => setRemarks(e.target.value)}
-            className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white"
-            placeholder="Enter route observations..."
-          />
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm space-y-4">
+        <h3 className="text-sm font-bold text-white border-b border-slate-800 pb-2">
+          Operational Returns & Route Remarks
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Express Empty Packet Return (Count)</label>
+            <input
+              type="number"
+              disabled={isReadOnly || isLoading}
+              value={emptyPackets === 0 ? '' : emptyPackets}
+              placeholder="0"
+              onChange={(e) => setEmptyPackets(parseInt(e.target.value, 10) || 0)}
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none font-mono disabled:opacity-50"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="text-xs text-slate-400 block mb-1">Route & Field Remarks</label>
+            <input
+              type="text"
+              disabled={isReadOnly || isLoading}
+              value={remarks}
+              placeholder="Operational remarks, route coverage notes..."
+              onChange={(e) => setRemarks(e.target.value)}
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none disabled:opacity-50"
+            />
+          </div>
         </div>
       </div>
 
@@ -443,15 +573,17 @@ export function DailySalesGrid({ onSaveDraft, onSubmitForReview }: DailySalesGri
       <div className="flex items-center justify-end gap-3 pt-2">
         <button
           onClick={handleSaveDraft}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800 hover:text-white transition-colors"
+          disabled={isReadOnly || isSaving || isLoading}
+          className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-40"
         >
           <Save className="h-4 w-4" />
-          <span>Save Draft</span>
+          <span>{isSaving ? 'Saving...' : 'Save Draft'}</span>
         </button>
 
         <button
           onClick={handleSubmit}
-          className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-5 py-2 text-xs font-semibold text-white hover:bg-blue-500 shadow-md shadow-blue-500/20 transition-all"
+          disabled={isReadOnly || isSaving || isLoading}
+          className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-5 py-2 text-xs font-semibold text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-40"
         >
           <Send className="h-4 w-4" />
           <span>Submit for TSO Review</span>

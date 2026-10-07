@@ -25,6 +25,19 @@ export async function POST(request: NextRequest) {
       savedRecords.push(saved);
     }
 
+    await SubmissionRepository.recordAuditLog(
+      'IMPORT_COMMIT',
+      userId,
+      'daily_submissions',
+      body.fileName || 'bulk-import',
+      undefined,
+      {
+        fileName: body.fileName,
+        importedCount: savedRecords.length,
+        timestamp: new Date().toISOString(),
+      }
+    );
+
     return NextResponse.json({
       success: true,
       message: `Successfully committed ${savedRecords.length} records into database.`,
