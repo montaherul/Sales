@@ -195,9 +195,9 @@ export default function Home() {
           {/* Super Admin Administrative Modules */}
           {activeTab === 'companies' && currentRole === 'SUPER_ADMIN' && <CompanyManagement />}
           {activeTab === 'users' && currentRole === 'SUPER_ADMIN' && <UserRoleManagement companyId={effectiveCompanyId} />}
-          {activeTab === 'menu_management' && currentRole === 'SUPER_ADMIN' && <MenuManagement />}
+          {activeTab === 'menu_management' && currentRole === 'SUPER_ADMIN' && <MenuManagement companyId={effectiveCompanyId} />}
           {activeTab === 'master_hierarchy' && currentRole === 'SUPER_ADMIN' && <MasterHierarchyManagement companyId={effectiveCompanyId} />}
-          {activeTab === 'audit' && <AuditLogViewer />}
+          {activeTab === 'audit' && <AuditLogViewer companyId={effectiveCompanyId} />}
         </main>
 
         {/* Footer */}

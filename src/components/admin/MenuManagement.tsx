@@ -59,7 +59,11 @@ interface UserProfile {
   is_active: boolean;
 }
 
-export function MenuManagement() {
+interface MenuManagementProps {
+  companyId?: string;
+}
+
+export function MenuManagement({ companyId = 'ALL' }: MenuManagementProps) {
   const [activeSubTab, setActiveSubTab] = useState<'RWMA' | 'UWMA'>('RWMA');
   const [menus, setMenus] = useState<SystemMenu[]>([]);
   const [rwma, setRwma] = useState<RoleAccess[]>([]);
@@ -76,15 +80,18 @@ export function MenuManagement() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/menu-management');
+      const query = companyId && companyId !== 'ALL' ? `?companyId=${companyId}` : '';
+      const res = await fetch(`/api/menu-management${query}`);
       const json = await res.json();
       if (json.success && json.data) {
         setMenus(json.data.menus || []);
         setRwma(json.data.rwma || []);
         setUwma(json.data.uwma || []);
         setUsers(json.data.users || []);
-        if (json.data.users?.length > 0 && !selectedUserId) {
+        if (json.data.users?.length > 0) {
           setSelectedUserId(json.data.users[0].id);
+        } else {
+          setSelectedUserId('');
         }
       }
     } catch (err) {
@@ -96,7 +103,7 @@ export function MenuManagement() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [companyId]);
 
   // Helper to find RWMA permissions
   const getRwmaPermission = (role: string, menuId: string) => {

@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { dbQuery, getDbPool } from '@/lib/db';
 import { SubmissionRepository } from '@/lib/repositories/submission.repository';
+import { getAuthenticatedUser } from '@/shared/auth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const companyId = searchParams.get('companyId');
+    const actor = await getAuthenticatedUser(request);
+
+    let filterCompanyId: string | null = null;
+    if (actor.role !== 'SUPER_ADMIN') {
+      filterCompanyId = actor.companyId || null;
+    } else if (companyId && companyId !== 'ALL') {
+      filterCompanyId = companyId;
+    }
+
     if (getDbPool()) {
       // 1. Fetch system menus
       const menusRes = await dbQuery(`
@@ -18,21 +30,35 @@ export async function GET() {
         FROM role_menu_access;
       `);
 
-      // 3. Fetch user menu access (UWMA) with user profiles
-      const uwmaRes = await dbQuery(`
-        SELECT uma.user_id, u.email, u.full_name, r.name as role_name, uma.menu_id, uma.can_view, uma.can_edit
-        FROM user_menu_access uma
-        JOIN user_profiles u ON uma.user_id = u.id
-        JOIN roles r ON u.role_id = r.id;
-      `);
+      // 3. Fetch user menu access (UWMA) with user profiles scoped to company
+      const uwmaSql = filterCompanyId
+        ? `SELECT uma.user_id, u.email, u.full_name, r.name as role_name, uma.menu_id, uma.can_view, uma.can_edit
+           FROM user_menu_access uma
+           JOIN user_profiles u ON uma.user_id = u.id
+           JOIN roles r ON u.role_id = r.id
+           LEFT JOIN user_scopes us ON u.id = us.user_id
+           WHERE us.company_id = $1;`
+        : `SELECT uma.user_id, u.email, u.full_name, r.name as role_name, uma.menu_id, uma.can_view, uma.can_edit
+           FROM user_menu_access uma
+           JOIN user_profiles u ON uma.user_id = u.id
+           JOIN roles r ON u.role_id = r.id;`;
+      const uwmaParams = filterCompanyId ? [filterCompanyId] : [];
+      const uwmaRes = await dbQuery(uwmaSql, uwmaParams);
 
-      // 4. Fetch all user profiles for selection
-      const usersRes = await dbQuery(`
-        SELECT u.id, u.email, u.full_name, r.name as role_name, u.is_active
-        FROM user_profiles u
-        JOIN roles r ON u.role_id = r.id
-        ORDER BY u.full_name;
-      `);
+      // 4. Fetch all user profiles for selection (scoped to company)
+      const usersSql = filterCompanyId
+        ? `SELECT u.id, u.email, u.full_name, r.name as role_name, u.is_active
+           FROM user_profiles u
+           JOIN roles r ON u.role_id = r.id
+           LEFT JOIN user_scopes us ON u.id = us.user_id
+           WHERE us.company_id = $1
+           ORDER BY u.full_name;`
+        : `SELECT u.id, u.email, u.full_name, r.name as role_name, u.is_active
+           FROM user_profiles u
+           JOIN roles r ON u.role_id = r.id
+           ORDER BY u.full_name;`;
+      const usersParams = filterCompanyId ? [filterCompanyId] : [];
+      const usersRes = await dbQuery(usersSql, usersParams);
 
       return NextResponse.json({
         success: true,
@@ -41,6 +67,7 @@ export async function GET() {
           rwma: rwmaRes.rows,
           uwma: uwmaRes.rows,
           users: usersRes.rows,
+          activeScopeCompanyId: filterCompanyId,
         },
       });
     }
@@ -52,6 +79,7 @@ export async function GET() {
         rwma: [],
         uwma: [],
         users: [],
+        activeScopeCompanyId: filterCompanyId,
       },
     });
   } catch (error: any) {
@@ -65,6 +93,14 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const actor = await getAuthenticatedUser(request);
+    if (actor.role !== 'SUPER_ADMIN') {
+      return NextResponse.json(
+        { success: false, error: 'Only SUPER_ADMIN can modify system menu access matrix' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { type, roleName, userId, menuId, canView, canEdit, modifiedBy } = body;
 
@@ -87,7 +123,7 @@ export async function POST(request: NextRequest) {
 
       await SubmissionRepository.recordAuditLog(
         'RWMA_UPDATE',
-        modifiedBy || 'admin@afaztobacco.com',
+        modifiedBy || actor.email || 'admin@afaztobacco.com',
         'role_menu_access',
         `${roleName}_${menuId}`,
         undefined,
@@ -98,8 +134,10 @@ export async function POST(request: NextRequest) {
         success: true,
         message: `Updated RWMA for role ${roleName} on menu ${menuId}.`,
       });
-    } else if (type === 'UWMA') {
-      // User-Wise Menu Access update
+    }
+
+    if (type === 'UWMA') {
+      // User-Wise Menu Access override update
       if (!userId || !menuId) {
         return NextResponse.json({ success: false, error: 'Missing userId or menuId' }, { status: 400 });
       }
@@ -113,7 +151,7 @@ export async function POST(request: NextRequest) {
 
       await SubmissionRepository.recordAuditLog(
         'UWMA_UPDATE',
-        modifiedBy || 'admin@afaztobacco.com',
+        modifiedBy || actor.email || 'admin@afaztobacco.com',
         'user_menu_access',
         `${userId}_${menuId}`,
         undefined,
@@ -122,11 +160,11 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: `Updated UWMA for user on menu ${menuId}.`,
+        message: `Updated UWMA for user ${userId} on menu ${menuId}.`,
       });
     }
 
-    return NextResponse.json({ success: false, error: 'Invalid type (expected RWMA or UWMA)' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Invalid update type' }, { status: 400 });
   } catch (error: any) {
     console.error('Menu management POST error:', error);
     return NextResponse.json(

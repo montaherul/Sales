@@ -18,7 +18,11 @@ interface AuditLogRecord {
   new_values?: any;
 }
 
-export function AuditLogViewer() {
+interface AuditLogViewerProps {
+  companyId?: string;
+}
+
+export function AuditLogViewer({ companyId = 'ALL' }: AuditLogViewerProps) {
   const [selectedEventType, setSelectedEventType] = useState<string>('ALL');
   const [selectedEntityName, setSelectedEntityName] = useState<string>('ALL');
   const [expandedLog, setExpandedLog] = useState<AuditLogRecord | null>(null);
@@ -176,17 +180,19 @@ export function AuditLogViewer() {
       {/* 3-Tier Tabulator Server-Side Table */}
       <div className="relative z-10">
         <ServerDataTable<AuditLogRecord>
+          key={companyId}
           endpoint="/api/audit-logs"
           columns={columns}
           idField="id"
           title="Audit Logs History"
-        searchPlaceholder="Search audit events, entities, or user emails..."
-        additionalParams={{
-          eventType: selectedEventType,
-          entityName: selectedEntityName,
-        }}
-        exportFilenamePrefix="Afaz_Tobacco_Audit_Trail"
-      />
+          searchPlaceholder="Search audit events, entities, or user emails..."
+          additionalParams={{
+            eventType: selectedEventType,
+            entityName: selectedEntityName,
+            companyId: companyId !== 'ALL' ? companyId : undefined,
+          }}
+          exportFilenamePrefix="Afaz_Tobacco_Audit_Trail"
+        />
       </div>
 
       {/* Payload Inspection Modal */}
