@@ -2,9 +2,9 @@
 
 ## 1. Product Overview
 
-**Product Name:** Afaz Tobacco Sales & Stock Intelligence Platform  
-**Target Enterprise:** Afaz Tobacco Company Marketing & Field Distribution Operations  
-**Core Mission:** A secure, centralized web platform replacing scattered spreadsheet handoffs with a role-governed, auditable workflow for daily cigarette and zarda sales, closing stock, target tracking, analysis, and exact Excel / Google Drive reporting.
+**Product Name:** Tobacco SaaS (Enterprise Multi-Tenant Intelligence Platform)  
+**Target Enterprise:** Multi-Tenant Tobacco Manufacturing & Distribution Enterprises (Initial Tenant: Afaz Tobacco Company)  
+**Core Mission:** A secure, centralized multi-tenant web platform replacing scattered spreadsheet handoffs with a role-governed, auditable workflow for daily cigarette and zarda sales, closing stock, target tracking, analysis, and exact Excel / Google Drive reporting.
 
 ---
 

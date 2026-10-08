@@ -204,11 +204,11 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
             <Building2 className="h-7 w-7 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center justify-center gap-2">
-            <span>Afaz Tobacco Company</span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30">HQ</span>
+            <span>Tobacco SaaS</span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30">Enterprise</span>
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Sales & Stock Intelligence Platform • Enterprise RBAC
+            Multi-Tenant Sales & Stock Intelligence Platform • Enterprise RBAC
           </p>
         </div>
 
@@ -392,7 +392,7 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
 
         {/* Footer */}
         <p className="text-center text-[11px] text-slate-500 dark:text-slate-600">
-          Afaz Tobacco Sales & Stock Intelligence Platform • Production Ready
+          Tobacco SaaS • Multi-Tenant Intelligence Platform • Production Ready
         </p>
       </div>
     </div>

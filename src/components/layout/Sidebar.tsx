@@ -95,10 +95,10 @@ export function Sidebar({
             {/* Show brand title if open on laptop, OR always if drawer is open on mobile */}
             <div className={`leading-tight ${!isOpen ? 'hidden lg:hidden' : 'block'}`}>
               <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-1.5">
-                <span>Afaz Tobacco</span>
+                <span>Tobacco SaaS</span>
                 <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30">HQ</span>
               </h2>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">Intelligence Platform</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">Enterprise Intelligence</p>
             </div>
           </div>
 

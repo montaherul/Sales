@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Authenticating | Afaz Tobacco</title>
+  <title>Authenticating | Tobacco SaaS</title>
 </head>
 <body style="background:#020617;color:#f8fafc;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
   <div style="text-align:center;">

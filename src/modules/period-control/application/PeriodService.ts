@@ -9,7 +9,7 @@ import {
   DailyPeriodDate 
 } from '../domain/PeriodSpecification';
 import { UserAuthContext } from '@/shared/auth';
-import { ForbiddenError, ValidationError } from '@/shared/errors';
+import { ForbiddenError, ValidationError, NotFoundError } from '@/shared/errors';
 import { AuditService } from '@/modules/audit';
 import { AUDIT_ACTIONS, ROLES } from '@/shared/constants';
 import { logger } from '@/shared/logger';

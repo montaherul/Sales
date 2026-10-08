@@ -147,7 +147,7 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center text-slate-600 dark:text-slate-400 transition-colors duration-200">
         <div className="h-10 w-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
-        <span className="text-xs font-mono">Initializing Afaz Tobacco Intelligence Platform...</span>
+        <span className="text-xs font-mono">Initializing Tobacco SaaS Intelligence Platform...</span>
       </div>
     );
   }
@@ -209,7 +209,7 @@ export default function Home() {
         {/* Footer */}
         <footer className="border-t border-slate-200 dark:border-slate-900 bg-white/80 dark:bg-slate-950/80 py-4 px-6 text-center text-xs text-slate-500 transition-colors duration-200">
           <p>
-            Afaz Tobacco Sales & Stock Intelligence Platform • Production Specification Compliant • PostgreSQL Live
+            Tobacco SaaS • Multi-Tenant Sales & Stock Intelligence Platform • Production Specification Compliant • PostgreSQL Live
           </p>
         </footer>
       </div>

@@ -1,6 +1,6 @@
-# Afaz Tobacco Sales & Stock Intelligence Multi-Tenant SaaS Platform
+# Tobacco SaaS • Enterprise Multi-Tenant Intelligence Platform
 
-An enterprise-grade, secure, multi-tenant SaaS platform for sales, stock, target tracking, hierarchical approvals, Excel import/export, and Google Drive intelligence.
+An enterprise-grade, secure, multi-tenant SaaS platform for tobacco manufacturing & distribution sales, stock, target tracking, hierarchical approvals, Excel import/export, and Google Drive intelligence.
 
 ---
 

@@ -3,8 +3,8 @@ import './globals.css';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
 
 export const metadata: Metadata = {
-  title: 'Afaz Tobacco Sales & Stock Intelligence Platform',
-  description: 'Enterprise Sales, Stock, Targets, and Reporting Platform',
+  title: 'Tobacco SaaS • Multi-Tenant Sales & Stock Intelligence Platform',
+  description: 'Enterprise Multi-Tenant Tobacco Sales, Stock, Targets, and Reporting SaaS Platform',
 };
 
 export default function RootLayout({
