@@ -33,12 +33,18 @@ export function calculateCigaretteStockTotal(stock: Partial<CigaretteBrandStock>
   return StockCalculator.calculateTotal(stock as any);
 }
 
-export function calculateZardaSalesValuation(zarda: Partial<ZardaSalesQty>): number {
-  return ZardaCalculator.calculateSalesValuation(zarda as any);
+export function calculateZardaSalesValuation(
+  zarda: Partial<ZardaSalesQty>,
+  customPrices?: { price_22_25?: number; price_99_14?: number; price_33_15?: number }
+): number {
+  return ZardaCalculator.calculateSalesValuation(zarda as any, customPrices);
 }
 
-export function calculateZardaStockValuation(zarda: Partial<ZardaStockQty>): number {
-  return ZardaCalculator.calculateStockValuation(zarda as any);
+export function calculateZardaStockValuation(
+  zarda: Partial<ZardaStockQty>,
+  customPrices?: { price_22_25?: number; price_99_14?: number; price_33_15?: number }
+): number {
+  return ZardaCalculator.calculateStockValuation(zarda as any, customPrices);
 }
 
 export function calculateADS(volume: number, workingDays: number = DEFAULT_WORKING_DAYS): number {

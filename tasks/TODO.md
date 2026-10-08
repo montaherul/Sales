@@ -74,3 +74,15 @@
 - [x] Automated tenant isolation security test suite (`scripts/test_tenant_isolation.js`) passing 11/11 tests.
 - [x] Resilient database connection pool with 30s timeout and keepAlive across international Supabase endpoints.
 - [x] Next.js 15 production build passing with 0 errors across 31/31 routes.
+
+## Phase 12: Comprehensive Dynamic Handling & Elimination of Static Fallbacks
+- [x] Executive Dashboard (`ExecutiveDashboard.tsx`): Dynamically queries live targets and working days from PostgreSQL; eliminates hardcoded target estimates, hardcoded 26 working days, and static brand fallbacks.
+- [x] Menu Management (`MenuManagement.tsx`): Dynamically incorporates `COMPANY_ADMIN` and merges any custom company roles fetched from `/api/roles?all=true`.
+- [x] Master Data & Dynamic Working Days (`/api/master-data`): Dynamically queries `year` and `month` parameters and retrieves active working days per company.
+- [x] Authoritative Excel Export (`/api/exports/xlsx` & `ExcelExportService.ts`): Replaces static mock data with live database queries for sales, closing stock, zarda sales/stock, and empty packets.
+- [x] Google Drive Cloud Sync (`/api/google-drive/upload`): Uses `ExcelExportService` for dynamic 34-sheet report generation and dynamic month/year calculations.
+- [x] Calculation Engine (`ZardaCalculator.ts` & `engine.ts`): Added dynamic unit price overrides for tenant brand catalogs.
+- [x] Reporting Service & Repository (`ReportingService.ts` & `ReportingRepository.ts`): Dynamically calculates active elapsed days, targets, and working days without hardcoded constants.
+- [x] Daily Sales Grid (`DailySalesGrid.tsx`): Dynamic territory lookup without hardcoded territory fallbacks.
+- [x] Master Hierarchy (`MasterHierarchyManagement.tsx`): Purely dynamic region and brand dropdowns without hardcoded UUID fallbacks.
+- [x] Automated Verification: Zero TypeScript errors (`npx tsc --noEmit`), 11/11 tenant isolation tests passing (`node scripts/test_tenant_isolation.js`), and clean Next.js 15.5 production build (`npm run build`).

@@ -74,11 +74,9 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
           const regOpts: Select2Option[] = (masterJson.data?.regions || []).map((r: any) => ({
             value: r.id,
             label: `${r.name} Region`,
-            subLabel: r.company_name || 'Afaz Tobacco Company',
+            subLabel: r.company_name || 'Assigned Company',
           }));
-          setRegions(regOpts.length > 0 ? regOpts : [
-            { value: 'b050e2e2-beb6-4729-a490-9c596efc5218', label: 'Satkania Region', subLabel: 'Afaz Tobacco Company' },
-          ]);
+          setRegions(regOpts);
 
           // Brand options
           const brandOpts: Select2Option[] = (masterJson.data?.brands || []).map((b: any) => ({
@@ -92,7 +90,7 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
           const terrOpts: Select2Option[] = (masterJson.data?.territories || []).map((t: any) => ({
             value: t.id,
             label: t.name,
-            subLabel: t.region_name || 'Satkania Region',
+            subLabel: t.region_name ? `${t.region_name} Region` : 'Assigned Region',
           }));
           setTerritories(terrOpts);
         }

@@ -54,17 +54,32 @@ export class ReportingService {
       });
     } catch {}
 
-    // Fallback if no territories resolved
-    if (masterTerritories.length === 0) {
+    // Fallback if no territories resolved only in offline test/demo mode without companyId
+    if (masterTerritories.length === 0 && !companyId) {
       masterTerritories = SATKANIA_TERRITORIES.map(t => ({ id: t.id, name: t.name }));
     }
+
+    // Dynamic Working Days for period and company
+    let totalWorkingDays = DEFAULT_WORKING_DAYS;
+    try {
+      const wdRes = await (await import('@/shared/database/db')).dbQuery(
+        `SELECT working_days FROM working_days 
+         WHERE year = $1 AND month = $2 
+           AND ($3::uuid IS NULL OR company_id = $3 OR company_id IS NULL)
+         ORDER BY company_id NULLS LAST LIMIT 1;`,
+        [year, month, companyId || null]
+      );
+      if (wdRes.rows.length > 0 && wdRes.rows[0].working_days) {
+        totalWorkingDays = Number(wdRes.rows[0].working_days);
+      }
+    } catch {}
 
     let totalTarget = 0;
     let totalSales = 0;
     let totalStock = 0;
 
     const territories: TerritoryPerformanceSummary[] = masterTerritories.map((t) => {
-      const target = territoryTargets[t.id] || 350.0;
+      const target = territoryTargets[t.id] || 0;
       const std = territorySales[t.id] || 0;
       const stock = territoryStock[t.id] || 0;
       const ach = calculationEngine.achievement.calculateAchievement(std, target);
@@ -97,7 +112,7 @@ export class ReportingService {
         closingStockVolume: totalStock,
         stockCoverDays,
         activeWorkingDaysElapsed: activeDaysElapsed,
-        totalWorkingDays: DEFAULT_WORKING_DAYS,
+        totalWorkingDays,
         territoryCount: masterTerritories.length,
       },
       territories,

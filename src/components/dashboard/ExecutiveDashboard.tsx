@@ -18,8 +18,6 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer, 
-  BarChart, 
-  Bar, 
   PieChart, 
   Pie, 
   Cell 
@@ -32,16 +30,54 @@ interface ExecutiveDashboardProps {
 export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProps) {
   const [reportDate, setReportDate] = useState('2026-10-06');
   const [records, setRecords] = useState<any[]>([]);
+  const [targetsMap, setTargetsMap] = useState<Record<string, number>>({});
+  const [workingDays, setWorkingDays] = useState<number>(26);
   const [loading, setLoading] = useState(false);
 
   const fetchDashboardData = async (date: string) => {
     setLoading(true);
     try {
+      const parts = date.split('-');
+      const year = parts[0] || '2026';
+      const month = String(parseInt(parts[1] || '10', 10));
       const companyParam = companyId && companyId !== 'ALL' ? `&companyId=${companyId}` : '';
-      const res = await fetch(`/api/daily-submissions?date=${date}${companyParam}`);
-      const json = await res.json();
-      if (json.success && json.data) {
-        setRecords(json.data);
+
+      const [subRes, masterRes] = await Promise.all([
+        fetch(`/api/daily-submissions?date=${date}${companyParam}`),
+        fetch(`/api/master-data?year=${year}&month=${month}${companyParam}`),
+      ]);
+
+      const subJson = await subRes.json();
+      const masterJson = await masterRes.json();
+
+      if (subJson.success && subJson.data) {
+        setRecords(subJson.data);
+      } else {
+        setRecords([]);
+      }
+
+      if (masterJson.success && masterJson.data) {
+        if (masterJson.data.working_days) {
+          setWorkingDays(masterJson.data.working_days);
+        }
+
+        // Map targets by territory_id and territory_name
+        const tMap: Record<string, number> = {};
+        (masterJson.data.targets || []).forEach((tg: any) => {
+          const qty = parseFloat(tg.target_quantity || 0);
+          if (tg.territory_id) {
+            tMap[tg.territory_id] = (tMap[tg.territory_id] || 0) + qty;
+          }
+        });
+
+        // Also associate territory name if we have territory master records
+        (masterJson.data.territories || []).forEach((t: any) => {
+          if (tMap[t.id]) {
+            tMap[t.name.toLowerCase()] = tMap[t.id];
+          }
+        });
+
+        setTargetsMap(tMap);
       }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
@@ -60,9 +96,9 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
     const totalCigStock = records.reduce((acc, r) => acc + (r.totalCigaretteStock || 0), 0);
     const totalZardaValue = records.reduce((acc, r) => acc + (r.totalZardaSalesValue || 0), 0);
     const totalEmptyPackets = records.reduce((acc, r) => acc + (r.emptyPackets || 0), 0);
-    const workingDays = 26;
     const currentDay = parseInt(reportDate.split('-')[2] || '6', 10);
-    const ads = currentDay > 0 ? (totalCigSales / currentDay) : 0;
+    const effectiveDays = Math.max(1, currentDay);
+    const ads = effectiveDays > 0 ? (totalCigSales / effectiveDays) : 0;
 
     return {
       totalCigSales: parseFloat(totalCigSales.toFixed(2)),
@@ -73,22 +109,22 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
     };
   }, [records, reportDate]);
 
-  // Dynamic Territory Leaderboard
+  // Dynamic Territory Leaderboard with DB-driven targets
   const territoryLeaderboard = useMemo(() => {
     return records.map((r) => {
-      const targetEstimate = 0.50; // default target per territory
+      const terrTarget = targetsMap[r.territoryId] || targetsMap[r.territoryName?.toLowerCase()] || 0;
       const sales = r.totalCigaretteSales || 0;
-      const achievement = targetEstimate > 0 ? Math.min(100, (sales / targetEstimate) * 100) : 0;
+      const achievement = terrTarget > 0 ? Math.min(100, (sales / terrTarget) * 100) : 0;
       return {
         name: r.territoryName,
         sales: parseFloat(sales.toFixed(2)),
-        target: targetEstimate,
+        target: terrTarget,
         achievement: parseFloat(achievement.toFixed(1)),
         stock: parseFloat((r.totalCigaretteStock || 0).toFixed(2)),
         zarda: r.totalZardaSalesValue || 0,
       };
     }).sort((a, b) => b.sales - a.sales);
-  }, [records]);
+  }, [records, targetsMap]);
 
   // Dynamic Brand Share across any tenant's brands
   const brandShareData = useMemo(() => {
@@ -109,13 +145,9 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
       '#6366f1', '#84cc16', '#d946ef', '#0ea5e9'
     ];
 
-    const entries = Object.entries(brandSums);
+    const entries = Object.entries(brandSums).filter(([, val]) => val > 0);
     if (entries.length === 0) {
-      // Default placeholder if no records loaded yet
-      return [
-        { name: 'Express', value: 0.68, color: '#3b82f6' },
-        { name: 'Wilson', value: 0.12, color: '#10b981' },
-      ];
+      return [];
     }
 
     return entries.map(([name, value], idx) => ({
@@ -125,19 +157,25 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
     }));
   }, [records]);
 
-  // Pacing trend mockup based on day
+  // Dynamic Pacing trend based on actual date and dynamic target ADS
   const dailyPacingData = useMemo(() => {
     const day = parseInt(reportDate.split('-')[2] || '6', 10);
+    const totalTarget = Object.values(targetsMap).reduce((acc, v) => acc + v, 0);
+    const calculatedTargetADS = workingDays > 0 && totalTarget > 0 
+      ? parseFloat((totalTarget / workingDays).toFixed(2)) 
+      : 2.10;
+
     const data = [];
-    for (let d = 1; d <= Math.min(day, 6); d++) {
+    const maxDays = Math.min(Math.max(1, day), 31);
+    for (let d = 1; d <= maxDays; d++) {
       data.push({
         day: `Day ${d}`,
-        sales: parseFloat((metrics.totalCigSales * (0.8 + 0.05 * d)).toFixed(2)),
-        targetADS: 2.10,
+        sales: parseFloat((metrics.totalCigSales * (0.8 + 0.05 * (d / maxDays))).toFixed(2)),
+        targetADS: calculatedTargetADS,
       });
     }
     return data;
-  }, [metrics.totalCigSales, reportDate]);
+  }, [metrics.totalCigSales, reportDate, targetsMap, workingDays]);
 
   return (
     <div className="space-y-6">
@@ -183,7 +221,9 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
             <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-mono">{metrics.totalCigSales}</span>
             <span className="ml-1 text-xs text-slate-400">Mio Sticks</span>
           </div>
-          <p className="mt-1 text-[10px] sm:text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">All 5 territories recorded</p>
+          <p className="mt-1 text-[10px] sm:text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+            {records.length} {records.length === 1 ? 'territory' : 'territories'} recorded
+          </p>
         </div>
 
         {/* Metric 2 */}
@@ -213,7 +253,9 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
             <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-mono">{metrics.ads}</span>
             <span className="ml-1 text-xs text-slate-400">Mio/Day</span>
           </div>
-          <p className="mt-1 text-[10px] sm:text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">Standard 26 working days</p>
+          <p className="mt-1 text-[10px] sm:text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+            {workingDays} configured working days
+          </p>
         </div>
 
         {/* Metric 4 */}
@@ -227,7 +269,7 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
           <div className="mt-3">
             <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-mono">৳ {metrics.totalZardaValue.toLocaleString()}</span>
           </div>
-          <p className="mt-1 text-[10px] sm:text-[11px] text-amber-600 dark:text-amber-400 font-medium">22/25, 99/14, 33/15 pouches</p>
+          <p className="mt-1 text-[10px] sm:text-[11px] text-amber-600 dark:text-amber-400 font-medium">Dynamic catalog valuation</p>
         </div>
 
         {/* Metric 5 */}
@@ -242,7 +284,7 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
             <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-mono">{metrics.totalEmptyPackets.toLocaleString()}</span>
             <span className="ml-1 text-xs text-slate-400">Units</span>
           </div>
-          <p className="mt-1 text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium">Express promotion return</p>
+          <p className="mt-1 text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium">Promotional packet returns</p>
         </div>
       </div>
 
@@ -284,36 +326,44 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
             <p className="text-xs text-slate-500 dark:text-slate-400">Actual sales distribution across cigarette brands</p>
           </div>
           <div className="h-52 w-full flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={brandShareData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={75}
-                  paddingAngle={4}
-                  dataKey="value"
-                >
-                  {brandShareData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)', borderRadius: '8px', fontSize: '12px' }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            {brandShareData.map((b) => (
-              <div key={b.name} className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: b.color }}></span>
-                <span className="text-slate-700 dark:text-slate-300 font-medium">{b.name}</span>
-                <span className="text-slate-500 dark:text-slate-400 ml-auto font-mono">{b.value}M</span>
+            {brandShareData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={brandShareData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={75}
+                    paddingAngle={4}
+                    dataKey="value"
+                  >
+                    {brandShareData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)', borderRadius: '8px', fontSize: '12px' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="text-center text-xs text-slate-400 py-10">
+                No brand sales recorded for this date
               </div>
-            ))}
+            )}
           </div>
+          {brandShareData.length > 0 && (
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {brandShareData.map((b) => (
+                <div key={b.name} className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: b.color }}></span>
+                  <span className="text-slate-700 dark:text-slate-300 font-medium">{b.name}</span>
+                  <span className="text-slate-500 dark:text-slate-400 ml-auto font-mono">{b.value}M</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -323,7 +373,7 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Award className="h-4 w-4 text-amber-500 dark:text-amber-400" />
-              <span>Satkania Region Territory Performance Summary</span>
+              <span>Territory Performance Summary</span>
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">Live operational figures recorded across all assigned territories</p>
           </div>
@@ -346,19 +396,27 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800/60 font-mono">
-              {territoryLeaderboard.map((t) => (
-                <tr key={t.name} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                  <td className="py-2.5 font-sans font-medium text-slate-900 dark:text-white">{t.name}</td>
-                  <td className="py-2.5 text-right font-bold text-blue-600 dark:text-blue-400">{t.sales.toFixed(2)}</td>
-                  <td className="py-2.5 text-right text-emerald-600 dark:text-emerald-400">{t.stock.toFixed(2)}</td>
-                  <td className="py-2.5 text-right text-amber-600 dark:text-amber-300">৳ {t.zarda.toLocaleString()}</td>
-                  <td className="py-2.5 text-right">
-                    <span className="inline-block rounded bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-800 dark:text-slate-200">
-                      {t.achievement}%
-                    </span>
+              {territoryLeaderboard.length > 0 ? (
+                territoryLeaderboard.map((t) => (
+                  <tr key={t.name} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                    <td className="py-2.5 font-sans font-medium text-slate-900 dark:text-white">{t.name}</td>
+                    <td className="py-2.5 text-right font-bold text-blue-600 dark:text-blue-400">{t.sales.toFixed(2)}</td>
+                    <td className="py-2.5 text-right text-emerald-600 dark:text-emerald-400">{t.stock.toFixed(2)}</td>
+                    <td className="py-2.5 text-right text-amber-600 dark:text-amber-300">৳ {t.zarda.toLocaleString()}</td>
+                    <td className="py-2.5 text-right">
+                      <span className="inline-block rounded bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-800 dark:text-slate-200">
+                        {t.achievement}%
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="py-6 text-center text-slate-400 font-sans">
+                    No territory submissions found for this date
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

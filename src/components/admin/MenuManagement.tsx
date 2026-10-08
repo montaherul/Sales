@@ -75,14 +75,26 @@ export function MenuManagement({ companyId = 'ALL' }: MenuManagementProps) {
   const [saveToast, setSaveToast] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const roles: RoleType[] = ['SUPER_ADMIN', 'RSO', 'TSO', 'CSR'];
+  const [roles, setRoles] = useState<string[]>(['SUPER_ADMIN', 'COMPANY_ADMIN', 'RSO', 'TSO', 'CSR']);
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const query = companyId && companyId !== 'ALL' ? `?companyId=${companyId}` : '';
-      const res = await fetch(`/api/menu-management${query}`);
-      const json = await res.json();
+      const [menuRes, rolesRes] = await Promise.all([
+        fetch(`/api/menu-management${query}`),
+        fetch(`/api/roles?all=true${companyId && companyId !== 'ALL' ? `&companyId=${companyId}` : ''}`),
+      ]);
+      const json = await menuRes.json();
+      const rolesJson = await rolesRes.json();
+
+      if (rolesJson.success && rolesJson.data) {
+        const dynamicRoleNames: string[] = rolesJson.data.map((r: any) => r.name);
+        const core = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'RSO', 'TSO', 'CSR'];
+        const combined = Array.from(new Set([...core, ...dynamicRoleNames]));
+        setRoles(combined);
+      }
+
       if (json.success && json.data) {
         setMenus(json.data.menus || []);
         setRwma(json.data.rwma || []);

@@ -18,7 +18,7 @@ export class ReportingRepository {
 
     const territorySales: Record<string, number> = {};
     const territoryStock: Record<string, number> = {};
-    let activeDaysElapsed = 6;
+    let activeDaysElapsed = 0;
 
     try {
       const res = await dbQuery(
@@ -47,12 +47,21 @@ export class ReportingRepository {
           activeDaysElapsed = days;
         }
       });
+
+      if (activeDaysElapsed === 0) {
+        activeDaysElapsed = 1;
+      }
     } catch {
-      // Demo fallback values
-      SATKANIA_TERRITORIES.forEach((t) => {
-        territorySales[t.id] = 120.5;
-        territoryStock[t.id] = 45.2;
-      });
+      // Demo fallback values only in mock/offline mode when no company scope specified
+      if (!companyId) {
+        SATKANIA_TERRITORIES.forEach((t) => {
+          territorySales[t.id] = 120.5;
+          territoryStock[t.id] = 45.2;
+        });
+        activeDaysElapsed = 6;
+      } else {
+        activeDaysElapsed = 1;
+      }
     }
 
     return { territorySales, territoryStock, activeDaysElapsed };

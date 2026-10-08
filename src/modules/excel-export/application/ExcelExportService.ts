@@ -41,7 +41,16 @@ export class ExcelExportService {
                 COALESCE(MAX(CASE WHEN b.name ILIKE '%express%' THEN dst.closing_stock END), 0) as c_express_stock,
                 COALESCE(MAX(CASE WHEN b.name ILIKE '%nexus%' THEN dst.closing_stock END), 0) as c_nexus_stock,
                 COALESCE(MAX(CASE WHEN b.name ILIKE '%sb%' THEN dst.closing_stock END), 0) as c_sb_stock,
-                COALESCE(MAX(CASE WHEN b.name ILIKE '%sm%' THEN dst.closing_stock END), 0) as c_sm_stock
+                COALESCE(MAX(CASE WHEN b.name ILIKE '%sm%' THEN dst.closing_stock END), 0) as c_sm_stock,
+                COALESCE((SELECT SUM(zs.quantity) FROM zarda_sales zs JOIN brands zb ON zs.brand_id = zb.id WHERE zs.submission_id = s.id AND zb.name ILIKE '%slb%'), 0) as z_slb_sales,
+                COALESCE((SELECT SUM(zs.quantity) FROM zarda_sales zs JOIN brands zb ON zs.brand_id = zb.id WHERE zs.submission_id = s.id AND zb.name ILIKE '%22%'), 0) as z_22_25_sales,
+                COALESCE((SELECT SUM(zs.quantity) FROM zarda_sales zs JOIN brands zb ON zs.brand_id = zb.id WHERE zs.submission_id = s.id AND zb.name ILIKE '%99%'), 0) as z_99_14_sales,
+                COALESCE((SELECT SUM(zs.quantity) FROM zarda_sales zs JOIN brands zb ON zs.brand_id = zb.id WHERE zs.submission_id = s.id AND zb.name ILIKE '%33%'), 0) as z_33_15_sales,
+                COALESCE((SELECT SUM(zst.closing_stock) FROM zarda_stock zst JOIN brands zb ON zst.brand_id = zb.id WHERE zst.submission_id = s.id AND zb.name ILIKE '%slb%'), 0) as z_slb_stock,
+                COALESCE((SELECT SUM(zst.closing_stock) FROM zarda_stock zst JOIN brands zb ON zst.brand_id = zb.id WHERE zst.submission_id = s.id AND zb.name ILIKE '%22%'), 0) as z_22_25_stock,
+                COALESCE((SELECT SUM(zst.closing_stock) FROM zarda_stock zst JOIN brands zb ON zst.brand_id = zb.id WHERE zst.submission_id = s.id AND zb.name ILIKE '%99%'), 0) as z_99_14_stock,
+                COALESCE((SELECT SUM(zst.closing_stock) FROM zarda_stock zst JOIN brands zb ON zst.brand_id = zb.id WHERE zst.submission_id = s.id AND zb.name ILIKE '%33%'), 0) as z_33_15_stock,
+                COALESCE((SELECT SUM(ep.quantity) FROM empty_packets ep WHERE ep.submission_id = s.id), 0) as empty_packets
          FROM daily_submissions s
          JOIN territories t ON s.territory_id = t.id
          JOIN regions r ON t.region_id = r.id
@@ -76,15 +85,15 @@ export class ExcelExportService {
           nexusStock: parseFloat(row.c_nexus_stock || 0),
           sbStock: parseFloat(row.c_sb_stock || 0),
           smStock: parseFloat(row.c_sm_stock || 0),
-          zardaSlbSales: 0,
-          zarda22_25Sales: 0,
-          zarda99_14Sales: 0,
-          zarda33_15Sales: 0,
-          zardaSlbStock: 0,
-          zarda22_25Stock: 0,
-          zarda99_14Stock: 0,
-          zarda33_15Stock: 0,
-          emptyPackets: 0,
+          zardaSlbSales: parseFloat(row.z_slb_sales || 0),
+          zarda22_25Sales: parseFloat(row.z_22_25_sales || 0),
+          zarda99_14Sales: parseFloat(row.z_99_14_sales || 0),
+          zarda33_15Sales: parseFloat(row.z_33_15_sales || 0),
+          zardaSlbStock: parseFloat(row.z_slb_stock || 0),
+          zarda22_25Stock: parseFloat(row.z_22_25_stock || 0),
+          zarda99_14Stock: parseFloat(row.z_99_14_stock || 0),
+          zarda33_15Stock: parseFloat(row.z_33_15_stock || 0),
+          emptyPackets: parseInt(row.empty_packets || 0, 10),
           remarks: row.remarks || '',
         });
       });

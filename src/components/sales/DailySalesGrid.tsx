@@ -58,7 +58,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
   // Filter & Master States
   const [territories, setTerritories] = useState<TerritoryItem[]>([]);
   const [selectedTerritoryId, setSelectedTerritoryId] = useState<string>('');
-  const [selectedTerritoryName, setSelectedTerritoryName] = useState<string>('Kerani hat');
+  const [selectedTerritoryName, setSelectedTerritoryName] = useState<string>('');
   const [reportDate, setReportDate] = useState('2026-10-06');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
@@ -145,8 +145,8 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
   const loadSubmissionData = (record: any, mode: 'create' | 'edit') => {
     setFormMode(mode);
     setCurrentSubmissionId(record.id || null);
-    setSelectedTerritoryId(record.territory_id || record.territoryId || '');
-    setSelectedTerritoryName(record.territory_name || record.territoryName || 'Kerani hat');
+    setSelectedTerritoryId(record.territory_id || record.territoryId || (territories[0]?.id || ''));
+    setSelectedTerritoryName(record.territory_name || record.territoryName || (territories[0]?.name || ''));
     setReportDate(record.reporting_date || record.reportDate || '2026-10-06');
     setCurrentStatus(record.status || (mode === 'create' ? 'NEW' : 'DRAFT'));
     setSubmittedStatus(null);
@@ -197,7 +197,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
   const handleCreateNew = () => {
     loadSubmissionData({
       territory_id: selectedTerritoryId || (territories[0]?.id || ''),
-      territory_name: selectedTerritoryName || (territories[0]?.name || 'Kerani hat'),
+      territory_name: selectedTerritoryName || (territories[0]?.name || ''),
       reporting_date: reportDate,
     }, 'create');
   };

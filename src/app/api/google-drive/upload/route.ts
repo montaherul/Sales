@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { generate34SheetMonthlyReport } from '@/lib/excel/export';
+import { ExcelExportService } from '@/modules/excel-export';
 import { SubmissionRepository } from '@/lib/repositories/submission.repository';
-import { MonthlyWorkbookData } from '@/lib/types';
 import { dbQuery, getDbPool } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
@@ -21,41 +20,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const year = body.year || 2026;
-    const month = body.month || 10;
-    const day = body.day || 6;
-    const monthName = 'October';
+    const year = Number(body.year) || 2026;
+    const month = Number(body.month) || 10;
+    const day = Number(body.day) || 6;
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    const monthName = monthNames[month - 1] || 'October';
 
-    // Fetch active records for day
-    const records = await SubmissionRepository.getSubmissions({
-      date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-    });
-
-    const workbookData: MonthlyWorkbookData = {
+    // 1. Generate authoritative 34-sheet workbook using live database records
+    const { filename: generatedFileName, buffer } = await ExcelExportService.generateMonthlyReport(
       year,
       month,
-      monthName,
-      reportDate: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-      divisionName: 'Ctg South',
-      wingName: 'Chittagong',
-      workingDays: 26,
-      regions: [],
-      dailyRecords: {
-        [day]: records,
-      },
-      targets: {},
-      analysis: {},
-    };
-
-    // 1. Generate authoritative 34-sheet workbook
-    const buffer = await generate34SheetMonthlyReport(workbookData);
+      day,
+      'google-drive-sync',
+      body.companyId || undefined
+    );
 
     // 2. Compute SHA-256 Checksum
     const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
 
     // 3. Cloud Target Path
     const folderPath = `Afaz_Tobacco_Reports/${year}/${String(month).padStart(2, '0')}_${monthName}/${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}/`;
-    const fileName = `Daily sales and Closing Stock Information ${monthName} ${day} ${year}.xlsx`;
+    const fileName = generatedFileName || `Daily sales and Closing Stock Information ${monthName} ${day} ${year}.xlsx`;
 
     // 4. Simulated or Real Drive File ID
     const driveFileId = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';

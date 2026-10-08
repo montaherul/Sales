@@ -16,6 +16,9 @@ export async function GET(request: NextRequest) {
       filterCompanyId = reqCompanyId;
     }
 
+    const reqYear = parseInt(searchParams.get('year') || '2026', 10);
+    const reqMonth = parseInt(searchParams.get('month') || '10', 10);
+
     if (getDbPool()) {
       // 1. Fetch Companies (Non-super admin only gets their assigned company)
       const compSql = actor.role !== 'SUPER_ADMIN' && filterCompanyId
@@ -119,12 +122,34 @@ export async function GET(request: NextRequest) {
            JOIN regions r ON t.region_id = r.id
            JOIN wings w ON r.wing_id = w.id
            JOIN divisions d ON w.division_id = d.id
-           WHERE tg.year = 2026 AND tg.month = 10 AND d.company_id = $1;`
+           WHERE tg.year = $2 AND tg.month = $3 AND d.company_id = $1;`
         : `SELECT tg.territory_id, tg.brand_id, tg.target_quantity, tg.route_count, tg.outlet_count
            FROM targets tg
-           WHERE tg.year = 2026 AND tg.month = 10;`;
-      const targetParams = filterCompanyId ? [filterCompanyId] : [];
+           WHERE tg.year = $1 AND tg.month = $2;`;
+      const targetParams = filterCompanyId ? [filterCompanyId, reqYear, reqMonth] : [reqYear, reqMonth];
       const targetRes = await dbQuery(targetSql, targetParams);
+
+      // 7. Fetch Dynamic Working Days
+      let workingDays = 26;
+      try {
+        const wdSql = filterCompanyId
+          ? `SELECT working_days FROM working_days 
+             WHERE year = $1 AND month = $2 AND (company_id = $3 OR company_id IS NULL)
+             ORDER BY company_id NULLS LAST LIMIT 1;`
+          : `SELECT working_days FROM working_days 
+             WHERE year = $1 AND month = $2
+             ORDER BY company_id NULLS LAST LIMIT 1;`;
+        const wdParams = filterCompanyId ? [reqYear, reqMonth, filterCompanyId] : [reqYear, reqMonth];
+        const wdRes = await dbQuery(wdSql, wdParams);
+        if (wdRes.rows.length > 0 && wdRes.rows[0].working_days) {
+          workingDays = Number(wdRes.rows[0].working_days);
+        } else if (filterCompanyId) {
+          const csRes = await dbQuery(`SELECT working_days FROM company_settings WHERE company_id = $1;`, [filterCompanyId]);
+          if (csRes.rows.length > 0 && csRes.rows[0].working_days) {
+            workingDays = Number(csRes.rows[0].working_days);
+          }
+        }
+      } catch {}
 
       return NextResponse.json({
         success: true,
@@ -135,6 +160,7 @@ export async function GET(request: NextRequest) {
           brands: brandRes.rows,
           users: userRes.rows,
           targets: targetRes.rows,
+          working_days: workingDays,
           activeScopeCompanyId: filterCompanyId,
         },
       });
