@@ -45,13 +45,14 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [editingItem, setEditingItem] = useState<any>(null);
 
-  // Load master options for Select2 dropdowns
+  // Load master options for Select2 dropdowns (scoped to selectedCompanyId)
   useEffect(() => {
     async function loadOptions() {
       try {
+        const query = selectedCompanyId && selectedCompanyId !== 'ALL' ? `?companyId=${selectedCompanyId}` : '';
         const [compRes, masterRes] = await Promise.all([
           fetch('/api/companies?pageSize=100'),
-          fetch('/api/master-data'),
+          fetch(`/api/master-data${query}`),
         ]);
 
         const compJson = await compRes.json();
@@ -101,7 +102,7 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
     }
 
     loadOptions();
-  }, []);
+  }, [selectedCompanyId]);
 
   // 1. TERRITORY CRUD DEFINITIONS
   const territoryColumns: ColumnDef<any>[] = [
@@ -444,11 +445,18 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
     if (activeTab === 'BRANDS') endpoint = '/api/brands';
     if (activeTab === 'TARGETS') endpoint = '/api/targets';
 
+    const payload = {
+      ...formData,
+      ...(selectedCompanyId && selectedCompanyId !== 'ALL' && !formData.companyId
+        ? { companyId: selectedCompanyId }
+        : {}),
+    };
+
     const method = mode === 'create' ? 'POST' : 'PUT';
     const res = await fetch(endpoint, {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData),
+      body: JSON.stringify(payload),
     });
 
     const json = await res.json();
@@ -572,12 +580,13 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
 
       {activeTab === 'BRANDS' && (
         <ServerDataTable
-          key={`brand_${refreshKey}`}
+          key={`brand_${refreshKey}_${selectedCompanyId}`}
           endpoint="/api/brands"
           columns={brandColumns}
           idField="id"
           title="Product Brand Catalog & Pricing"
           searchPlaceholder="Search brand name..."
+          additionalParams={{ companyId: selectedCompanyId }}
           exportFilenamePrefix="Brand_Pricing_Catalog"
           onBatchDelete={async (ids) => {
             await fetch('/api/brands', {
@@ -591,13 +600,13 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
 
       {activeTab === 'TARGETS' && (
         <ServerDataTable
-          key={`target_${refreshKey}`}
+          key={`target_${refreshKey}_${selectedCompanyId}`}
           endpoint="/api/targets"
           columns={targetColumns}
           idField="id"
           title="October 2026 Monthly Targets"
           searchPlaceholder="Search targets by territory or brand..."
-          additionalParams={{ year: 2026, month: 10 }}
+          additionalParams={{ year: 2026, month: 10, companyId: selectedCompanyId }}
           exportFilenamePrefix="October_2026_Targets"
           onBatchDelete={async (ids) => {
             await fetch('/api/targets', {

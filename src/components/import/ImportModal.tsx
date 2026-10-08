@@ -14,9 +14,10 @@ import { ImportPreviewPayload } from '@/lib/excel/import';
 interface ImportModalProps {
   isOpen: boolean;
   onClose: () => void;
+  companyId?: string;
 }
 
-export function ImportModal({ isOpen, onClose }: ImportModalProps) {
+export function ImportModal({ isOpen, onClose, companyId = 'ALL' }: ImportModalProps) {
   const [selectedDate, setSelectedDate] = useState('2026-10-06');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -37,6 +38,9 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
       const formData = new FormData();
       formData.append('file', selected);
       formData.append('applicationDate', selectedDate);
+      if (companyId && companyId !== 'ALL') {
+        formData.append('companyId', companyId);
+      }
 
       const res = await fetch('/api/imports/xlsx', {
         method: 'POST',
@@ -67,6 +71,7 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
           records: preview.records,
           fileName: file?.name || 'imported_file.xlsx',
           userId: 'admin-import-user',
+          companyId: companyId !== 'ALL' ? companyId : undefined,
         }),
       });
 

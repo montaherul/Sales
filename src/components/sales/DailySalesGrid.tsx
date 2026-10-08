@@ -214,13 +214,17 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
   const handleSaveDraft = async () => {
     setIsSaving(true);
     try {
+      const selectedTerr = territories.find(t => t.id === selectedTerritoryId);
+      const currentRegionName = selectedTerr?.region_name || 'Satkania';
+
       const record = {
         territoryId: selectedTerritoryId,
         territoryName: selectedTerritoryName,
-        regionName: 'Satkania',
+        regionName: currentRegionName,
         reportDate,
         dayNumber: parseInt(reportDate.split('-')[2] || '6', 10),
         status: 'DRAFT',
+        companyId: companyId !== 'ALL' ? companyId : undefined,
         cigaretteSales: sales,
         cigaretteStock: stock,
         zardaSales,
@@ -258,13 +262,17 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
   const handleSubmit = async () => {
     setIsSaving(true);
     try {
+      const selectedTerr = territories.find(t => t.id === selectedTerritoryId);
+      const currentRegionName = selectedTerr?.region_name || 'Satkania';
+
       const record = {
         territoryId: selectedTerritoryId,
         territoryName: selectedTerritoryName,
-        regionName: 'Satkania',
+        regionName: currentRegionName,
         reportDate,
         dayNumber: parseInt(reportDate.split('-')[2] || '6', 10),
         status: 'SUBMITTED',
+        companyId: companyId !== 'ALL' ? companyId : undefined,
         cigaretteSales: sales,
         cigaretteStock: stock,
         zardaSales,

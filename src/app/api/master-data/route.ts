@@ -85,11 +85,17 @@ export async function GET(request: NextRequest) {
       const terrRes = await dbQuery(terrSql, terrParams);
 
       // 4. Fetch Brands (shared or company-scoped)
-      const brandRes = await dbQuery(`
-        SELECT id, name, type, sort_order 
-        FROM brands 
-        ORDER BY sort_order;
-      `);
+      const brandSql = filterCompanyId
+        ? `SELECT id, name, type, sort_order, is_active, company_id 
+           FROM brands 
+           WHERE (company_id IS NULL OR company_id = $1) AND is_active = TRUE 
+           ORDER BY sort_order;`
+        : `SELECT id, name, type, sort_order, is_active, company_id 
+           FROM brands 
+           WHERE is_active = TRUE 
+           ORDER BY sort_order;`;
+      const brandParams = filterCompanyId ? [filterCompanyId] : [];
+      const brandRes = await dbQuery(brandSql, brandParams);
 
       // 5. Fetch Users & Roles
       const userSql = filterCompanyId

@@ -81,6 +81,7 @@ export interface ZardaStockQty {
 
 export interface DailyOperationalRecord {
   id?: string;
+  companyId?: string;
   territoryId: string;
   territoryName: string;
   regionName: string;

@@ -15,8 +15,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { getAuthenticatedUser } = await import('@/shared/auth');
+    let tenantCompanyId = body.companyId || null;
+    try {
+      const actor = await getAuthenticatedUser(request);
+      if (actor.role !== 'SUPER_ADMIN' && actor.companyId) {
+        tenantCompanyId = actor.companyId;
+      }
+    } catch {}
+
     const savedRecords: DailyOperationalRecord[] = [];
     for (const rec of records) {
+      if (tenantCompanyId && !rec.companyId) {
+        rec.companyId = tenantCompanyId;
+      }
       const saved = await SubmissionRepository.saveSubmission(
         rec,
         userId,

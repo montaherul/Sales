@@ -13,9 +13,10 @@ import {
 interface DriveUploadWidgetProps {
   isOpen: boolean;
   onClose: () => void;
+  companyId?: string;
 }
 
-export function DriveUploadWidget({ isOpen, onClose }: DriveUploadWidgetProps) {
+export function DriveUploadWidget({ isOpen, onClose, companyId = 'ALL' }: DriveUploadWidgetProps) {
   const [uploading, setUploading] = useState(false);
   const [driveResult, setDriveResult] = useState<{
     fileId: string;
@@ -37,6 +38,7 @@ export function DriveUploadWidget({ isOpen, onClose }: DriveUploadWidgetProps) {
           year: 2026,
           month: 10,
           day: 6,
+          companyId: companyId !== 'ALL' ? companyId : undefined,
         }),
       });
 

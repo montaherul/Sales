@@ -39,6 +39,9 @@ export function ApprovalHub({ currentRole, companyId = 'ALL' }: ApprovalHubProps
   const handleApprove = async (record: any) => {
     let targetStatus: SubmissionStatus = 'TSO_APPROVED';
     if (currentRole === 'RSO') targetStatus = 'RSO_APPROVED';
+    if (currentRole === 'COMPANY_ADMIN') {
+      targetStatus = record.status === 'RSO_APPROVED' ? 'FINALIZED' : (record.status === 'TSO_APPROVED' ? 'RSO_APPROVED' : 'TSO_APPROVED');
+    }
     if (currentRole === 'SUPER_ADMIN') targetStatus = record.status === 'RSO_APPROVED' ? 'FINALIZED' : 'RSO_APPROVED';
 
     setActionLoading(true);
@@ -254,6 +257,37 @@ export function ApprovalHub({ currentRole, companyId = 'ALL' }: ApprovalHubProps
                 Reject
               </button>
             </>
+          )}
+
+          {/* COMPANY ADMIN Actions */}
+          {currentRole === 'COMPANY_ADMIN' && row.status !== 'FINALIZED' && (
+            <>
+              <button
+                onClick={() => handleApprove(row)}
+                disabled={actionLoading}
+                className="rounded px-2.5 py-1 text-[11px] font-semibold bg-indigo-600 text-white hover:bg-indigo-500 shadow-sm transition-all cursor-pointer"
+              >
+                {row.status === 'RSO_APPROVED' ? 'Finalize & Lock' : 'Approve'}
+              </button>
+              <button
+                onClick={() => setRejectingRecord(row)}
+                disabled={actionLoading}
+                className="rounded px-2.5 py-1 text-[11px] font-semibold border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-all cursor-pointer shadow-xs"
+              >
+                Reject
+              </button>
+            </>
+          )}
+
+          {currentRole === 'COMPANY_ADMIN' && row.status === 'FINALIZED' && (
+            <button
+              onClick={() => setUnlockingRecord(row)}
+              disabled={actionLoading}
+              className="flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-semibold border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-all cursor-pointer shadow-xs"
+            >
+              <Unlock className="h-3 w-3" />
+              <span>Unlock Record</span>
+            </button>
           )}
 
           {/* SUPER ADMIN Actions */}

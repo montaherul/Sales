@@ -128,14 +128,15 @@ export default function Home() {
     setCurrentUser(null);
   };
 
-  const handleExport = () => {
-    // Triggers direct download of authoritative 34-sheet Excel report
-    window.location.href = '/api/exports/xlsx?year=2026&month=10&day=6';
-  };
-
   // Determine effective company scope based on user role
   const isSuperAdmin = (currentUser?.role || currentRole) === 'SUPER_ADMIN';
   const effectiveCompanyId = isSuperAdmin ? selectedCompanyId : (currentUser?.companyId || 'ALL');
+
+  const handleExport = () => {
+    // Triggers direct download of authoritative 34-sheet Excel report scoped to tenant
+    const compParam = effectiveCompanyId && effectiveCompanyId !== 'ALL' ? `&companyId=${effectiveCompanyId}` : '';
+    window.location.href = `/api/exports/xlsx?year=2026&month=10&day=6${compParam}`;
+  };
 
   // Loading splash while checking session
   if (authLoading) {
@@ -217,8 +218,8 @@ export default function Home() {
       />
 
       {/* Modals & Drawers */}
-      <ImportModal isOpen={importOpen} onClose={() => setImportOpen(false)} />
-      <DriveUploadWidget isOpen={driveOpen} onClose={() => setDriveOpen(false)} />
+      <ImportModal isOpen={importOpen} onClose={() => setImportOpen(false)} companyId={effectiveCompanyId} />
+      <DriveUploadWidget isOpen={driveOpen} onClose={() => setDriveOpen(false)} companyId={effectiveCompanyId} />
 
       {/* Mandatory Onboarding Modal if user needs initial setup */}
       {currentUser && (currentUser.mustChangePassword || !currentUser.isOnboarded) && (

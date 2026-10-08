@@ -15,14 +15,44 @@ export async function GET(request: NextRequest) {
     ];
     const monthName = monthNames[month - 1] || 'October';
 
+    const companyIdParam = searchParams.get('companyId');
+    const { getAuthenticatedUser } = await import('@/shared/auth');
+    const { dbQuery } = await import('@/lib/db');
+    let targetCompanyId = companyIdParam && companyIdParam !== 'ALL' ? companyIdParam : null;
+    try {
+      const actor = await getAuthenticatedUser(request);
+      if (actor.role !== 'SUPER_ADMIN' && actor.companyId) {
+        targetCompanyId = actor.companyId;
+      }
+    } catch {}
+
+    let divisionName = 'Ctg South';
+    let wingName = 'Chittagong';
+
+    if (targetCompanyId) {
+      try {
+        const dRes = await dbQuery(
+          `SELECT d.name as div_name, w.name as wing_name 
+           FROM divisions d 
+           LEFT JOIN wings w ON w.division_id = d.id 
+           WHERE d.company_id = $1 LIMIT 1`,
+          [targetCompanyId]
+        );
+        if (dRes.rows.length > 0) {
+          if (dRes.rows[0].div_name) divisionName = dRes.rows[0].div_name;
+          if (dRes.rows[0].wing_name) wingName = dRes.rows[0].wing_name;
+        }
+      } catch {}
+    }
+
     // Build workbook payload (Populates active territory operational data)
     const workbookData: MonthlyWorkbookData = {
       year,
       month,
       monthName,
       reportDate: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-      divisionName: 'Ctg South',
-      wingName: 'Chittagong',
+      divisionName,
+      wingName,
       workingDays: 26,
       regions: [],
       dailyRecords: {

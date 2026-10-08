@@ -60,9 +60,14 @@ export async function POST(request: NextRequest) {
     // 4. Simulated or Real Drive File ID
     const driveFileId = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
 
-    // 5. Persist to google_drive_files in PostgreSQL
+    // 5. Persist to google_drive_files in PostgreSQL with company scoping
     if (getDbPool()) {
       try {
+        const compRes = body.companyId 
+          ? { rows: [{ id: body.companyId }] }
+          : await dbQuery(`SELECT id FROM companies ORDER BY created_at ASC LIMIT 1`);
+        const targetCompId = compRes.rows[0]?.id || null;
+
         await dbQuery(`
           INSERT INTO google_drive_files (
             file_name,
@@ -70,15 +75,17 @@ export async function POST(request: NextRequest) {
             drive_folder_path,
             sha256_checksum,
             file_size,
-            report_date
-          ) VALUES ($1, $2, $3, $4, $5, $6);
+            report_date,
+            company_id
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7);
         `, [
           fileName,
           driveFileId,
           folderPath,
           sha256,
           buffer.length,
-          `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+          `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+          targetCompId
         ]);
       } catch (dbErr) {
         console.warn('Failed to insert into google_drive_files table:', dbErr);

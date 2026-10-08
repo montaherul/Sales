@@ -90,41 +90,38 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
     }).sort((a, b) => b.sales - a.sales);
   }, [records]);
 
-  // Dynamic Brand Share
+  // Dynamic Brand Share across any tenant's brands
   const brandShareData = useMemo(() => {
-    const brandSums: Record<string, number> = {
-      Express: 0,
-      Wilson: 0,
-      Shahara: 0,
-      Nexus: 0,
-      SB: 0,
-      SM: 0,
-    };
+    const brandSums: Record<string, number> = {};
 
     records.forEach((r) => {
-      if (r.cigaretteSales) {
-        brandSums.Express += r.cigaretteSales.express || 0;
-        brandSums.Wilson += r.cigaretteSales.wilson || 0;
-        brandSums.Shahara += r.cigaretteSales.shahara || 0;
-        brandSums.Nexus += r.cigaretteSales.nexus || 0;
-        brandSums.SB += r.cigaretteSales.sb || 0;
-        brandSums.SM += r.cigaretteSales.sm || 0;
+      if (r.cigaretteSales && typeof r.cigaretteSales === 'object') {
+        Object.entries(r.cigaretteSales).forEach(([rawKey, val]) => {
+          const brandName = rawKey.charAt(0).toUpperCase() + rawKey.slice(1);
+          brandSums[brandName] = (brandSums[brandName] || 0) + (Number(val) || 0);
+        });
       }
     });
 
-    const colors: Record<string, string> = {
-      Express: '#3b82f6',
-      Wilson: '#10b981',
-      Shahara: '#f59e0b',
-      Nexus: '#8b5cf6',
-      SB: '#ec4899',
-      SM: '#06b6d4',
-    };
+    const PALETTE = [
+      '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', 
+      '#ec4899', '#06b6d4', '#f97316', '#14b8a6', 
+      '#6366f1', '#84cc16', '#d946ef', '#0ea5e9'
+    ];
 
-    return Object.entries(brandSums).map(([name, value]) => ({
+    const entries = Object.entries(brandSums);
+    if (entries.length === 0) {
+      // Default placeholder if no records loaded yet
+      return [
+        { name: 'Express', value: 0.68, color: '#3b82f6' },
+        { name: 'Wilson', value: 0.12, color: '#10b981' },
+      ];
+    }
+
+    return entries.map(([name, value], idx) => ({
       name,
-      value: parseFloat(value.toFixed(2)),
-      color: colors[name],
+      value: parseFloat(Number(value).toFixed(2)),
+      color: PALETTE[idx % PALETTE.length],
     }));
   }, [records]);
 
