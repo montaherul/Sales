@@ -7,9 +7,45 @@ import { logger } from '@/shared/logger';
 import fs from 'fs';
 import path from 'path';
 
+import { PaginationHelper, PaginatedResult } from '@/shared/database/pagination';
+
 const FALLBACK_STORE_FILE = path.resolve(process.cwd(), '.submissions-store.json');
 
+export interface AuditFilterOptions {
+  page: number;
+  pageSize: number;
+  search?: string;
+  eventType?: string | null;
+  entityName?: string | null;
+  companyId?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
 export class AuditLogRepository {
+  /**
+   * Queries paginated audit logs using stored procedure sp_get_audit_logs_paginated.
+   */
+  public async getPaginatedLogs(options: AuditFilterOptions): Promise<PaginatedResult<any>> {
+    const cleanSortBy = (options.sortBy || 'a.created_at').replace(/^a\./, '');
+    return await PaginationHelper.executeFunction(
+      'sp_get_audit_logs_paginated',
+      [
+        options.page,
+        options.pageSize,
+        options.search || null,
+        options.eventType || null,
+        options.entityName || null,
+        options.companyId || null,
+        options.startDate || null,
+        options.endDate || null,
+        cleanSortBy,
+        options.sortOrder || 'desc',
+      ]
+    );
+  }
   /**
    * Appends an immutable audit event to audit_logs.
    */

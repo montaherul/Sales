@@ -1,18 +1,15 @@
-// Tier 2: Daily Submissions Controller & Route Handler
-// Full Server-Side Pagination, Filtering, Search, Sorting, CSV Export & CRUD
+// Tier 2 Presentation Controller: Daily Submissions Route Handler
+// Handles HTTP request/response, actor resolution, and delegates to DailySalesService
+// AGENTS1.md Rule 4 & Rule 5 (Presentation Layer / Thin Controllers)
 
 import { NextRequest, NextResponse } from 'next/server';
-import { dbQuery } from '@/shared/database/db';
-import { PaginationHelper } from '@/shared/database/pagination';
-import { SubmissionRepository } from '@/lib/repositories/submission.repository';
-import { DailyOperationalRecord } from '@/lib/types';
+import { DailySalesService } from '@/modules/daily-sales';
 import { getAuthenticatedUser } from '@/shared/auth';
-import { AUDIT_ACTIONS } from '@/shared/constants';
-import { ValidationError, ForbiddenError } from '@/shared/errors';
 import { logger } from '@/shared/logger';
 
 export async function GET(request: NextRequest) {
   try {
+    const actor = await getAuthenticatedUser(request);
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
@@ -25,50 +22,30 @@ export async function GET(request: NextRequest) {
     const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc';
     const isExport = searchParams.get('export') === 'csv';
 
-    // If simple query for specific date and territory without pagination params
+    // Direct single date/territory lookup
     if (date && territoryId && !searchParams.get('page') && !searchParams.get('pageSize')) {
-      const records = await SubmissionRepository.getSubmissions({ date, territoryId });
+      const records = await DailySalesService.getSubmissionsByDateAndTerritory(date, territoryId);
       return NextResponse.json({ success: true, data: records });
     }
 
     const cleanSortBy = sortBy.replace(/^s\./, '');
-    const actualPageSize = isExport ? -1 : pageSize;
-    let filterTerritoryId = territoryId && territoryId !== 'ALL' ? territoryId : null;
     const filterStatus = status && status !== 'ALL' ? status : null;
-    let filterCompanyId = companyId && companyId !== 'ALL' ? companyId : null;
-    const filterDate = date || null;
 
-    // Server-side scope enforcement: Non-Super Admins are scoped to their assigned company & territory
-    const actor = await getAuthenticatedUser(request);
-    if (actor.role !== 'SUPER_ADMIN') {
-      if (actor.companyId) {
-        filterCompanyId = actor.companyId;
-      }
-      if ((actor.role === 'TSO' || actor.role === 'CSR') && actor.territoryId) {
-        filterTerritoryId = actor.territoryId;
-      }
-    }
-
-    // PostgreSQL Stored Procedure: sp_get_daily_submissions_paginated
-    const result = await PaginationHelper.executeFunction(
-      'sp_get_daily_submissions_paginated',
-      [page, actualPageSize, search || null, filterDate, filterTerritoryId, filterStatus, filterCompanyId, cleanSortBy, sortOrder]
-    );
-
-    // Handle CSV Export
     if (isExport) {
-      const csv = PaginationHelper.toCsv(result.data, {
-        id: 'Submission ID',
-        reporting_date: 'Reporting Date',
-        territory_name: 'Territory',
-        region_name: 'Region',
-        status: 'Status',
-        total_cigarette_sales: 'Cigarette Sales (Mio)',
-        total_cigarette_stock: 'Closing Stock (Mio)',
-        total_zarda_sales_value: 'Zarda Sales (BDT)',
-        empty_packets: 'Empty Packets',
-        remarks: 'Remarks',
-      });
+      const csv = await DailySalesService.exportSubmissionsCsv(
+        {
+          page: 1,
+          pageSize: -1,
+          search,
+          date,
+          territoryId,
+          status: filterStatus,
+          companyIdParam: companyId,
+          sortBy: cleanSortBy,
+          sortOrder,
+        },
+        actor
+      );
 
       return new NextResponse(csv, {
         status: 200,
@@ -79,15 +56,30 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const result = await DailySalesService.getSubmissionsPaginated(
+      {
+        page,
+        pageSize,
+        search,
+        date,
+        territoryId,
+        status: filterStatus,
+        companyIdParam: companyId,
+        sortBy: cleanSortBy,
+        sortOrder,
+      },
+      actor
+    );
+
     return NextResponse.json({
       success: true,
       ...result,
     });
   } catch (error: any) {
-    logger.error('Failed to query daily submissions', error, 'DailySubmissionsController');
+    logger.error('Failed to query daily submissions', error, 'DailySubmissionsController.GET');
     return NextResponse.json(
       { success: false, error: error.message || 'Failed to fetch submissions' },
-      { status: 500 }
+      { status: error.statusCode || 500 }
     );
   }
 }
@@ -96,31 +88,7 @@ export async function POST(request: NextRequest) {
   try {
     const actor = await getAuthenticatedUser(request);
     const body = await request.json();
-    const record: DailyOperationalRecord = body.record;
-    const changeReason = body.changeReason;
-
-    if (!record || !record.territoryId || !record.reportDate) {
-      return NextResponse.json(
-        { success: false, error: 'territoryId and reportDate are required' },
-        { status: 400 }
-      );
-    }
-
-    // Server-side scope verification: CSR / TSO cannot save to unauthorized territories
-    if (actor.role !== 'SUPER_ADMIN') {
-      if (actor.companyId && record.companyId && record.companyId !== actor.companyId) {
-        throw new ForbiddenError('Cannot save submissions for another company');
-      }
-      if ((actor.role === 'TSO' || actor.role === 'CSR') && actor.territoryId && actor.territoryId !== record.territoryId) {
-        throw new ForbiddenError('You can only save submissions for your assigned territory');
-      }
-    }
-
-    if (!record.companyId && actor.companyId) {
-      record.companyId = actor.companyId;
-    }
-
-    const saved = await SubmissionRepository.saveSubmission(record, actor.id, changeReason);
+    const saved = await DailySalesService.saveOperationalSubmission(body.record, actor, body.changeReason);
 
     return NextResponse.json({
       success: true,
@@ -137,57 +105,20 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const user = await getAuthenticatedUser(request);
+    const actor = await getAuthenticatedUser(request);
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     const body = await request.json().catch(() => ({}));
     const idsToDelete: string[] = body.ids || (id ? [id] : []);
 
-    if (idsToDelete.length === 0) {
-      throw new ValidationError('At least one Submission ID is required for deletion');
-    }
-
-    // Prevent cross-company deletion for non-super admin
-    if (user.role !== 'SUPER_ADMIN') {
-      const scopeCheck = await dbQuery(
-        `SELECT company_id FROM daily_submissions WHERE id = ANY($1::uuid[])`,
-        [idsToDelete]
-      );
-      const foreign = scopeCheck.rows.filter(r => r.company_id !== user.companyId);
-      if (foreign.length > 0) {
-        throw new ForbiddenError('You can only delete submissions within your assigned company');
-      }
-
-      const lockedCheck = await dbQuery(
-        `SELECT COUNT(*) as count FROM daily_submissions WHERE id = ANY($1::uuid[]) AND (status = 'FINALIZED' OR is_locked = TRUE)`,
-        [idsToDelete]
-      );
-      if (parseInt(lockedCheck.rows[0].count, 10) > 0) {
-        return NextResponse.json(
-          { success: false, error: 'Cannot delete finalized or locked records without Super Admin unlock' },
-          { status: 403 }
-        );
-      }
-    }
-
-    await dbQuery(`DELETE FROM daily_submissions WHERE id = ANY($1::uuid[])`, [idsToDelete]);
-
-    // Audit log
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, old_values)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [user.id, AUDIT_ACTIONS.UPDATE, 'daily_submissions', idsToDelete.join(','), JSON.stringify({ deletedIds: idsToDelete })]
-      );
-    } catch (auditErr) {
-      logger.warn('Failed to write submission deletion audit log', 'DailySubmissionsController.DELETE', { auditErr });
-    }
+    const count = await DailySalesService.deleteSubmissions(idsToDelete, actor);
 
     return NextResponse.json({
       success: true,
-      message: `Deleted ${idsToDelete.length} submission(s) successfully`,
+      message: `Deleted ${count} submission(s) successfully`,
     });
   } catch (error: any) {
+    logger.error('Failed to delete submission', error, 'DailySubmissionsController.DELETE');
     return NextResponse.json(
       { success: false, error: error.message || 'Failed to delete submission' },
       { status: error.statusCode || 400 }

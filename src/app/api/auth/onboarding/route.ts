@@ -1,10 +1,10 @@
-// Tier 2: User Onboarding & Password Setup Route Handler
-// Completes new user registration setup and updates password hash
+// Tier 2 Presentation Controller: User Onboarding & Password Setup Route Handler
+// Completes new user registration setup and updates password hash via IdentityService
+// AGENTS1.md Rule 4 & Rule 5 (Presentation Layer / Thin Controllers)
 
 import { NextRequest, NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
-import { dbQuery } from '@/shared/database/db';
 import { getSessionUser, setSessionCookie } from '@/lib/auth/session';
+import { IdentityService } from '@/modules/identity';
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,51 +18,13 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}));
     const newPassword = body.newPassword || '';
-    const fullName = (body.fullName || sessionUser.fullName || '').trim();
-    const phone = (body.phone || sessionUser.phone || '').trim();
+    const fullName = body.fullName;
+    const phone = body.phone;
 
-    if (!newPassword || newPassword.length < 3) {
-      return NextResponse.json(
-        { success: false, error: 'Password must be at least 3 characters long.' },
-        { status: 400 }
-      );
-    }
+    const updatedUser = await IdentityService.completeOnboarding(sessionUser, newPassword, fullName, phone);
 
-    // Hash new password
-    const newHash = bcrypt.hashSync(newPassword, 10);
-
-    // Update database
-    await dbQuery(
-      `UPDATE user_profiles
-       SET password_hash = $1,
-           full_name = $2,
-           phone = $3,
-           must_change_password = FALSE,
-           is_onboarded = TRUE,
-           updated_at = NOW()
-       WHERE id = $4`,
-      [newHash, fullName, phone, sessionUser.id]
-    );
-
-    // Update session
-    const updatedUser = {
-      ...sessionUser,
-      fullName,
-      phone,
-      mustChangePassword: false,
-      isOnboarded: true,
-    };
+    // Update session cookie
     await setSessionCookie(updatedUser);
-
-    // Audit log
-    await dbQuery(
-      `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values)
-       VALUES ($1, 'AUTH_ONBOARDING_COMPLETE', 'user_profiles', $1, $2)`,
-      [
-        sessionUser.id,
-        JSON.stringify({ fullName, phone, email: sessionUser.email, timestamp: new Date().toISOString() }),
-      ]
-    ).catch(() => {});
 
     return NextResponse.json({
       success: true,
@@ -72,7 +34,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: error.message || 'Onboarding update failed' },
-      { status: 500 }
+      { status: error.statusCode || 500 }
     );
   }
 }

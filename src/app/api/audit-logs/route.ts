@@ -1,13 +1,15 @@
-// Tier 2: Audit Logs Controller & Route Handler
-// Full Server-Side Pagination, Filtering, Search, Sorting & CSV Export
+// Tier 2 Presentation Controller: Audit Logs Route Handler
+// Handles HTTP request/response, actor resolution, and delegates to AuditService
+// AGENTS1.md Rule 4 & Rule 5 (Presentation Layer / Thin Controllers)
 
 import { NextRequest, NextResponse } from 'next/server';
-import { dbQuery } from '@/shared/database/db';
-import { PaginationHelper } from '@/shared/database/pagination';
+import { AuditService } from '@/modules/audit';
+import { getAuthenticatedUser } from '@/shared/auth';
 import { logger } from '@/shared/logger';
 
 export async function GET(request: NextRequest) {
   try {
+    const actor = await getAuthenticatedUser(request);
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
@@ -17,42 +19,30 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get('sortBy') || 'a.created_at';
     const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc';
     const isExport = searchParams.get('export') === 'csv';
+    const companyIdParam = searchParams.get('companyId');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
 
     const cleanSortBy = sortBy.replace(/^a\./, '');
-    const actualPageSize = isExport ? -1 : pageSize;
     const filterEventType = eventType && eventType !== 'ALL' ? eventType : null;
+    const filterEntityName = entityName && entityName !== 'ALL' ? entityName : null;
 
-    const companyIdParam = searchParams.get('companyId');
-    const { getAuthenticatedUser } = await import('@/shared/auth');
-    const { ForbiddenError } = await import('@/shared/errors');
-    const { ROLES } = await import('@/shared/constants');
-
-    const actor = await getAuthenticatedUser(request);
-    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can view audit logs');
-    }
-
-    let targetCompanyId = actor.role === ROLES.SUPER_ADMIN
-      ? (companyIdParam && companyIdParam !== 'ALL' ? companyIdParam : null)
-      : actor.companyId;
-
-    // PostgreSQL Stored Procedure: sp_get_audit_logs_paginated
-    const result = await PaginationHelper.executeFunction(
-      'sp_get_audit_logs_paginated',
-      [page, actualPageSize, search || null, filterEventType, null, targetCompanyId, null, null, cleanSortBy, sortOrder]
-    );
-
-    // Handle CSV Export
     if (isExport) {
-      const csv = PaginationHelper.toCsv(result.data, {
-        id: 'Log ID',
-        created_at: 'Timestamp',
-        event_type: 'Event Type',
-        entity_name: 'Target Entity',
-        entity_id: 'Record ID',
-        user_email: 'Actor Email',
-        ip_address: 'IP Address',
-      });
+      const csv = await AuditService.exportAuditLogsCsv(
+        {
+          page: 1,
+          pageSize: -1,
+          search,
+          eventType: filterEventType,
+          entityName: filterEntityName,
+          companyIdParam,
+          startDate,
+          endDate,
+          sortBy: cleanSortBy,
+          sortOrder,
+        },
+        actor
+      );
 
       return new NextResponse(csv, {
         status: 200,
@@ -63,15 +53,31 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const result = await AuditService.getAuditLogsPaginated(
+      {
+        page,
+        pageSize,
+        search,
+        eventType: filterEventType,
+        entityName: filterEntityName,
+        companyIdParam,
+        startDate,
+        endDate,
+        sortBy: cleanSortBy,
+        sortOrder,
+      },
+      actor
+    );
+
     return NextResponse.json({
       success: true,
       ...result,
     });
   } catch (error: any) {
-    logger.error('Failed to fetch audit logs', error, 'AuditController');
+    logger.error('Failed to fetch audit logs', error, 'AuditController.GET');
     return NextResponse.json(
       { success: false, error: error.message || 'Failed to fetch audit logs' },
-      { status: 500 }
+      { status: error.statusCode || 500 }
     );
   }
 }
