@@ -115,7 +115,9 @@ export async function POST(request: NextRequest) {
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [actor.id, actor.companyId, AUDIT_ACTIONS.CREATE, 'territories', newTerritory.id, JSON.stringify(newTerritory)]
       );
-    } catch {}
+    } catch (auditErr) {
+      logger.warn('Failed to write territory creation audit log', 'HierarchyController.POST', { auditErr });
+    }
 
     logger.info(`Territory created: ${newTerritory.name}`, 'HierarchyController');
 
@@ -182,7 +184,9 @@ export async function PUT(request: NextRequest) {
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [actor.id, actor.companyId, AUDIT_ACTIONS.UPDATE, 'territories', updated.id, JSON.stringify(updated)]
       );
-    } catch {}
+    } catch (auditErr) {
+      logger.warn('Failed to write territory update audit log', 'HierarchyController.PUT', { auditErr });
+    }
 
     return NextResponse.json({
       success: true,
@@ -239,7 +243,9 @@ export async function DELETE(request: NextRequest) {
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [actor.id, actor.companyId, 'DELETE', 'territories', idsToDelete.join(','), JSON.stringify({ deletedIds: idsToDelete })]
       );
-    } catch {}
+    } catch (auditErr) {
+      logger.warn('Failed to write territory deletion audit log', 'HierarchyController.DELETE', { auditErr });
+    }
 
     return NextResponse.json({
       success: true,

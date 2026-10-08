@@ -121,7 +121,9 @@ export async function POST(request: NextRequest) {
          ON CONFLICT (company_id) DO NOTHING`,
         [newCompany.id, currency, timezone]
       );
-    } catch {}
+    } catch (csErr) {
+      logger.warn('Failed to initialize company settings', 'CompanyController.POST', { csErr });
+    }
 
     // Audit log
     try {
@@ -130,7 +132,9 @@ export async function POST(request: NextRequest) {
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [user.id, newCompany.id, AUDIT_ACTIONS.CREATE, 'companies', newCompany.id, JSON.stringify(newCompany)]
       );
-    } catch {}
+    } catch (auditErr) {
+      logger.warn('Failed to write company creation audit log', 'CompanyController.POST', { auditErr });
+    }
 
     logger.info(`Company created: ${newCompany.name} (${newCompany.code})`, 'CompanyController');
 
@@ -212,7 +216,9 @@ export async function PUT(request: NextRequest) {
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [user.id, updated.id, AUDIT_ACTIONS.UPDATE, 'companies', updated.id, JSON.stringify(updated)]
       );
-    } catch {}
+    } catch (auditErr) {
+      logger.warn('Failed to write company update audit log', 'CompanyController.PUT', { auditErr });
+    }
 
     return NextResponse.json({
       success: true,
@@ -252,7 +258,9 @@ export async function DELETE(request: NextRequest) {
          VALUES ($1, $2, $3, $4, $5)`,
         [user.id, 'DELETE', 'companies', idsToDelete.join(','), JSON.stringify({ deletedIds: idsToDelete })]
       );
-    } catch {}
+    } catch (auditErr) {
+      logger.warn('Failed to write company deletion audit log', 'CompanyController.DELETE', { auditErr });
+    }
 
     return NextResponse.json({
       success: true,

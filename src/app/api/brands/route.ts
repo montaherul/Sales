@@ -113,7 +113,9 @@ export async function POST(request: NextRequest) {
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [actor.id, brandCompanyId, AUDIT_ACTIONS.PRICE_UPDATE, 'brands', newBrand.id, JSON.stringify({ name, type, unitPrice, companyId: brandCompanyId })]
       );
-    } catch {}
+    } catch (auditErr) {
+      logger.warn('Failed to write brand creation audit log', 'BrandController.POST', { auditErr });
+    }
 
     logger.info(`Brand created: ${newBrand.name} (${newBrand.type}) in company ${brandCompanyId}`, 'BrandController');
 
@@ -174,7 +176,9 @@ export async function PUT(request: NextRequest) {
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [actor.id, actor.companyId, AUDIT_ACTIONS.PRICE_UPDATE, 'brands', id, JSON.stringify(body)]
       );
-    } catch {}
+    } catch (auditErr) {
+      logger.warn('Failed to write brand update audit log', 'BrandController.PUT', { auditErr });
+    }
 
     return NextResponse.json({
       success: true,
@@ -221,7 +225,9 @@ export async function DELETE(request: NextRequest) {
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [actor.id, actor.companyId, 'DELETE', 'brands', idsToDelete.join(','), JSON.stringify({ deletedIds: idsToDelete })]
       );
-    } catch {}
+    } catch (auditErr) {
+      logger.warn('Failed to write brand deletion audit log', 'BrandController.DELETE', { auditErr });
+    }
 
     return NextResponse.json({
       success: true,

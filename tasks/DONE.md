@@ -89,3 +89,8 @@
   - Added custom unit price support to `ZardaCalculator.ts` and `engine.ts` for tenant catalog flexibility.
   - Removed static fallbacks from `ReportingService.ts`, `ReportingRepository.ts`, `DailySalesGrid.tsx`, and `MasterHierarchyManagement.tsx`.
   - Verified 0 TypeScript errors (`npx tsc --noEmit`), 11/11 tenant isolation tests passing (`scripts/test_tenant_isolation.js`), and clean Next.js 15.5 production build (`npm run build`).
+- [x] **Enforced 100% Strict Compliance with `AGENTS1.md`**:
+  - Implemented missing `COMPANY_ADMIN`, `companyId`, and `regionId` validation schemas in `src/shared/validation/index.ts`.
+  - Eliminated all silent exception swallowing across controllers, use cases, and repositories, ensuring all errors are logged through structured `logger.warn`/`logger.error`.
+  - Verified 100% parameterized SQL query execution with no string interpolation into queries.
+  - Verified multi-tenant scope isolation with 11/11 automated security tests passing.

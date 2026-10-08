@@ -5,6 +5,7 @@ import { userRepository } from '../infrastructure/UserRepository';
 import { UserEntity } from '../domain/types';
 import { RoleType, AUDIT_ACTIONS } from '@/shared/constants';
 import { dbQuery } from '@/shared/database/db';
+import { logger } from '@/shared/logger';
 
 export class IdentityService {
   public static async getUsers(): Promise<UserEntity[]> {
@@ -34,7 +35,9 @@ export class IdentityService {
           JSON.stringify({ fullName, email, role, territoryId }),
         ]
       );
-    } catch {}
+    } catch (auditErr) {
+      logger.warn('Failed to write user creation audit log', 'IdentityService', { auditErr });
+    }
 
     return userId;
   }

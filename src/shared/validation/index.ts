@@ -65,7 +65,9 @@ export const WorkflowTransitionInputSchema = z.object({
 export const UserCreateInputSchema = z.object({
   fullName: z.string().min(2, 'Name is required'),
   email: z.string().email('Invalid email address'),
-  roleName: z.enum(['SUPER_ADMIN', 'RSO', 'TSO', 'CSR']),
+  roleName: z.enum(['SUPER_ADMIN', 'COMPANY_ADMIN', 'RSO', 'TSO', 'CSR']),
+  companyId: z.string().optional(),
+  regionId: z.string().optional(),
   territoryId: z.string().optional(),
   phone: z.string().optional(),
 });

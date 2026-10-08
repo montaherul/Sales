@@ -19,7 +19,10 @@ export async function GET(request: NextRequest) {
       if (actor.role !== 'SUPER_ADMIN' && actor.companyId) {
         targetCompanyId = actor.companyId;
       }
-    } catch {}
+    } catch (authErr) {
+      const { logger } = await import('@/shared/logger');
+      logger.debug('Reports request evaluated without authenticated session', 'reports.GET', { authErr });
+    }
 
     const report = await ReportingService.getExecutiveKPIs(year, month, targetCompanyId || undefined);
 

@@ -117,7 +117,9 @@ export class ExcelExportService {
           JSON.stringify({ year, month, reportingDay, size: buffer.length }),
         ]
       );
-    } catch {}
+    } catch (auditErr) {
+      logger.warn('Failed to write report export audit log', 'ExcelExportService', { auditErr });
+    }
 
     logger.info(`Monthly 34-sheet report generated: ${filename} (${buffer.length} bytes)`, 'ExcelExportService');
 

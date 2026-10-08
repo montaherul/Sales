@@ -133,7 +133,9 @@ export async function POST(request: NextRequest) {
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [actor.id, targetCompId, AUDIT_ACTIONS.TARGET_UPDATE, 'targets', saved.id, JSON.stringify(body)]
       );
-    } catch {}
+    } catch (auditErr) {
+      logger.warn('Failed to write target save audit log', 'TargetController.POST', { auditErr });
+    }
 
     return NextResponse.json({
       success: true,
@@ -185,7 +187,9 @@ export async function DELETE(request: NextRequest) {
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [actor.id, actor.companyId, 'DELETE', 'targets', idsToDelete.join(','), JSON.stringify({ deletedIds: idsToDelete })]
       );
-    } catch {}
+    } catch (auditErr) {
+      logger.warn('Failed to write target delete audit log', 'TargetController.DELETE', { auditErr });
+    }
 
     return NextResponse.json({
       success: true,

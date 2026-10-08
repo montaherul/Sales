@@ -86,3 +86,9 @@
 - [x] Daily Sales Grid (`DailySalesGrid.tsx`): Dynamic territory lookup without hardcoded territory fallbacks.
 - [x] Master Hierarchy (`MasterHierarchyManagement.tsx`): Purely dynamic region and brand dropdowns without hardcoded UUID fallbacks.
 - [x] Automated Verification: Zero TypeScript errors (`npx tsc --noEmit`), 11/11 tenant isolation tests passing (`node scripts/test_tenant_isolation.js`), and clean Next.js 15.5 production build (`npm run build`).
+
+## Phase 13: Strict Compliance with Generic Software Development Rules (`AGENTS1.md`)
+- [x] Rule 15 (Validation): Updated `UserCreateInputSchema` in `src/shared/validation/index.ts` to include `COMPANY_ADMIN`, `companyId`, and `regionId`.
+- [x] Rule 19 & Rule 41 (Error Handling & Reliability): Eliminated all silently swallowed exceptions across all API route handlers, services, and repositories; all unexpected errors are now logged through `logger.warn` or `logger.error`.
+- [x] Rule 9 & 16 & 17 (SQL & Multi-Tenant Security): Verified 100% parameterized SQL query construction across `dbQuery` and server-side tenant boundary enforcement.
+- [x] Rule 30 (Build and Verification): Verified zero TypeScript errors (`npx tsc --noEmit`), 11/11 tenant isolation tests passing (`test_tenant_isolation.js`), and Next.js 15 dev server running healthy on `http://localhost:3000`.

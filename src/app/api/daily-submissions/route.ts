@@ -165,7 +165,9 @@ export async function DELETE(request: NextRequest) {
          VALUES ($1, $2, $3, $4, $5)`,
         [user.id, AUDIT_ACTIONS.UPDATE, 'daily_submissions', idsToDelete.join(','), JSON.stringify({ deletedIds: idsToDelete })]
       );
-    } catch {}
+    } catch (auditErr) {
+      logger.warn('Failed to write submission deletion audit log', 'DailySubmissionsController.DELETE', { auditErr });
+    }
 
     return NextResponse.json({
       success: true,

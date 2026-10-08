@@ -22,7 +22,10 @@ export async function POST(request: NextRequest) {
       if (actor.role !== 'SUPER_ADMIN' && actor.companyId) {
         tenantCompanyId = actor.companyId;
       }
-    } catch {}
+    } catch (authErr) {
+      const { logger } = await import('@/shared/logger');
+      logger.debug('Import commit evaluated with client body scope', 'imports.commit.POST', { authErr });
+    }
 
     const savedRecords: DailyOperationalRecord[] = [];
     for (const rec of records) {

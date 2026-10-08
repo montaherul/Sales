@@ -22,7 +22,10 @@ export async function GET(request: NextRequest) {
       if (actor.role !== 'SUPER_ADMIN' && actor.companyId) {
         targetCompanyId = actor.companyId;
       }
-    } catch {}
+    } catch (authErr) {
+      const { logger } = await import('@/shared/logger');
+      logger.debug('Direct Excel export evaluated with system session', 'exports.xlsx.GET', { authErr });
+    }
 
     const { filename, buffer } = await ExcelExportService.generateMonthlyReport(
       year,

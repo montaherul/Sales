@@ -124,7 +124,9 @@ export default function Home() {
       if (supabase) {
         await supabase.auth.signOut();
       }
-    } catch {}
+    } catch (err) {
+      console.warn('Error during logout:', err);
+    }
     setCurrentUser(null);
   };
 

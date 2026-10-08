@@ -65,14 +65,17 @@ export class AuditLogRepository {
         [limit]
       );
       return res.rows;
-    } catch {
+    } catch (dbErr) {
+      logger.warn('Failed to query audit_logs from database, attempting fallback store', 'AuditLogRepository', { dbErr });
       // Local fallback
       try {
         if (fs.existsSync(FALLBACK_STORE_FILE)) {
           const store = JSON.parse(fs.readFileSync(FALLBACK_STORE_FILE, 'utf-8'));
           return (store.auditLogs || []).slice(0, limit);
         }
-      } catch {}
+      } catch (parseErr) {
+        logger.warn('Failed to parse fallback audit logs file', 'AuditLogRepository', { parseErr });
+      }
       return [];
     }
   }

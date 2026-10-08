@@ -5,6 +5,7 @@ import { reportingRepository } from '../infrastructure/ReportingRepository';
 import { calculationEngine } from '@/modules/calculation';
 import { ExecutiveKPISummary, TerritoryPerformanceSummary } from '../domain/types';
 import { SATKANIA_TERRITORIES, DEFAULT_WORKING_DAYS } from '@/shared/constants';
+import { logger } from '@/shared/logger';
 
 export class ReportingService {
   /**
@@ -52,7 +53,9 @@ export class ReportingService {
       tgRes.rows.forEach(r => {
         territoryTargets[r.territory_id] = parseFloat(r.total_target || 0);
       });
-    } catch {}
+    } catch (err) {
+      logger.warn('Failed to query master territories or targets for reporting', 'ReportingService', { err });
+    }
 
     // Fallback if no territories resolved only in offline test/demo mode without companyId
     if (masterTerritories.length === 0 && !companyId) {
@@ -72,7 +75,9 @@ export class ReportingService {
       if (wdRes.rows.length > 0 && wdRes.rows[0].working_days) {
         totalWorkingDays = Number(wdRes.rows[0].working_days);
       }
-    } catch {}
+    } catch (err) {
+      logger.warn('Failed to query dynamic working days for reporting', 'ReportingService', { err });
+    }
 
     let totalTarget = 0;
     let totalSales = 0;

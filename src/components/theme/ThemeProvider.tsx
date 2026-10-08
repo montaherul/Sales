@@ -49,7 +49,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setThemeState(t);
     try {
       localStorage.setItem('afaz_theme', t);
-    } catch {}
+    } catch (storageErr) {
+      console.warn('LocalStorage unavailable for theme persistence', storageErr);
+    }
     applyTheme(t);
   };
 

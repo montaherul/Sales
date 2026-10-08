@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { dbQuery, getDbPool } from '@/lib/db';
 import { getAuthenticatedUser } from '@/shared/auth';
+import { logger } from '@/shared/logger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -149,7 +150,9 @@ export async function GET(request: NextRequest) {
             workingDays = Number(csRes.rows[0].working_days);
           }
         }
-      } catch {}
+      } catch (wdErr) {
+        logger.warn('Failed to query dynamic working days, defaulting to 26', 'master-data.GET', { wdErr });
+      }
 
       return NextResponse.json({
         success: true,

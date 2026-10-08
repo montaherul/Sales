@@ -186,7 +186,9 @@ export async function POST(request: NextRequest) {
           JSON.stringify({ email, fullName, roleName, companyId: finalCompanyId, territoryId: finalTerritoryId, regionId: finalRegionId }),
         ]
       );
-    } catch {}
+    } catch (auditErr) {
+      logger.warn('Failed to write user creation audit log', 'UserController.POST', { auditErr });
+    }
 
     logger.info(`User created/scoped: ${email} (${roleName}) in company ${finalCompanyId}`, 'UserController');
 
@@ -303,7 +305,9 @@ export async function PUT(request: NextRequest) {
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [actor.id, actor.companyId, AUDIT_ACTIONS.UPDATE, 'user_profiles', id, JSON.stringify(body)]
       );
-    } catch {}
+    } catch (auditErr) {
+      logger.warn('Failed to write user update audit log', 'UserController.PUT', { auditErr });
+    }
 
     return NextResponse.json({
       success: true,
@@ -362,7 +366,9 @@ export async function DELETE(request: NextRequest) {
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [actor.id, actor.companyId, 'DELETE', 'user_profiles', idsToDelete.join(','), JSON.stringify({ deletedIds: idsToDelete })]
       );
-    } catch {}
+    } catch (auditErr) {
+      logger.warn('Failed to write user deletion audit log', 'UserController.DELETE', { auditErr });
+    }
 
     return NextResponse.json({
       success: true,

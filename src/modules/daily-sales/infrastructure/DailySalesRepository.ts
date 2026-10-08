@@ -146,7 +146,9 @@ export class DailySalesRepository {
     if (fs.existsSync(FALLBACK_STORE_FILE)) {
       try {
         store = JSON.parse(fs.readFileSync(FALLBACK_STORE_FILE, 'utf-8'));
-      } catch {}
+      } catch (parseErr) {
+        logger.warn('Failed to parse local fallback store file, creating fresh store', 'DailySalesRepository', { parseErr });
+      }
     }
 
     store.submissions[id] = {
