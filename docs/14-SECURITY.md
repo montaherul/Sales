@@ -46,3 +46,25 @@ Spreadsheet uploads pose unique security risks (e.g., XML External Entity attack
 
 - **API Rate Limiting:** Enforce per-IP and per-User rate limits on authentication, import, and export endpoints.
 - **Sensitive Operations:** Limit Super Admin Google Drive upload triggers to 10 requests per minute to prevent accidental Google Cloud quota exhaustion.
+
+---
+
+## 6. Multi-Tenant Isolation & Cross-Tenant Attack Mitigation
+
+Tenant isolation is the primary security boundary of the SaaS architecture:
+
+1. **Database-Level Isolation (PostgreSQL RLS):**
+   - Tables containing business records (`brands`, `working_days`, `targets`, `daily_submissions`, `audit_logs`, `google_drive_files`, `google_sheet_syncs`) enforce `company_id NOT NULL`.
+   - Queries are evaluated against `public.can_access_company(company_id)` and `public.can_access_territory(territory_id)`.
+   - Non-Super Admins cannot view or mutate any records belonging to a different tenant, even in the event of an application-layer logic flaw.
+
+2. **Server-Side Tenant Context Derivation:**
+   - Handlers never trust `company_id` supplied via query string or body from client requests.
+   - For all non-Super Admin roles (`COMPANY_ADMIN`, `RSO`, `TSO`, `CSR`), `company_id` is derived strictly from the authenticated user's verified server session and `user_scopes` database relation.
+
+3. **Cross-Tenant Attack Prevention:**
+   - Any attempt by a Company Admin or field user to access, mutate, or delete records belonging to another company results in HTTP `403 Forbidden`.
+   - Super Admin cross-tenant analytics are isolated to read-only aggregate views (`/api/platform/stats`).
+
+4. **Automated Security Verification:**
+   - Continuous verification via `scripts/test_tenant_isolation.js` asserting that Company Admins and field officers cannot see foreign tenant records or execute cross-tenant deletion attacks.

@@ -44,26 +44,40 @@ The **Afaz Tobacco Sales & Stock Intelligence Platform** solves these challenges
   - Perform second-level regional verification and approval.
   - Export regional spreadsheets and dashboards.
 
-### 2.4 Super Admin (Enterprise Executive / Ops Director)
-- **Role:** Head of marketing, finance, or operations with system-wide oversight.
-- **Pain Points:** Requires absolute data integrity, centralized master configuration (prices, targets, working days), audit logs, and authorized Google Drive archival.
+### 2.4 Company Administrator (Tenant Admin)
+- **Role:** Administrator of a specific tenant enterprise (e.g., Afaz Tobacco Company Ltd. or Akij Tobacco Industries Ltd.).
+- **Pain Points:** Needs complete autonomy over their company's users, master hierarchy, brands, targets, submissions, and reporting without interference or data leakage to/from other companies.
 - **Primary Actions:**
-  - Manage user accounts, role assignments, and geographical data scopes.
-  - Configure brands, products, prices, target quotas, and calendar working days (default 26 days).
-  - Import legacy or monthly XLSX files with strict schema and date validations.
-  - Generate and download the authoritative 34-sheet monthly reporting workbook.
-  - Perform authorized cloud upload to Google Drive (`Afaz_Tobacco_Reports/YYYY/MM_Month/YYYY-MM-DD/`).
-  - Unlock finalized records when justified by documented audit requests.
+  - Invite and manage company users (CSR, TSO, RSO, Analysts).
+  - Configure company organizational hierarchy (Divisions, Wings, Regions, Territories, Routes).
+  - Configure company brand catalog, prices, monthly targets, and working days.
+  - Oversee territory submissions and approval progression across the company.
+  - Finalize monthly operational reporting for their company.
+  - Export company-scoped 34-sheet Excel reports.
+  - Inspect company-scoped audit logs.
+
+### 2.5 Platform Super Admin (SaaS Platform Executive / Director)
+- **Role:** Platform executive with unrestricted oversight across all companies and platform infrastructure.
+- **Pain Points:** Requires global platform visibility, tenant management, subscription tiering, security monitoring, and cross-tenant analytics.
+- **Primary Actions:**
+  - Create and manage enterprise tenant companies (lifecycle: `ACTIVE`, `TRIAL`, `SUSPENDED`, `INACTIVE`).
+  - Manage SaaS subscription tiers (`STARTER`, `PRO`, `ENTERPRISE`) and quotas.
+  - Switch tenant context or inspect aggregate cross-tenant analytics and KPIs.
+  - Manage global users, system permissions, and platform-wide defaults.
+  - Perform authorized cloud uploads to Google Drive with SHA-256 validation.
+  - Unlock finalized records across any tenant when authorized.
 
 ---
 
 ## 3. High-Level Feature Modules
 
-1. **Daily Operational Entry Module:** Fast, responsive tabular grid with automatic calculation of total sales, total stock, and zarda values.
-2. **Review & Approval Hub:** Multi-level approval queue with state machine progression and audit logging.
-3. **Calculation Engine:** Standardized formulas for Total Sales, Total Stock, Zarda Valuation, STD, ADS, Achievement %, and Projections.
-4. **Authoritative 34-Sheet Excel Generator:** High-fidelity ExcelJS engine maintaining every formula, merged cell, border, and style of `TEMPLATE.xlsx`.
-5. **Secure XLSX Import Engine:** Pre-flight validation verifying file integrity, dates, territory scopes, and duplicates before transactional database import.
-6. **Google Drive Cloud Archival:** Super Admin-only cloud upload to structured enterprise folders with checksum verification.
-7. **Analytics & Performance Dashboard:** Interactive visual KPIs (sales trends, brand volume distribution, territory ranking, target variance) built with Recharts.
-8. **Comprehensive Audit & Governance:** Immutable event log tracking every login, edit, approval, unlock, import, and export.
+1. **Multi-Tenant SaaS Isolation Engine:** Strict database-level isolation via PostgreSQL Row Level Security (RLS) guaranteeing complete separation of tenant data, users, and configurations.
+2. **Platform Management & Analytics:** Super Admin command center for provisioning companies, monitoring active/suspended tenants, and tracking cross-tenant sales volume.
+3. **Daily Operational Entry Module:** Fast, responsive tabular grid with automatic calculation of total sales, total stock, and zarda values.
+4. **Review & Approval Hub:** Multi-level approval queue with state machine progression and audit logging.
+5. **Centralized Calculation Engine:** Standardized formulas for Total Sales, Total Stock, Zarda Valuation, STD, ADS, Achievement %, and Projections.
+6. **Authoritative 34-Sheet Excel Generator:** High-fidelity ExcelJS engine maintaining every formula, merged cell, border, and style of `TEMPLATE.xlsx`.
+7. **Secure XLSX Import Engine:** Pre-flight validation verifying file integrity, dates, territory scopes, and duplicates before transactional database import.
+8. **Google Drive Cloud Archival:** Super Admin-only cloud upload to structured enterprise folders with checksum verification.
+9. **Analytics & Performance Dashboard:** Interactive visual KPIs (sales trends, brand volume distribution, territory ranking, target variance) built with Recharts.
+10. **Comprehensive Audit & Governance:** Immutable event log tracking every login, edit, approval, unlock, import, and export.

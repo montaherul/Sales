@@ -31,17 +31,18 @@ Supabase PostgreSQL Database
 
 ---
 
-## 2. API Endpoints Catalog (22 Active Routes)
+## 2. API Endpoints Catalog (23 Active Routes)
 
-### 2.1 Administration & Organization (Super Admin)
-- `GET /api/companies`: Server-side paginated list of companies with division, territory, and user statistics, search, and CSV export.
-- `POST /api/companies`: Create new company entity.
-- `PUT /api/companies`: Update company name and code.
-- `DELETE /api/companies`: Delete company by ID or batch array.
-- `GET /api/users`: Server-side paginated list of users filtered by company and role with search and CSV export.
-- `POST /api/users`: Create user with company and territory scope (`SUPER_ADMIN`, `RSO`, `TSO`, `CSR`).
+### 2.1 Platform Administration & Multi-Tenant Management
+- `GET /api/platform/stats`: Super Admin aggregate multi-tenant platform statistics (total/active/suspended companies, total staff, territories, submissions, MTD volume).
+- `GET /api/companies`: Server-side paginated list of companies with division, territory, user statistics, lifecycle status (`ACTIVE`/`TRIAL`/`SUSPENDED`/`INACTIVE`), plan (`STARTER`/`PRO`/`ENTERPRISE`), currency, timezone, and CSV export.
+- `POST /api/companies`: Provision new tenant company with default settings.
+- `PUT /api/companies`: Update company metadata, lifecycle status, plan, currency, and timezone.
+- `DELETE /api/companies`: Decommission company by ID or batch array.
+- `GET /api/users`: Server-side paginated list of users filtered by company and role with search and CSV export (`SUPER_ADMIN` sees all; `COMPANY_ADMIN` sees own company only).
+- `POST /api/users`: Create user with company and territory scope (`SUPER_ADMIN`, `COMPANY_ADMIN`, `RSO`, `TSO`, `CSR`).
 - `PUT /api/users`: Update user profile, role, and assigned scopes.
-- `DELETE /api/users`: Delete user profile.
+- `DELETE /api/users`: Delete user profile (cross-company deletion blocked for non-Super Admins).
 - `GET /api/hierarchy`: Server-side paginated list of territories with parent company, region, division, and CSV export.
 - `POST /api/hierarchy`: Create territory linked to region.
 - `PUT /api/hierarchy`: Update territory name, region, or sort order.

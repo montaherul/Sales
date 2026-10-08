@@ -1,12 +1,41 @@
-# Afaz Tobacco Sales & Stock Intelligence Platform
+# Afaz Tobacco Sales & Stock Intelligence Multi-Tenant SaaS Platform
 
-An enterprise-grade, secure, dynamic sales, stock, target tracking, approval, Excel import/export, and Google Drive intelligence platform built for **Afaz Tobacco Company**.
+An enterprise-grade, secure, multi-tenant SaaS platform for sales, stock, target tracking, hierarchical approvals, Excel import/export, and Google Drive intelligence.
 
 ---
 
-## 🌟 Executive Summary
+## 🌟 Executive Summary & Multi-Tenant SaaS Architecture
 
-The Afaz Tobacco Sales & Stock Intelligence Platform replaces error-prone, manual spreadsheet exchanges with a centralized, role-governed web application. Field representatives (CSR), territory supervisors (TSO), and regional officers (RSO) collaborate in real time while preserving the company's **authoritative 34-sheet Excel reporting workbook**.
+The platform operates as a **True Multi-Tenant SaaS Platform** built from the database layer upward:
+
+```text
+                        SAAS PLATFORM
+                             │
+                      ┌──────▼──────┐
+                      │ SUPER ADMIN │ (Cross-Tenant Platform Control)
+                      └──────┬──────┘
+                             │
+       ┌─────────────────────┼─────────────────────┐
+       │                     │                     │
+       ▼                     ▼                     ▼
+   COMPANY A             COMPANY B             COMPANY C
+   (Tenant 1)            (Tenant 2)            (Tenant 3)
+       │                     │                     │
+ COMPANY ADMIN         COMPANY ADMIN         COMPANY ADMIN
+ (Company Scope Only)  (Company Scope Only)  (Company Scope Only)
+       │                     │                     │
+  ┌────┼─────┐          ┌────┼─────┐          ┌────┼─────┐
+ RSO  TSO   CSR        RSO  TSO   CSR        RSO  TSO   CSR
+  │    │     │          │    │     │          │    │     │
+  ▼    ▼     ▼          ▼    ▼     ▼          ▼    ▼     ▼
+Region Terr. Route     Region Terr. Route     Region Terr. Route
+```
+
+- **Platform SUPER_ADMIN:** Unrestricted SaaS management across all companies, plans, lifecycle statuses (`ACTIVE`, `TRIAL`, `SUSPENDED`, `INACTIVE`), and cross-tenant analytics.
+- **COMPANY_ADMIN:** Independent tenant administrator controlling only their company's users, organizational hierarchy, brands, prices, targets, submissions, approvals, reports, and audit logs. Never has access to another company.
+- **Field & Regional Officers (RSO / TSO / CSR):** Scoped strictly to their assigned company and designated geographic entity (Region, Territory, Route).
+- **Hard Tenant Isolation:** Enforced via PostgreSQL Row Level Security (RLS) policies and `company_id NOT NULL` relational foreign keys.
+- **Authoritative Excel Engine:** Generates and validates the company's **authoritative 34-sheet Excel reporting workbook (`excel/TEMPLATE.xlsx`)**.
 
 ---
 
@@ -84,11 +113,12 @@ d:/daily sales/
 
 | Route Handler | Methods | Description |
 |---|---|---|
-| `/api/companies` | `GET`, `POST`, `PUT`, `DELETE` | Full company CRUD, hierarchy stats, server-side pagination & CSV export |
-| `/api/users` | `GET`, `POST`, `PUT`, `DELETE` | Company-wise user directory, role scopes (`SUPER_ADMIN`, `RSO`, `TSO`, `CSR`) & CSV export |
-| `/api/hierarchy` | `GET`, `POST`, `PUT`, `DELETE` | Territory and geographical scope CRUD with parent company & region lookup |
-| `/api/brands` | `GET`, `POST`, `PUT`, `DELETE` | Brand catalog & pricing CRUD with category filtering (Cigarette / Zarda) |
-| `/api/targets` | `GET`, `POST`, `PUT`, `DELETE` | Monthly territory brand targets with route & outlet counts |
+| `/api/platform/stats` | `GET` | Super Admin aggregate multi-tenant SaaS statistics (active/suspended tenants, total staff, territories, submissions, MTD volume) |
+| `/api/companies` | `GET`, `POST`, `PUT`, `DELETE` | SaaS tenant management (lifecycle `ACTIVE`/`TRIAL`/`SUSPENDED`/`INACTIVE`, plans `STARTER`/`PRO`/`ENTERPRISE`, currencies, timezones) |
+| `/api/users` | `GET`, `POST`, `PUT`, `DELETE` | Company-wise user directory, role scopes (`SUPER_ADMIN`, `COMPANY_ADMIN`, `RSO`, `TSO`, `CSR`) & CSV export |
+| `/api/hierarchy` | `GET`, `POST`, `PUT`, `DELETE` | Tenant-scoped territory and geographical scope CRUD with parent company & region lookup |
+| `/api/brands` | `GET`, `POST`, `PUT`, `DELETE` | Tenant-scoped brand catalog & pricing CRUD with category filtering (Cigarette / Zarda) |
+| `/api/targets` | `GET`, `POST`, `PUT`, `DELETE` | Tenant-scoped monthly territory brand targets with route & outlet counts |
 | `/api/menu-management` | `GET`, `POST` | Role-Wise Menu Access (RWMA) and User-Wise Menu Access (UWMA) permissions |
 | `/api/daily-sales` | `GET`, `POST` | Scope-validated daily operational submissions |
 | `/api/daily-submissions/workflow` | `POST` | State transitions (`DRAFT` → `SUBMITTED` → `TSO_APPROVED` → `RSO_APPROVED` → `FINALIZED` / `REJECT` / `UNLOCK`) |
@@ -98,7 +128,7 @@ d:/daily sales/
 | `/api/imports/xlsx` | `POST` | 12-step validation & preview for XLSX imports |
 | `/api/imports/xlsx/commit` | `POST` | Atomic transactional database commit for staged imports |
 | `/api/google-drive/upload` | `POST` | Super Admin SHA-256 cloud archive to structured Google Drive folders |
-| `/api/audit-logs` | `GET` | Paginated query of immutable system audit logs |
+| `/api/audit-logs` | `GET` | Paginated query of immutable system audit logs (tenant-filtered for Company Admins) |
 | `/api/master-data` | `GET` | Master territories, brands, users, and targets reference |
 
 ---
@@ -115,7 +145,7 @@ Territory Verification (TSO)
 Regional Verification (RSO)
    │
    ▼
-Super Admin Finalization (Locked)
+Company Admin / Super Admin Finalization (Locked)
    │
    ├─► Centralized Calculation Engine
    ├─► Dynamic Web Analytics & Dashboard
@@ -125,13 +155,15 @@ Super Admin Finalization (Locked)
 
 ---
 
-## 🔒 Security & Data Scope Principle
+## 🔒 Two-Dimension Security & Data Scope Principle
 
-Authentication answers **who you are** (via Google OAuth / Supabase).  
-Permissions answer **what you can do** (`sales.create`, `sales.approve`, etc.).  
-Data Scope answers **which data you can touch** (`company_id`, `region_id`, `territory_id`).
+Authorization answers two questions:
+1. **WHAT can this user do?** `Permission` (`sales.create`, `sales.approve`, `users.manage`, etc.)
+2. **WHICH TENANT & DATA can they do it to?** `Tenant (company_id) + Geographical Scope (region_id / territory_id)`
 
-Every database query and mutation is protected by **PostgreSQL Row Level Security (RLS)** ensuring field officers can never access or modify records outside their assigned operational boundary.
+$$\text{Authorization} = \text{Permission} + \text{Tenant} + \text{Scope}$$
+
+Every database query and mutation is protected by **PostgreSQL Row Level Security (RLS)** using `public.can_access_company(company_id)` and `public.can_access_territory(territory_id)` ensuring tenant isolation is maintained at the database layer even if client-side parameters are forged.
 
 ---
 

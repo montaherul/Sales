@@ -178,10 +178,11 @@ Google:
 
 The initial roles are:
 
-SUPER_ADMIN
-RSO
-TSO
-CSR
+SUPER_ADMIN (Platform Level)
+COMPANY_ADMIN (Tenant Level)
+RSO (Regional Level)
+TSO (Territory Level)
+CSR (Operational Level)
 
 The architecture must support future roles.
 
@@ -193,6 +194,8 @@ Permission
 +
 Role
 +
+Tenant (Company)
++
 Data Scope
 
 ---
@@ -201,21 +204,19 @@ Data Scope
 
 ## SUPER_ADMIN
 
-Full system access.
+Full SaaS platform system access.
 
 Can:
 
-- Manage users
+- Manage all companies/tenants
+- Create, activate, suspend, deactivate companies
+- Manage users across platform
 - Manage roles
 - Manage permissions
-- Manage regions
-- Manage territories
-- Manage routes
-- Manage outlets
-- Manage products
-- Manage brands
-- Manage prices
-- Manage targets
+- Manage SaaS subscriptions and plans
+- Switch company context or view aggregate cross-tenant analytics
+- Manage regions, territories, routes, outlets
+- Manage products, brands, prices, targets
 - Manage working days
 - View all sales
 - Edit authorized data
@@ -229,7 +230,32 @@ Can:
 - View audit logs
 - Manage system settings
 
-Only SUPER_ADMIN may perform final Google Drive uploads.
+Only SUPER_ADMIN may perform final Google Drive uploads and cross-tenant operations.
+
+---
+
+## COMPANY_ADMIN (Tenant Administrator)
+
+Tenant-level scope. Strictly restricted to their assigned company.
+
+Can:
+
+- Manage company users (invite, update, deactivate staff within own company)
+- Manage company organizational hierarchy (divisions, wings, regions, territories)
+- Manage company brands and unit prices
+- Manage company targets and working days
+- Review, approve, and reject daily submissions across all company territories
+- Finalize monthly records for their company
+- Import and export company Excel reports
+- View company-scoped audit logs
+- Configure company-level settings
+
+Cannot:
+
+- Access or view any other company/tenant data
+- Create or modify SUPER_ADMIN users
+- Modify global SaaS settings or subscription plans
+- Upload final reports to Google Drive (unless explicitly delegated by SUPER_ADMIN)
 
 ---
 

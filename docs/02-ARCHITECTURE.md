@@ -29,11 +29,12 @@ The Afaz Tobacco Sales & Stock Intelligence Platform is architected as a **3-Tie
 │             TIER 2: APPLICATION & CONTROLLER LAYER (BACKEND)           │
 │                                                                        │
 │  • Next.js Route Handlers (RESTful Controllers):                       │
-│    - /api/companies   (Company CRUD + Stats + CSV Export)              │
-│    - /api/users       (Company-Wise User CRUD + Scopes + CSV Export)   │
+│    - /api/platform/stats (Super Admin SaaS aggregate stats & KPIs)     │
+│    - /api/companies   (SaaS Tenant CRUD + Lifecycle + Plans + Export)  │
+│    - /api/users       (Tenant User CRUD + Scopes + COMPANY_ADMIN)      │
 │    - /api/hierarchy   (Territory, Region, Division CRUD + CSV Export)  │
-│    - /api/brands      (Brand Catalog & Pricing CRUD + CSV Export)      │
-│    - /api/targets     (Territory Target CRUD + CSV Export)             │
+│    - /api/brands      (Tenant Brand Catalog & Pricing + CSV Export)    │
+│    - /api/targets     (Tenant Territory Target CRUD + CSV Export)      │
 │    - /api/menu-management (RWMA & UWMA Permissions Matrix)             │
 │    - /api/daily-sales (Operational entries + Zod validation)           │
 │    - /api/approvals   (Approval State Machine transitions)             │
@@ -53,10 +54,13 @@ The Afaz Tobacco Sales & Stock Intelligence Platform is architected as a **3-Tie
 │                   TIER 3: DATABASE LAYER (POSTGRESQL)                  │
 │                                                                        │
 │  • Supabase PostgreSQL (AWS ap-southeast-2 Pooler):                    │
-│    - companies, divisions, wings, regions, territories                 │
-│    - user_profiles, user_scopes, roles, system_menus                   │
+│    - companies, subscription_plans, company_settings                   │
+│    - divisions, wings, regions, territories                            │
+│    - user_profiles, user_scopes, roles (incl. COMPANY_ADMIN)           │
 │    - brands, prices, targets, daily_submissions, audit_logs            │
-│  • PostgreSQL Row Level Security (RLS) & Cascading Foreign Keys        │
+│  • PostgreSQL Row Level Security (RLS) & Tenant Isolation Functions:  │
+│    - public.current_user_company_id(), public.can_access_company()     │
+│    - public.can_access_territory()                                     │
 │  • Centralized Immutable Audit Trail (`audit_logs`)                    │
 └────────────────────────────────────────────────────────────────────────┘
 ```
