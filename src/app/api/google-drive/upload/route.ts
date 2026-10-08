@@ -4,13 +4,15 @@ import { ExcelExportService } from '@/modules/excel-export';
 import { SubmissionRepository } from '@/lib/repositories/submission.repository';
 import { dbQuery, getDbPool } from '@/lib/db';
 
+import { getAuthenticatedUser } from '@/shared/auth';
+import { logger } from '@/shared/logger';
+
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const userRole = body.userRole || 'SUPER_ADMIN';
+    const actor = await getAuthenticatedUser(request);
 
     // Strictly enforce rule 21 of AGENTS.md: Google Drive access is restricted to SUPER_ADMIN
-    if (userRole !== 'SUPER_ADMIN') {
+    if (actor.role !== 'SUPER_ADMIN') {
       return NextResponse.json(
         { 
           success: false, 
@@ -19,6 +21,8 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
+
+    const body = await request.json().catch(() => ({}));
 
     const year = Number(body.year) || 2026;
     const month = Number(body.month) || 10;
@@ -49,12 +53,13 @@ export async function POST(request: NextRequest) {
     const driveFileId = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
 
     // 5. Persist to google_drive_files in PostgreSQL with company scoping
+    let targetCompId: string | null = body.companyId || null;
     if (getDbPool()) {
       try {
-        const compRes = body.companyId 
-          ? { rows: [{ id: body.companyId }] }
-          : await dbQuery(`SELECT id FROM companies ORDER BY created_at ASC LIMIT 1`);
-        const targetCompId = compRes.rows[0]?.id || null;
+        if (!targetCompId) {
+          const compRes = await dbQuery(`SELECT id FROM companies ORDER BY created_at ASC LIMIT 1`);
+          targetCompId = compRes.rows[0]?.id || null;
+        }
 
         await dbQuery(`
           INSERT INTO google_drive_files (
@@ -76,14 +81,14 @@ export async function POST(request: NextRequest) {
           targetCompId
         ]);
       } catch (dbErr) {
-        console.warn('Failed to insert into google_drive_files table:', dbErr);
+        logger.warn('Failed to insert into google_drive_files table', 'GoogleDriveUploadRoute', { dbErr });
       }
     }
 
     // 6. Audit Logging
     await SubmissionRepository.recordAuditLog(
       'DRIVE_UPLOAD',
-      body.userId || 'admin@afaztobacco.com',
+      actor.id,
       'google_drive_files',
       driveFileId,
       undefined,
@@ -92,6 +97,7 @@ export async function POST(request: NextRequest) {
         fileName,
         sha256,
         sizeBytes: buffer.length,
+        companyId: targetCompId,
       }
     );
 
@@ -107,7 +113,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('Drive upload error:', error);
+    logger.error('Drive upload error', error, 'GoogleDriveUploadRoute');
     return NextResponse.json(
       { success: false, error: error.message || 'Failed to archive report to Google Drive' },
       { status: 500 }

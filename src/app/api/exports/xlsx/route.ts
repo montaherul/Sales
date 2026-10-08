@@ -44,7 +44,8 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('Export error:', error);
+    const { logger } = await import('@/shared/logger');
+    logger.error('Export error', error, 'exports.xlsx.GET');
     return NextResponse.json(
       {
         success: false,

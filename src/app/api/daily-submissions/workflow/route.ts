@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       territoryId,
       reportDate,
       toStatus: toStatus as SubmissionStatus,
-      userId: userId || 'current-user-id',
+      userId: actor.id,
       comments,
       unlockReason,
     });
@@ -58,7 +58,8 @@ export async function POST(request: NextRequest) {
       data: updated,
     });
   } catch (error: any) {
-    console.error('Error transitioning workflow status:', error);
+    const { logger } = await import('@/shared/logger');
+    logger.error('Error transitioning workflow status', error, 'DailySubmissionsWorkflowRoute');
     return NextResponse.json(
       { success: false, error: error.message || 'Failed to update workflow state' },
       { status: 500 }

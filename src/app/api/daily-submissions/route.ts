@@ -94,9 +94,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const actor = await getAuthenticatedUser(request);
     const body = await request.json();
     const record: DailyOperationalRecord = body.record;
-    const userId = body.userId || 'current-user-id';
     const changeReason = body.changeReason;
 
     if (!record || !record.territoryId || !record.reportDate) {
@@ -106,17 +106,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const saved = await SubmissionRepository.saveSubmission(record, userId, changeReason);
+    // Server-side scope verification: CSR / TSO cannot save to unauthorized territories
+    if (actor.role !== 'SUPER_ADMIN') {
+      if (actor.companyId && record.companyId && record.companyId !== actor.companyId) {
+        throw new ForbiddenError('Cannot save submissions for another company');
+      }
+      if ((actor.role === 'TSO' || actor.role === 'CSR') && actor.territoryId && actor.territoryId !== record.territoryId) {
+        throw new ForbiddenError('You can only save submissions for your assigned territory');
+      }
+    }
+
+    if (!record.companyId && actor.companyId) {
+      record.companyId = actor.companyId;
+    }
+
+    const saved = await SubmissionRepository.saveSubmission(record, actor.id, changeReason);
 
     return NextResponse.json({
       success: true,
       data: saved,
     });
   } catch (error: any) {
-    console.error('Error saving submission:', error);
+    logger.error('Error saving submission', error, 'DailySubmissionsController.POST');
     return NextResponse.json(
       { success: false, error: error.message || 'Failed to save submission' },
-      { status: 500 }
+      { status: error.statusCode || 500 }
     );
   }
 }

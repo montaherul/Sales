@@ -2,6 +2,7 @@
 // PostgreSQL pool with SSL & Supabase Pooler support
 
 import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
+import { logger } from '@/shared/logger';
 
 let globalPool: Pool | null = null;
 
@@ -24,7 +25,7 @@ export function getDbPool(): Pool | null {
     });
 
     globalPool.on('error', (err) => {
-      console.error('Unexpected error on idle PostgreSQL client pool:', err);
+      logger.error('Unexpected error on idle PostgreSQL client pool', err, 'DatabasePool');
     });
   }
 

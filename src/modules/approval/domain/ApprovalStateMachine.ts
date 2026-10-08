@@ -25,37 +25,37 @@ export class ApprovalStateMachine {
         if (currentStatus === SUBMISSION_STATUS.DRAFT || currentStatus === SUBMISSION_STATUS.REJECTED) {
           return SUBMISSION_STATUS.DRAFT;
         }
-        throw new StateTransitionError(currentStatus, action, [ROLES.CSR, ROLES.TSO, ROLES.SUPER_ADMIN]);
+        throw new StateTransitionError(currentStatus, action, [ROLES.CSR, ROLES.TSO, ROLES.COMPANY_ADMIN, ROLES.SUPER_ADMIN]);
 
       case 'SUBMIT':
         if (currentStatus === SUBMISSION_STATUS.DRAFT || currentStatus === SUBMISSION_STATUS.REJECTED) {
           return SUBMISSION_STATUS.SUBMITTED;
         }
-        throw new StateTransitionError(currentStatus, action, [ROLES.CSR, ROLES.SUPER_ADMIN]);
+        throw new StateTransitionError(currentStatus, action, [ROLES.CSR, ROLES.TSO, ROLES.COMPANY_ADMIN, ROLES.SUPER_ADMIN]);
 
       case 'APPROVE':
         if (currentStatus === SUBMISSION_STATUS.SUBMITTED) {
-          if (userRole !== ROLES.TSO && userRole !== ROLES.SUPER_ADMIN) {
-            throw new StateTransitionError(currentStatus, action, [ROLES.TSO, ROLES.SUPER_ADMIN]);
+          if (userRole !== ROLES.TSO && userRole !== ROLES.COMPANY_ADMIN && userRole !== ROLES.SUPER_ADMIN) {
+            throw new StateTransitionError(currentStatus, action, [ROLES.TSO, ROLES.COMPANY_ADMIN, ROLES.SUPER_ADMIN]);
           }
           return SUBMISSION_STATUS.TSO_APPROVED;
         }
 
         if (currentStatus === SUBMISSION_STATUS.TSO_APPROVED) {
-          if (userRole !== ROLES.RSO && userRole !== ROLES.SUPER_ADMIN) {
-            throw new StateTransitionError(currentStatus, action, [ROLES.RSO, ROLES.SUPER_ADMIN]);
+          if (userRole !== ROLES.RSO && userRole !== ROLES.COMPANY_ADMIN && userRole !== ROLES.SUPER_ADMIN) {
+            throw new StateTransitionError(currentStatus, action, [ROLES.RSO, ROLES.COMPANY_ADMIN, ROLES.SUPER_ADMIN]);
           }
           return SUBMISSION_STATUS.RSO_APPROVED;
         }
 
         if (currentStatus === SUBMISSION_STATUS.RSO_APPROVED) {
-          if (userRole !== ROLES.SUPER_ADMIN) {
-            throw new StateTransitionError(currentStatus, action, [ROLES.SUPER_ADMIN]);
+          if (userRole !== ROLES.SUPER_ADMIN && userRole !== ROLES.COMPANY_ADMIN) {
+            throw new StateTransitionError(currentStatus, action, [ROLES.COMPANY_ADMIN, ROLES.SUPER_ADMIN]);
           }
           return SUBMISSION_STATUS.FINALIZED;
         }
 
-        throw new StateTransitionError(currentStatus, action, ['TSO', 'RSO', 'SUPER_ADMIN']);
+        throw new StateTransitionError(currentStatus, action, ['TSO', 'RSO', 'COMPANY_ADMIN', 'SUPER_ADMIN']);
 
       case 'REJECT':
         if (currentStatus === SUBMISSION_STATUS.FINALIZED) {
@@ -64,14 +64,14 @@ export class ApprovalStateMachine {
         if (!reason || reason.trim().length === 0) {
           throw new ValidationError('A rejection reason is mandatory when rejecting a submission.');
         }
-        if (userRole !== ROLES.TSO && userRole !== ROLES.RSO && userRole !== ROLES.SUPER_ADMIN) {
-          throw new StateTransitionError(currentStatus, action, [ROLES.TSO, ROLES.RSO, ROLES.SUPER_ADMIN]);
+        if (userRole !== ROLES.TSO && userRole !== ROLES.RSO && userRole !== ROLES.COMPANY_ADMIN && userRole !== ROLES.SUPER_ADMIN) {
+          throw new StateTransitionError(currentStatus, action, [ROLES.TSO, ROLES.RSO, ROLES.COMPANY_ADMIN, ROLES.SUPER_ADMIN]);
         }
         return SUBMISSION_STATUS.REJECTED;
 
       case 'UNLOCK':
-        if (userRole !== ROLES.SUPER_ADMIN) {
-          throw new StateTransitionError(currentStatus, action, [ROLES.SUPER_ADMIN]);
+        if (userRole !== ROLES.SUPER_ADMIN && userRole !== ROLES.COMPANY_ADMIN) {
+          throw new StateTransitionError(currentStatus, action, [ROLES.SUPER_ADMIN, ROLES.COMPANY_ADMIN]);
         }
         if (!reason || reason.trim().length === 0) {
           throw new ValidationError('A mandatory reason is required to unlock a finalized record.');

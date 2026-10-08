@@ -5,10 +5,39 @@ import { NextRequest } from 'next/server';
 import { UserAuthContext } from '../authorization';
 import { ROLES, RoleType } from '../constants';
 
-import { getSessionUser } from '@/lib/auth/session';
+import { getSessionUser, verifyToken, SessionUser } from '@/lib/auth/session';
 
 export async function getAuthenticatedUser(request?: NextRequest): Promise<UserAuthContext> {
-  // 1. Check real cryptographically verified session cookie
+  // 1. Check direct cookie from request object if present
+  if (request) {
+    const cookieHeader = request.headers.get('cookie');
+    let rawCookie = request.cookies?.get('afaz_session')?.value;
+    if (!rawCookie && cookieHeader) {
+      const match = cookieHeader.match(/afaz_session=([^;]+)/);
+      if (match) {
+        rawCookie = match[1];
+      }
+    }
+
+    if (rawCookie) {
+      const decoded = decodeURIComponent(rawCookie);
+      const data = verifyToken<{ user: SessionUser; expiresAt: number }>(decoded);
+      if (data?.user && (!data.expiresAt || Date.now() <= data.expiresAt)) {
+        return {
+          id: data.user.id,
+          email: data.user.email,
+          role: data.user.role,
+          companyId: data.user.companyId || null,
+          companyName: data.user.companyName || null,
+          territoryId: data.user.territoryId || null,
+          regionId: data.user.regionId || null,
+          permissions: [],
+        };
+      }
+    }
+  }
+
+  // 2. Check next/headers cookie store
   const sessionUser = await getSessionUser();
   if (sessionUser) {
     return {

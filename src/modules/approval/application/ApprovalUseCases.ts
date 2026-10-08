@@ -3,7 +3,7 @@
 
 import { ApprovalStateMachine, WorkflowAction } from '../domain/ApprovalStateMachine';
 import { SubmissionStatus, SUBMISSION_STATUS, AUDIT_ACTIONS } from '@/shared/constants';
-import { UserAuthContext } from '@/shared/authorization';
+import { UserAuthContext, validateOrganizationalScope } from '@/shared/authorization';
 import { dbQuery } from '@/shared/database/db';
 import { logger } from '@/shared/logger';
 import { NotFoundError } from '@/shared/errors';
@@ -25,18 +25,27 @@ export class ApprovalService {
     newStatus: SubmissionStatus;
     transitionedAt: string;
   }> {
-    // 1. Fetch existing submission status
+    // 1. Fetch existing submission status with hierarchy scoping info
     const result = await dbQuery(
-      `SELECT id, status, territory_id, reporting_date FROM daily_submissions WHERE id = $1 LIMIT 1`,
+      `SELECT ds.id, ds.status, ds.territory_id, t.region_id, r.company_id 
+       FROM daily_submissions ds
+       LEFT JOIN territories t ON ds.territory_id = t.id
+       LEFT JOIN regions r ON t.region_id = r.id
+       WHERE ds.id = $1 LIMIT 1`,
       [dto.submissionId]
     );
 
-    let oldStatus: SubmissionStatus = SUBMISSION_STATUS.DRAFT;
-    if (result.rows.length > 0) {
-      oldStatus = result.rows[0].status as SubmissionStatus;
+    if (result.rows.length === 0) {
+      throw new NotFoundError(`Submission with ID '${dto.submissionId}' was not found`);
     }
 
-    // 2. State machine evaluation
+    const row = result.rows[0];
+    const oldStatus: SubmissionStatus = row.status as SubmissionStatus;
+
+    // 2. Enforce server-side organizational and tenant scope
+    validateOrganizationalScope(dto.user, row.territory_id, row.region_id, row.company_id);
+
+    // 3. State machine evaluation
     const newStatus = ApprovalStateMachine.transition({
       currentStatus: oldStatus,
       action: dto.action,
@@ -44,31 +53,37 @@ export class ApprovalService {
       reason: dto.reason,
     });
 
-    // 3. Persist new status
+    // 4. Persist new status and lifecycle flags
     const now = new Date().toISOString();
     await dbQuery(
-      `UPDATE daily_submissions SET status = $1, updated_at = NOW() WHERE id = $2`,
-      [newStatus, dto.submissionId]
+      `UPDATE daily_submissions 
+       SET status = $1, 
+           finalized_at = CASE WHEN $1 = 'FINALIZED' THEN NOW() ELSE finalized_at END,
+           is_locked = CASE WHEN $1 = 'FINALIZED' THEN TRUE WHEN $1 = 'DRAFT' THEN FALSE ELSE is_locked END,
+           unlock_reason = CASE WHEN $2 = 'UNLOCK' THEN $3 ELSE unlock_reason END,
+           updated_at = NOW() 
+       WHERE id = $4`,
+      [newStatus, dto.action, dto.reason || null, dto.submissionId]
     );
 
-    // 4. Record approval history log
+    // 5. Record approval history log with correct schema columns
     try {
       await dbQuery(
         `INSERT INTO approval_history (
-          submission_id, action, from_status, to_status, performed_by_user_id, comments
-        ) VALUES ($1, $2, $3, $4, $5, $6)`,
-        [dto.submissionId, dto.action, oldStatus, newStatus, dto.user.id, dto.reason || null]
+          submission_id, from_status, to_status, action_by, comments
+        ) VALUES ($1, $2, $3, $4, $5)`,
+        [dto.submissionId, oldStatus, newStatus, dto.user.id, dto.reason || null]
       );
     } catch (err) {
       logger.warn('Could not record approval_history table entry', 'ApprovalService', { err });
     }
 
-    // 5. Centralized Audit Log
+    // 6. Centralized Audit Log with company_id
     try {
       await dbQuery(
         `INSERT INTO audit_logs (
-          user_id, event_type, entity_name, entity_id, old_values, new_values
-        ) VALUES ($1, $2, $3, $4, $5, $6)`,
+          user_id, event_type, entity_name, entity_id, old_values, new_values, company_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [
           dto.user.id,
           dto.action === 'APPROVE' ? AUDIT_ACTIONS.APPROVE : dto.action === 'REJECT' ? AUDIT_ACTIONS.REJECT : dto.action === 'UNLOCK' ? AUDIT_ACTIONS.UNLOCK : AUDIT_ACTIONS.SUBMIT,
@@ -76,6 +91,7 @@ export class ApprovalService {
           dto.submissionId,
           JSON.stringify({ status: oldStatus }),
           JSON.stringify({ status: newStatus, reason: dto.reason }),
+          row.company_id || dto.user.companyId || null,
         ]
       );
     } catch (auditErr) {

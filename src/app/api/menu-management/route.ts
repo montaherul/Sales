@@ -83,7 +83,8 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('Menu management GET error:', error);
+    const { logger } = await import('@/shared/logger');
+    logger.error('Menu management GET error', error, 'menu-management.GET');
     return NextResponse.json(
       { success: false, error: error.message || 'Failed to fetch menu access data' },
       { status: 500 }
@@ -123,7 +124,7 @@ export async function POST(request: NextRequest) {
 
       await SubmissionRepository.recordAuditLog(
         'RWMA_UPDATE',
-        modifiedBy || actor.email || 'admin@afaztobacco.com',
+        actor.email || 'admin@afaztobacco.com',
         'role_menu_access',
         `${roleName}_${menuId}`,
         undefined,
@@ -151,7 +152,7 @@ export async function POST(request: NextRequest) {
 
       await SubmissionRepository.recordAuditLog(
         'UWMA_UPDATE',
-        modifiedBy || actor.email || 'admin@afaztobacco.com',
+        actor.email || 'admin@afaztobacco.com',
         'user_menu_access',
         `${userId}_${menuId}`,
         undefined,
@@ -166,7 +167,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: false, error: 'Invalid update type' }, { status: 400 });
   } catch (error: any) {
-    console.error('Menu management POST error:', error);
+    const { logger } = await import('@/shared/logger');
+    logger.error('Menu management POST error', error, 'menu-management.POST');
     return NextResponse.json(
       { success: false, error: error.message || 'Failed to update menu permissions' },
       { status: 500 }

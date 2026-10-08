@@ -198,7 +198,8 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('Master data query error:', error);
+    const { logger } = await import('@/shared/logger');
+    logger.error('Master data query error', error, 'master-data.GET');
     return NextResponse.json(
       { success: false, error: error.message || 'Failed to load master data' },
       { status: 500 }

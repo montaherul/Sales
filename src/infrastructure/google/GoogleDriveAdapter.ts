@@ -13,6 +13,7 @@ export interface DriveUploadOptions {
   month: number;
   day: number;
   uploadedBy: string;
+  companyId?: string | null;
 }
 
 export interface DriveUploadResult {
@@ -43,6 +44,7 @@ export class GoogleDriveAdapter {
   public async uploadReport(options: DriveUploadOptions): Promise<DriveUploadResult> {
     const checksum = calculateSha256(options.fileBuffer);
     const folderPath = this.getTargetFolderPath(options.year, options.month, options.day);
+    const reportDate = `${options.year}-${String(options.month).padStart(2, '0')}-${String(options.day).padStart(2, '0')}`;
     const simulatedFileId = `gdrive_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const uploadedAt = new Date().toISOString();
     const webUrl = `https://drive.google.com/file/d/${simulatedFileId}/view`;
@@ -50,27 +52,28 @@ export class GoogleDriveAdapter {
     // 1. Check existing record in PostgreSQL google_drive_files table
     try {
       const existing = await dbQuery(
-        `SELECT id, file_name, file_id, checksum_sha256 FROM google_drive_files WHERE file_name = $1 LIMIT 1`,
+        `SELECT id, file_name, drive_file_id, sha256_checksum FROM google_drive_files WHERE file_name = $1 LIMIT 1`,
         [options.fileName]
       );
 
       if (existing.rows.length > 0) {
-        logger.info(`Existing Drive file found with ID ${existing.rows[0].file_id}. Version replacement logged.`);
+        logger.info(`Existing Drive file found with ID ${existing.rows[0].drive_file_id}. Version replacement logged.`, 'GoogleDriveAdapter');
       }
 
-      // 2. Persist metadata in google_drive_files table
+      // 2. Persist metadata in google_drive_files table matching schema
       await dbQuery(
         `INSERT INTO google_drive_files (
-          file_id, file_name, drive_folder_path, file_size_bytes, checksum_sha256, mime_type, uploaded_by_user_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          drive_file_id, file_name, drive_folder_path, file_size, sha256_checksum, report_date, uploaded_by, company_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [
           simulatedFileId,
           options.fileName,
           folderPath,
           options.fileBuffer.length,
           checksum,
-          options.mimeType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          reportDate,
           options.uploadedBy,
+          options.companyId || null,
         ]
       );
     } catch (dbErr) {

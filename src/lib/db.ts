@@ -1,4 +1,5 @@
 import { Pool, QueryResult, QueryResultRow } from 'pg';
+import { logger } from '@/shared/logger';
 
 let globalPool: Pool | null = null;
 
@@ -21,7 +22,7 @@ export function getDbPool(): Pool | null {
     });
 
     globalPool.on('error', (err) => {
-      console.error('Unexpected error on idle PostgreSQL client:', err);
+      logger.error('Unexpected error on idle PostgreSQL client', err, 'DatabasePoolLib');
     });
   }
 

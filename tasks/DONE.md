@@ -94,3 +94,14 @@
   - Eliminated all silent exception swallowing across controllers, use cases, and repositories, ensuring all errors are logged through structured `logger.warn`/`logger.error`.
   - Verified 100% parameterized SQL query execution with no string interpolation into queries.
   - Verified multi-tenant scope isolation with 11/11 automated security tests passing.
+- [x] **Google Sheets API v4 Integration & Architecture Scope Hardening**:
+  - Implemented Google Sheets API v4 infrastructure adapter (`GoogleSheetsAdapter.ts`) with live PostgreSQL tracking to `google_sheet_syncs` table per `docs/11-GOOGLE-SHEETS.md` and `AGENTS.md` Rule 4 & 5.
+  - Implemented Google Sheets application use cases (`GoogleSheetsUseCases.ts`) with strict `SUPER_ADMIN` RBAC enforcement, company-scoped history retrieval, and audit logging.
+  - Implemented thin Next.js route handler (`/api/google-sheets/sync`) for sync execution and history inspection.
+  - Enhanced Approval State Machine & Service (`ApprovalStateMachine.ts`, `ApprovalUseCases.ts`): Added `COMPANY_ADMIN` support for approval, rejection, and finalization within tenant; added `validateOrganizationalScope` enforcement; aligned `approval_history` schema columns and recorded `company_id` in audit logs.
+  - Hardened Google Drive cloud sync (`GoogleDriveAdapter.ts`, `GoogleDriveUseCases.ts`, `/api/google-drive/upload`): Aligned schema columns (`drive_file_id`, `sha256_checksum`, `file_size`, `uploaded_by`, `report_date`, `company_id`), enforced server-side authentication, and eliminated client-trusted role flags.
+  - Consolidated Daily Sales Repository (`DailySalesRepository.ts`): Unified with authoritative `SubmissionRepository` per `AGENTS1.md` Rule 11 (No Duplicate Abstractions).
+  - Enforced server-side actor identity and structured logging (`logger.error`, `logger.warn`) across `/api/daily-submissions`, `/api/daily-submissions/workflow`, `/api/imports/xlsx/commit`, `/api/exports/xlsx`, and `/api/menu-management`.
+  - Built automated Google Sheets sync test suite (`scripts/test_google_sheets_sync.js`) passing 100% (Super Admin execution, sync history tracking, Company Admin HTTP 403 Forbidden).
+  - Validated zero TypeScript compilation errors (`npx tsc --noEmit`) and 11/11 tenant isolation tests passing (`node scripts/test_tenant_isolation.js`).
+

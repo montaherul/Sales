@@ -35,7 +35,8 @@ export async function POST(request: NextRequest) {
       data: preview,
     });
   } catch (error: any) {
-    console.error('Import processing error:', error);
+    const { logger } = await import('@/shared/logger');
+    logger.error('Import processing error', error, 'imports.xlsx.POST');
     return NextResponse.json(
       { success: false, error: error.message || 'Error parsing Excel workbook' },
       { status: 500 }

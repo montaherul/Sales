@@ -43,13 +43,14 @@ export class GoogleDriveService {
       month: dto.month,
       day: dto.day,
       uploadedBy: dto.user.id,
+      companyId: dto.user.companyId || null,
     });
 
     // 4. Centralized Audit Log
     try {
       await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values)
-         VALUES ($1, $2, $3, $4, $5)`,
+        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values, company_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
         [
           dto.user.id,
           AUDIT_ACTIONS.GOOGLE_UPLOAD,
@@ -60,10 +61,11 @@ export class GoogleDriveService {
             folder: uploadResult.folderPath,
             checksum: uploadResult.checksum,
           }),
+          dto.user.companyId || null,
         ]
       );
     } catch (auditErr) {
-      logger.warn('Audit log write skipped in Google Drive upload', 'GoogleDriveService');
+      logger.warn('Audit log write skipped in Google Drive upload', 'GoogleDriveService', { auditErr });
     }
 
     return uploadResult;

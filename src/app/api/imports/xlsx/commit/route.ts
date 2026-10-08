@@ -16,14 +16,16 @@ export async function POST(request: NextRequest) {
     }
 
     const { getAuthenticatedUser } = await import('@/shared/auth');
+    const { logger } = await import('@/shared/logger');
+    let actorId = 'system';
     let tenantCompanyId = body.companyId || null;
     try {
       const actor = await getAuthenticatedUser(request);
+      actorId = actor.id;
       if (actor.role !== 'SUPER_ADMIN' && actor.companyId) {
         tenantCompanyId = actor.companyId;
       }
     } catch (authErr) {
-      const { logger } = await import('@/shared/logger');
       logger.debug('Import commit evaluated with client body scope', 'imports.commit.POST', { authErr });
     }
 
@@ -34,7 +36,7 @@ export async function POST(request: NextRequest) {
       }
       const saved = await SubmissionRepository.saveSubmission(
         rec,
-        userId,
+        actorId,
         `Imported from XLSX file: ${body.fileName || 'bulk import'}`
       );
       savedRecords.push(saved);
@@ -42,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     await SubmissionRepository.recordAuditLog(
       'IMPORT_COMMIT',
-      userId,
+      actorId,
       'daily_submissions',
       body.fileName || 'bulk-import',
       undefined,
@@ -59,7 +61,8 @@ export async function POST(request: NextRequest) {
       count: savedRecords.length,
     });
   } catch (error: any) {
-    console.error('Import commit error:', error);
+    const { logger } = await import('@/shared/logger');
+    logger.error('Import commit error', error, 'imports.commit.POST');
     return NextResponse.json(
       { success: false, error: error.message || 'Failed to commit import records' },
       { status: 500 }

@@ -3,6 +3,7 @@
 
 import { DailyOperationalRecord, SubmissionStatus } from '@/lib/types';
 import { dbQuery, getDbPool } from '@/lib/db';
+import { logger } from '@/shared/logger';
 import fs from 'fs';
 import path from 'path';
 
@@ -43,7 +44,7 @@ function loadStore(): LocalStoreState {
       return JSON.parse(raw);
     }
   } catch (err) {
-    console.error('Failed to load local store fallback:', err);
+    logger.warn('Failed to load local store fallback', 'SubmissionRepository', { err });
   }
 
   return {
@@ -57,7 +58,7 @@ function saveStore(state: LocalStoreState): void {
   try {
     fs.writeFileSync(STORAGE_FILE, JSON.stringify(state, null, 2), 'utf-8');
   } catch (err) {
-    console.error('Failed to save store:', err);
+    logger.warn('Failed to save store', 'SubmissionRepository', { err });
   }
 }
 

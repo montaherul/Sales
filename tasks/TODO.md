@@ -92,3 +92,15 @@
 - [x] Rule 19 & Rule 41 (Error Handling & Reliability): Eliminated all silently swallowed exceptions across all API route handlers, services, and repositories; all unexpected errors are now logged through `logger.warn` or `logger.error`.
 - [x] Rule 9 & 16 & 17 (SQL & Multi-Tenant Security): Verified 100% parameterized SQL query construction across `dbQuery` and server-side tenant boundary enforcement.
 - [x] Rule 30 (Build and Verification): Verified zero TypeScript errors (`npx tsc --noEmit`), 11/11 tenant isolation tests passing (`test_tenant_isolation.js`), and Next.js 15 dev server running healthy on `http://localhost:3000`.
+
+## Phase 14: Google Sheets API v4 Integration, Architecture Pipeline Completion & Scope Hardening
+- [x] Implemented Google Sheets API v4 infrastructure adapter (`src/infrastructure/google/GoogleSheetsAdapter.ts`) with live PostgreSQL tracking to `google_sheet_syncs` table per `docs/11-GOOGLE-SHEETS.md` and `AGENTS.md` Rule 4 & 5.
+- [x] Implemented Google Sheets application use cases (`src/modules/google-sheets/application/GoogleSheetsUseCases.ts`) with strict `SUPER_ADMIN` RBAC enforcement, company-scoped history retrieval, and audit logging.
+- [x] Implemented thin Next.js route handler (`src/app/api/google-sheets/sync/route.ts`) for POST sync execution and GET sync history.
+- [x] Enhanced Approval State Machine & Service (`ApprovalStateMachine.ts`, `ApprovalUseCases.ts`): Added `COMPANY_ADMIN` support for approval, rejection, and finalization within tenant; added `validateOrganizationalScope` enforcement; aligned `approval_history` schema columns and recorded `company_id` in audit logs.
+- [x] Hardened Google Drive cloud sync (`GoogleDriveAdapter.ts`, `GoogleDriveUseCases.ts`, `/api/google-drive/upload`): Aligned schema columns (`drive_file_id`, `sha256_checksum`, `file_size`, `uploaded_by`, `report_date`, `company_id`), enforced server-side authentication, and eliminated client-trusted role flags.
+- [x] Consolidated Daily Sales Repository (`DailySalesRepository.ts`): Unified with authoritative `SubmissionRepository` per `AGENTS1.md` Rule 11 (No Duplicate Abstractions).
+- [x] Enforced server-side actor identity and structured logging (`logger.error`, `logger.warn`) across `/api/daily-submissions`, `/api/daily-submissions/workflow`, `/api/imports/xlsx/commit`, `/api/exports/xlsx`, and `/api/menu-management`.
+- [x] Built and ran automated Google Sheets sync test suite (`scripts/test_google_sheets_sync.js`) passing 100% (Super Admin execution, sync history tracking, Company Admin HTTP 403 Forbidden).
+- [x] Validated zero TypeScript compilation errors (`npx tsc --noEmit`) and 11/11 tenant isolation tests passing (`node scripts/test_tenant_isolation.js`).
+
