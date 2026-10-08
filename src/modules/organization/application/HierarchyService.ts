@@ -1,14 +1,13 @@
 // Application: Hierarchy Service
-// Coordinates organizational hierarchy workflows, scope boundary validation, and audit logs
+// Coordinates organizational hierarchy workflows, territory scoping, and audit logs
 // AGENTS1.md Rule 4 & Rule 6 (Application / Service Layer)
 
-import { hierarchyRepository, HierarchyFilterOptions } from '../infrastructure/HierarchyRepository';
+import { hierarchyRepository, TerritoryFilterOptions } from '../infrastructure/HierarchyRepository';
 import { UserAuthContext } from '@/shared/authorization';
 import { ROLES, AUDIT_ACTIONS } from '@/shared/constants';
 import { ForbiddenError, ValidationError, NotFoundError } from '@/shared/errors';
 import { PaginationHelper, PaginatedResult } from '@/shared/database/pagination';
-import { dbQuery } from '@/shared/database/db';
-import { logger } from '@/shared/logger';
+import { AuditService } from '@/modules/audit';
 
 export interface CreateTerritoryDTO {
   name: string;
@@ -25,21 +24,24 @@ export interface UpdateTerritoryDTO {
 
 export class HierarchyService {
   /**
-   * Retrieves paginated territories scoped to the actor's tenant context.
+   * Retrieves paginated territories with tenant scoping for non-Super Admins.
    */
   public static async getTerritoriesPaginated(
-    options: HierarchyFilterOptions,
+    options: Omit<TerritoryFilterOptions, 'companyId'> & { companyIdParam?: string | null },
     actor: UserAuthContext
   ): Promise<PaginatedResult<any>> {
-    let filterCompanyId = options.companyId && options.companyId !== 'ALL' ? options.companyId : null;
-
-    if (actor.role !== ROLES.SUPER_ADMIN) {
-      filterCompanyId = actor.companyId || null;
-    }
+    const targetCompanyId = actor.role === ROLES.SUPER_ADMIN
+      ? (options.companyIdParam && options.companyIdParam !== 'ALL' ? options.companyIdParam : null)
+      : (actor.companyId || null);
 
     return await hierarchyRepository.getPaginatedTerritories({
-      ...options,
-      companyId: filterCompanyId,
+      page: options.page,
+      pageSize: options.pageSize,
+      search: options.search,
+      regionId: options.regionId,
+      companyId: targetCompanyId,
+      sortBy: options.sortBy,
+      sortOrder: options.sortOrder,
     });
   }
 
@@ -47,7 +49,7 @@ export class HierarchyService {
    * Generates CSV export for territories.
    */
   public static async exportTerritoriesCsv(
-    options: HierarchyFilterOptions,
+    options: Omit<TerritoryFilterOptions, 'companyId'> & { companyIdParam?: string | null },
     actor: UserAuthContext
   ): Promise<string> {
     const result = await this.getTerritoriesPaginated({ ...options, pageSize: -1 }, actor);
@@ -57,25 +59,24 @@ export class HierarchyService {
       region_name: 'Region',
       wing_name: 'Wing',
       division_name: 'Division',
-      company_name: 'Company Entity',
-      sort_order: 'Display Order',
-      created_at: 'Created Date',
+      company_name: 'Company',
+      sort_order: 'Order',
     });
   }
 
   /**
-   * Retrieves dropdown options for divisions, regions, and territories.
+   * Retrieves full hierarchy options (divisions, wings, regions) for form dropdowns.
    */
-  public static async getHierarchyOptions(actor: UserAuthContext, companyId?: string | null): Promise<any> {
+  public static async getHierarchyOptions(actor: UserAuthContext, companyIdParam?: string | null): Promise<any> {
     const targetCompanyId = actor.role === ROLES.SUPER_ADMIN
-      ? (companyId && companyId !== 'ALL' ? companyId : null)
-      : actor.companyId;
+      ? (companyIdParam && companyIdParam !== 'ALL' ? companyIdParam : null)
+      : (actor.companyId || null);
 
     return await hierarchyRepository.getHierarchyOptions(targetCompanyId);
   }
 
   /**
-   * Creates a new territory with tenant scope validation and audit logging.
+   * Creates a new territory within permitted company scope.
    */
   public static async createTerritory(dto: CreateTerritoryDTO, actor: UserAuthContext): Promise<any> {
     if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
@@ -83,28 +84,27 @@ export class HierarchyService {
     }
 
     if (!dto.name || !dto.name.trim()) throw new ValidationError('Territory name is required');
-    if (!dto.regionId) throw new ValidationError('Region selection is required');
+    if (!dto.regionId) throw new ValidationError('Region is required');
 
-    // Tenant boundary check for COMPANY_ADMIN
+    // Tenant check for COMPANY_ADMIN
     if (actor.role === ROLES.COMPANY_ADMIN) {
       const regionCompanyId = await hierarchyRepository.getCompanyByRegionId(dto.regionId);
-      if (!regionCompanyId || regionCompanyId !== actor.companyId) {
-        throw new ForbiddenError('Cannot create territories under regions outside your company');
+      if (regionCompanyId !== actor.companyId) {
+        throw new ForbiddenError('You can only create territories inside your company regions');
       }
     }
 
     const newTerritory = await hierarchyRepository.createTerritory(dto.name, dto.regionId, dto.sortOrder || 0);
 
-    // Audit Logging
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, company_id, event_type, entity_name, entity_id, new_values)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [actor.id, actor.companyId || null, AUDIT_ACTIONS.CREATE, 'territories', newTerritory.id, JSON.stringify(newTerritory)]
-      );
-    } catch (auditErr) {
-      logger.warn('Failed to write territory creation audit log', 'HierarchyService', { auditErr });
-    }
+    // Centralized Audit Log
+    await AuditService.logEvent({
+      userId: actor.id,
+      companyId: actor.companyId || null,
+      eventType: AUDIT_ACTIONS.CREATE,
+      entityName: 'territories',
+      entityId: newTerritory.id,
+      newValues: newTerritory,
+    });
 
     return newTerritory;
   }
@@ -132,16 +132,15 @@ export class HierarchyService {
       throw new NotFoundError('Territory not found');
     }
 
-    // Audit Logging
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, company_id, event_type, entity_name, entity_id, new_values)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [actor.id, actor.companyId || null, AUDIT_ACTIONS.UPDATE, 'territories', dto.id, JSON.stringify(updated)]
-      );
-    } catch (auditErr) {
-      logger.warn('Failed to write territory update audit log', 'HierarchyService', { auditErr });
-    }
+    // Centralized Audit Log
+    await AuditService.logEvent({
+      userId: actor.id,
+      companyId: actor.companyId || null,
+      eventType: AUDIT_ACTIONS.UPDATE,
+      entityName: 'territories',
+      entityId: dto.id,
+      newValues: updated,
+    });
 
     return updated;
   }
@@ -169,16 +168,15 @@ export class HierarchyService {
 
     await hierarchyRepository.deleteTerritories(ids);
 
-    // Audit Logging
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, company_id, event_type, entity_name, entity_id, old_values)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [actor.id, actor.companyId || null, AUDIT_ACTIONS.DELETE, 'territories', ids.join(','), JSON.stringify({ deletedIds: ids })]
-      );
-    } catch (auditErr) {
-      logger.warn('Failed to write territory deletion audit log', 'HierarchyService', { auditErr });
-    }
+    // Centralized Audit Log
+    await AuditService.logEvent({
+      userId: actor.id,
+      companyId: actor.companyId || null,
+      eventType: AUDIT_ACTIONS.DELETE,
+      entityName: 'territories',
+      entityId: ids.join(','),
+      oldValues: { deletedIds: ids },
+    });
 
     return ids.length;
   }

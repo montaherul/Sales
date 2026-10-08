@@ -10,7 +10,7 @@ import { DailyOperationalRecord, SubmissionStatus } from '@/lib/types';
 import { ROLES, AUDIT_ACTIONS } from '@/shared/constants';
 import { ForbiddenError, ValidationError } from '@/shared/errors';
 import { PaginationHelper, PaginatedResult } from '@/shared/database/pagination';
-import { dbQuery } from '@/shared/database/db';
+import { AuditService } from '@/modules/audit';
 import { logger } from '@/shared/logger';
 
 export class DailySalesService {
@@ -149,16 +149,15 @@ export class DailySalesService {
 
     await dailySalesRepository.deleteSubmissions(ids);
 
-    // Audit log
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, old_values)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [actor.id, AUDIT_ACTIONS.UPDATE, 'daily_submissions', ids.join(','), JSON.stringify({ deletedIds: ids })]
-      );
-    } catch (auditErr) {
-      logger.warn('Failed to write submission deletion audit log', 'DailySalesService', { auditErr });
-    }
+    // Centralized Audit Log
+    await AuditService.logEvent({
+      userId: actor.id,
+      companyId: actor.companyId || null,
+      eventType: AUDIT_ACTIONS.DELETE,
+      entityName: 'daily_submissions',
+      entityId: ids.join(','),
+      oldValues: { deletedIds: ids },
+    });
 
     return ids.length;
   }

@@ -1,11 +1,11 @@
 // Application: Reporting Service
 // Coordinates calculation engine to produce executive dashboard metrics
+// AGENTS1.md Rule 4 & Rule 6 (Application / Service Layer)
 
 import { reportingRepository } from '../infrastructure/ReportingRepository';
 import { calculationEngine } from '@/modules/calculation';
 import { ExecutiveKPISummary, TerritoryPerformanceSummary } from '../domain/types';
-import { SATKANIA_TERRITORIES, DEFAULT_WORKING_DAYS } from '@/shared/constants';
-import { logger } from '@/shared/logger';
+import { SATKANIA_TERRITORIES } from '@/shared/constants';
 
 export class ReportingService {
   /**
@@ -22,62 +22,17 @@ export class ReportingService {
     const { territorySales, territoryStock, activeDaysElapsed } =
       await reportingRepository.getMonthlyAggregation(year, month, companyId);
 
-    // Resolve live territories from PostgreSQL
-    let masterTerritories: { id: string; name: string }[] = [];
-    let territoryTargets: Record<string, number> = {};
-
-    try {
-      const terrRes = await (await import('@/shared/database/db')).dbQuery(
-        `SELECT t.id, t.name 
-         FROM territories t
-         JOIN regions r ON t.region_id = r.id
-         JOIN wings w ON r.wing_id = w.id
-         JOIN divisions d ON w.division_id = d.id
-         WHERE ($1::uuid IS NULL OR d.company_id = $1)
-         ORDER BY t.sort_order;`,
-        [companyId || null]
-      );
-      if (terrRes.rows.length > 0) {
-        masterTerritories = terrRes.rows.map(r => ({ id: r.id, name: r.name }));
-      }
-
-      // Fetch monthly targets from PostgreSQL
-      const tgRes = await (await import('@/shared/database/db')).dbQuery(
-        `SELECT territory_id, SUM(target_quantity) as total_target
-         FROM targets
-         WHERE year = $1 AND month = $2
-           AND ($3::uuid IS NULL OR company_id = $3)
-         GROUP BY territory_id;`,
-        [year, month, companyId || null]
-      );
-      tgRes.rows.forEach(r => {
-        territoryTargets[r.territory_id] = parseFloat(r.total_target || 0);
-      });
-    } catch (err) {
-      logger.warn('Failed to query master territories or targets for reporting', 'ReportingService', { err });
-    }
+    // Resolve master territories from repository
+    let masterTerritories = await reportingRepository.getMasterTerritories(companyId);
 
     // Fallback if no territories resolved only in offline test/demo mode without companyId
     if (masterTerritories.length === 0 && !companyId) {
       masterTerritories = SATKANIA_TERRITORIES.map(t => ({ id: t.id, name: t.name }));
     }
 
-    // Dynamic Working Days for period and company
-    let totalWorkingDays = DEFAULT_WORKING_DAYS;
-    try {
-      const wdRes = await (await import('@/shared/database/db')).dbQuery(
-        `SELECT working_days FROM working_days 
-         WHERE year = $1 AND month = $2 
-           AND ($3::uuid IS NULL OR company_id = $3 OR company_id IS NULL)
-         ORDER BY company_id NULLS LAST LIMIT 1;`,
-        [year, month, companyId || null]
-      );
-      if (wdRes.rows.length > 0 && wdRes.rows[0].working_days) {
-        totalWorkingDays = Number(wdRes.rows[0].working_days);
-      }
-    } catch (err) {
-      logger.warn('Failed to query dynamic working days for reporting', 'ReportingService', { err });
-    }
+    // Resolve targets and working days from repository
+    const territoryTargets = await reportingRepository.getMonthlyTargets(year, month, companyId);
+    const totalWorkingDays = await reportingRepository.getWorkingDays(year, month, companyId);
 
     let totalTarget = 0;
     let totalSales = 0;

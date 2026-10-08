@@ -13,9 +13,9 @@ export class AuditService {
   /**
    * Logs a critical system event.
    */
-  public static async logEvent(props: AuditRecordProps): Promise<string> {
+  public static async logEvent(props: AuditRecordProps & { companyId?: string | null }): Promise<string> {
     const event = new AuditEvent(props);
-    return await auditLogRepository.append(event);
+    return await auditLogRepository.append(event, props.companyId, props.ipAddress);
   }
 
   /**

@@ -6,6 +6,7 @@ import { dbQuery } from '@/shared/database/db';
 import { generateExportFilename } from '@/shared/utils';
 import { logger } from '@/shared/logger';
 import { AUDIT_ACTIONS } from '@/shared/constants';
+import { AuditService } from '@/modules/audit';
 
 export class ExcelExportService {
   /**
@@ -105,21 +106,14 @@ export class ExcelExportService {
     const buffer = await workbookBuilder.buildWorkbook(dailyDataBySheet, reportingDay);
 
     // 3. Centralized Audit Log
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [
-          userId,
-          AUDIT_ACTIONS.EXPORT,
-          'reports',
-          filename,
-          JSON.stringify({ year, month, reportingDay, size: buffer.length }),
-        ]
-      );
-    } catch (auditErr) {
-      logger.warn('Failed to write report export audit log', 'ExcelExportService', { auditErr });
-    }
+    await AuditService.logEvent({
+      userId,
+      companyId: companyId || null,
+      eventType: AUDIT_ACTIONS.EXPORT,
+      entityName: 'reports',
+      entityId: filename,
+      newValues: { year, month, reportingDay, size: buffer.length },
+    });
 
     logger.info(`Monthly 34-sheet report generated: ${filename} (${buffer.length} bytes)`, 'ExcelExportService');
 

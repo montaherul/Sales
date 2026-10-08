@@ -1,8 +1,9 @@
 // Infrastructure: Selective Reporting Repository
-// Aggregates monthly data across sales, stock, and targets
+// Aggregates monthly data across sales, stock, targets, and organizational structure
+// AGENTS1.md Rule 4 & Rule 8 (Data Access Layer)
 
 import { dbQuery } from '@/shared/database/db';
-import { SATKANIA_TERRITORIES } from '@/shared/constants';
+import { SATKANIA_TERRITORIES, DEFAULT_WORKING_DAYS } from '@/shared/constants';
 
 export class ReportingRepository {
   /**
@@ -65,6 +66,71 @@ export class ReportingRepository {
     }
 
     return { territorySales, territoryStock, activeDaysElapsed };
+  }
+
+  /**
+   * Retrieves master territories for reporting with company scoping.
+   */
+  public async getMasterTerritories(companyId?: string): Promise<Array<{ id: string; name: string }>> {
+    try {
+      const terrRes = await dbQuery(
+        `SELECT t.id, t.name 
+         FROM territories t
+         JOIN regions r ON t.region_id = r.id
+         JOIN wings w ON r.wing_id = w.id
+         JOIN divisions d ON w.division_id = d.id
+         WHERE ($1::uuid IS NULL OR d.company_id = $1)
+         ORDER BY t.sort_order;`,
+        [companyId || null]
+      );
+      return terrRes.rows.map((r: any) => ({ id: r.id, name: r.name }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Retrieves monthly targets mapped by territory ID.
+   */
+  public async getMonthlyTargets(year: number, month: number, companyId?: string): Promise<Record<string, number>> {
+    const targets: Record<string, number> = {};
+    try {
+      const tgRes = await dbQuery(
+        `SELECT territory_id, SUM(target_quantity) as total_target
+         FROM targets
+         WHERE year = $1 AND month = $2
+           AND ($3::uuid IS NULL OR company_id = $3)
+         GROUP BY territory_id;`,
+        [year, month, companyId || null]
+      );
+      tgRes.rows.forEach((r: any) => {
+        targets[r.territory_id] = parseFloat(r.total_target || 0);
+      });
+    } catch {
+      // ignore
+    }
+    return targets;
+  }
+
+  /**
+   * Retrieves dynamic working days for period and company.
+   */
+  public async getWorkingDays(year: number, month: number, companyId?: string): Promise<number> {
+    try {
+      const wdRes = await dbQuery(
+        `SELECT working_days FROM working_days 
+         WHERE year = $1 AND month = $2 
+           AND ($3::uuid IS NULL OR company_id = $3 OR company_id IS NULL)
+         ORDER BY company_id NULLS LAST LIMIT 1;`,
+        [year, month, companyId || null]
+      );
+      if (wdRes.rows.length > 0 && wdRes.rows[0].working_days) {
+        return Number(wdRes.rows[0].working_days);
+      }
+    } catch {
+      // ignore
+    }
+    return DEFAULT_WORKING_DAYS;
   }
 }
 

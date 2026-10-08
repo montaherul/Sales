@@ -7,6 +7,7 @@ import { UserAuthContext, validateOrganizationalScope } from '@/shared/authoriza
 import { dbQuery } from '@/shared/database/db';
 import { logger } from '@/shared/logger';
 import { NotFoundError } from '@/shared/errors';
+import { AuditService } from '@/modules/audit';
 
 export interface WorkflowTransitionDTO {
   submissionId: string;
@@ -79,24 +80,15 @@ export class ApprovalService {
     }
 
     // 6. Centralized Audit Log with company_id
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (
-          user_id, event_type, entity_name, entity_id, old_values, new_values, company_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [
-          dto.user.id,
-          dto.action === 'APPROVE' ? AUDIT_ACTIONS.APPROVE : dto.action === 'REJECT' ? AUDIT_ACTIONS.REJECT : dto.action === 'UNLOCK' ? AUDIT_ACTIONS.UNLOCK : AUDIT_ACTIONS.SUBMIT,
-          'daily_submissions',
-          dto.submissionId,
-          JSON.stringify({ status: oldStatus }),
-          JSON.stringify({ status: newStatus, reason: dto.reason }),
-          row.company_id || dto.user.companyId || null,
-        ]
-      );
-    } catch (auditErr) {
-      logger.warn('Audit log write skipped', 'ApprovalService', { auditErr });
-    }
+    await AuditService.logEvent({
+      userId: dto.user.id,
+      companyId: row.company_id || dto.user.companyId || null,
+      eventType: dto.action === 'APPROVE' ? AUDIT_ACTIONS.APPROVE : dto.action === 'REJECT' ? AUDIT_ACTIONS.REJECT : dto.action === 'UNLOCK' ? AUDIT_ACTIONS.UNLOCK : AUDIT_ACTIONS.SUBMIT,
+      entityName: 'daily_submissions',
+      entityId: dto.submissionId,
+      oldValues: { status: oldStatus },
+      newValues: { status: newStatus, reason: dto.reason },
+    });
 
     logger.info(
       `Workflow transition successful: ${dto.submissionId} from ${oldStatus} -> ${newStatus} (${dto.action}) by ${dto.user.email}`,

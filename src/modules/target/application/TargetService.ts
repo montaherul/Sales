@@ -2,14 +2,13 @@
 // Coordinates target settings, monthly quotas, territory scoping, and audit logs
 // AGENTS1.md Rule 4 & Rule 6 (Application / Service Layer)
 
-import { targetRepository, TargetFilterOptions, UpsertTargetData } from '../infrastructure/TargetRepository';
+import { targetRepository, TargetFilterOptions } from '../infrastructure/TargetRepository';
 import { TerritoryBrandTargetItem } from '../domain/types';
 import { UserAuthContext } from '@/shared/authorization';
 import { ROLES, AUDIT_ACTIONS } from '@/shared/constants';
 import { ForbiddenError, ValidationError } from '@/shared/errors';
 import { PaginationHelper, PaginatedResult } from '@/shared/database/pagination';
-import { dbQuery } from '@/shared/database/db';
-import { logger } from '@/shared/logger';
+import { AuditService } from '@/modules/audit';
 
 export interface UpsertTargetDTO {
   territoryId: string;
@@ -98,16 +97,15 @@ export class TargetService {
       companyId: targetCompId,
     });
 
-    // Audit log
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, company_id, event_type, entity_name, entity_id, new_values)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [actor.id, targetCompId, AUDIT_ACTIONS.TARGET_UPDATE, 'targets', saved.id, JSON.stringify(dto)]
-      );
-    } catch (auditErr) {
-      logger.warn('Failed to write target save audit log', 'TargetService', { auditErr });
-    }
+    // Centralized Audit Log
+    await AuditService.logEvent({
+      userId: actor.id,
+      companyId: targetCompId,
+      eventType: AUDIT_ACTIONS.TARGET_UPDATE,
+      entityName: 'targets',
+      entityId: saved.id,
+      newValues: dto,
+    });
 
     return saved;
   }
@@ -134,16 +132,15 @@ export class TargetService {
 
     await targetRepository.deleteTargets(ids);
 
-    // Audit log
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, company_id, event_type, entity_name, entity_id, old_values)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [actor.id, actor.companyId, 'DELETE', 'targets', ids.join(','), JSON.stringify({ deletedIds: ids })]
-      );
-    } catch (auditErr) {
-      logger.warn('Failed to write target delete audit log', 'TargetService', { auditErr });
-    }
+    // Centralized Audit Log
+    await AuditService.logEvent({
+      userId: actor.id,
+      companyId: actor.companyId,
+      eventType: AUDIT_ACTIONS.DELETE,
+      entityName: 'targets',
+      entityId: ids.join(','),
+      oldValues: { deletedIds: ids },
+    });
 
     return ids.length;
   }

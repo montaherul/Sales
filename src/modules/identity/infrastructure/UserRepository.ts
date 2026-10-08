@@ -67,13 +67,13 @@ export class UserRepository {
    */
   public async getUserById(id: string): Promise<any | null> {
     const res = await dbQuery(
-      `SELECT u.id, u.email, u.full_name, u.phone, u.role, u.is_active, u.company_id,
+      `SELECT u.id, u.email, u.full_name, u.phone, r.name as role, u.is_active, s.company_id,
               c.name as company_name, r.name as role_name,
               s.territory_id, s.region_id, t.name as territory_name, reg.name as region_name
        FROM user_profiles u
        LEFT JOIN roles r ON u.role_id = r.id
-       LEFT JOIN companies c ON u.company_id = c.id
        LEFT JOIN user_scopes s ON u.id = s.user_id
+       LEFT JOIN companies c ON s.company_id = c.id
        LEFT JOIN territories t ON s.territory_id = t.id
        LEFT JOIN regions reg ON s.region_id = reg.id
        WHERE u.id = $1 LIMIT 1`,
@@ -87,7 +87,10 @@ export class UserRepository {
    */
   public async getUserByEmail(email: string): Promise<any | null> {
     const res = await dbQuery(
-      `SELECT id, email, full_name, role_id, company_id FROM user_profiles WHERE email = $1 LIMIT 1`,
+      `SELECT u.id, u.email, u.full_name, u.role_id, s.company_id 
+       FROM user_profiles u 
+       LEFT JOIN user_scopes s ON u.id = s.user_id
+       WHERE u.email = $1 LIMIT 1`,
       [email.toLowerCase().trim()]
     );
     return res.rows[0] || null;
@@ -134,17 +137,15 @@ export class UserRepository {
     // 1. Insert user_profile
     await dbQuery(
       `INSERT INTO user_profiles (
-        id, email, password_hash, full_name, phone, role, role_id, company_id, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE)`,
+        id, email, password_hash, full_name, phone, role_id, is_active
+      ) VALUES ($1, $2, $3, $4, $5, $6, TRUE)`,
       [
         data.id,
         data.email.toLowerCase().trim(),
         data.passwordHash,
         data.fullName.trim(),
         data.phone || null,
-        data.roleName,
         data.roleId,
-        data.companyId || null,
       ]
     );
 
@@ -187,14 +188,6 @@ export class UserRepository {
       params.push(data.roleId);
       setClauses.push(`role_id = $${params.length}`);
     }
-    if (data.roleName) {
-      params.push(data.roleName);
-      setClauses.push(`role = $${params.length}`);
-    }
-    if (data.companyId !== undefined) {
-      params.push(data.companyId || null);
-      setClauses.push(`company_id = $${params.length}`);
-    }
     if (data.newPasswordHash) {
       params.push(data.newPasswordHash);
       setClauses.push(`password_hash = $${params.length}`);
@@ -228,9 +221,10 @@ export class UserRepository {
    */
   public async getAllUsers(): Promise<UserEntity[]> {
     const res = await dbQuery(
-      `SELECT u.id, u.email, u.full_name, u.phone, u.role, u.is_active,
-              s.territory_id, s.region_id
+      `SELECT u.id, u.email, u.full_name, u.phone, r.name as role, u.is_active,
+              s.territory_id, s.region_id, s.company_id
        FROM user_profiles u
+       LEFT JOIN roles r ON u.role_id = r.id
        LEFT JOIN user_scopes s ON u.id = s.user_id
        ORDER BY u.created_at ASC`
     );
@@ -248,6 +242,21 @@ export class UserRepository {
   }
 
   /**
+   * Retrieves user roles and companies for deletion permission checks.
+   */
+  public async getUsersForDeletionCheck(ids: string[]): Promise<Array<{ id: string; role_name: string; company_id: string | null }>> {
+    const res = await dbQuery(
+      `SELECT u.id, s.company_id, r.name as role_name 
+       FROM user_profiles u 
+       LEFT JOIN user_scopes s ON u.id = s.user_id
+       LEFT JOIN roles r ON u.role_id = r.id 
+       WHERE u.id = ANY($1::uuid[])`,
+      [ids]
+    );
+    return res.rows;
+  }
+
+  /**
    * Retrieves user authentication context via stored procedure sp_get_user_for_auth.
    */
   public async getUserForAuth(email: string): Promise<any> {
@@ -262,39 +271,6 @@ export class UserRepository {
     await dbQuery('UPDATE user_profiles SET last_login_at = NOW() WHERE id = $1', [userId]);
   }
 
-  /**
-   * Auto-provisions verified Google identity for pre-authorized access.
-   */
-  public async autoProvisionGoogleUser(email: string): Promise<any> {
-    const roleRes = await dbQuery("SELECT id FROM roles WHERE name = 'SUPER_ADMIN' LIMIT 1");
-    const superAdminRoleId = roleRes.rows[0]?.id;
-    const compRes = await dbQuery("SELECT id, name FROM companies ORDER BY created_at ASC LIMIT 1");
-    const defaultCompany = compRes.rows[0];
-
-    if (superAdminRoleId && defaultCompany) {
-      const fullName = email.split('@')[0];
-      const insertUser = await dbQuery(
-        `INSERT INTO user_profiles (email, full_name, role_id, is_active, is_onboarded, must_change_password)
-         VALUES ($1, $2, $3, true, true, false)
-         ON CONFLICT (email) DO UPDATE SET is_active = true
-         RETURNING id`,
-        [email, fullName, superAdminRoleId]
-      );
-      const newUserId = insertUser.rows[0]?.id;
-
-      if (newUserId) {
-        await dbQuery(
-          `INSERT INTO user_scopes (user_id, company_id)
-           VALUES ($1, $2)
-           ON CONFLICT (user_id) DO NOTHING`,
-          [newUserId, defaultCompany.id]
-        );
-
-        return await this.getUserForAuth(email);
-      }
-    }
-    return null;
-  }
 
   /**
    * Completes onboarding by saving password hash and profile details.

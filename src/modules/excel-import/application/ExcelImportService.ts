@@ -139,4 +139,50 @@ export class ExcelImportService {
   ): Promise<{ importedCount: number; batchId: string }> {
     return await importRepository.commitBatch(stagedRecords, filename, userId);
   }
+
+  /**
+   * Commits validated operational records with tenant scoping and audit trail.
+   */
+  public static async commitRecords(
+    records: any[],
+    fileName: string,
+    actor: any,
+    companyId?: string | null
+  ): Promise<{ savedRecords: any[]; count: number }> {
+    if (!records || !records.length) {
+      throw new ValidationError('No records to commit');
+    }
+
+    const { SubmissionRepository } = await import('@/lib/repositories/submission.repository');
+    const tenantCompanyId = actor.role !== 'SUPER_ADMIN' && actor.companyId ? actor.companyId : (companyId || null);
+
+    const savedRecords: any[] = [];
+    for (const rec of records) {
+      if (tenantCompanyId && !rec.companyId) {
+        rec.companyId = tenantCompanyId;
+      }
+      const saved = await SubmissionRepository.saveSubmission(
+        rec,
+        actor.id,
+        `Imported from XLSX file: ${fileName || 'bulk import'}`
+      );
+      savedRecords.push(saved);
+    }
+
+    await SubmissionRepository.recordAuditLog(
+      'IMPORT_COMMIT',
+      actor.id,
+      'daily_submissions',
+      fileName || 'bulk-import',
+      undefined,
+      {
+        fileName,
+        importedCount: savedRecords.length,
+        companyId: tenantCompanyId,
+        timestamp: new Date().toISOString(),
+      }
+    );
+
+    return { savedRecords, count: savedRecords.length };
+  }
 }

@@ -49,13 +49,13 @@ export class AuditLogRepository {
   /**
    * Appends an immutable audit event to audit_logs.
    */
-  public async append(event: AuditEvent): Promise<string> {
+  public async append(event: AuditEvent, companyId?: string | null, ipAddress?: string | null): Promise<string> {
     const id = `audit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
     try {
       await dbQuery(
-        `INSERT INTO audit_logs (id, user_id, event_type, entity_name, entity_id, old_values, new_values, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        `INSERT INTO audit_logs (id, user_id, event_type, entity_name, entity_id, old_values, new_values, created_at, company_id, ip_address)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [
           id,
           event.userId,
@@ -65,6 +65,8 @@ export class AuditLogRepository {
           event.oldValues ? JSON.stringify(event.oldValues) : null,
           event.newValues ? JSON.stringify(event.newValues) : null,
           event.timestamp,
+          companyId || null,
+          ipAddress || null,
         ]
       );
       return id;

@@ -1,5 +1,5 @@
 // Application: Product Service
-// Coordinates brand management workflows, pricing, tenant boundaries, and audit logs
+// Coordinates brand management, unit prices, and multi-tenant scoping
 // AGENTS1.md Rule 4 & Rule 6 (Application / Service Layer)
 
 import { productRepository, BrandFilterOptions } from '../infrastructure/ProductRepository';
@@ -7,26 +7,24 @@ import { UserAuthContext } from '@/shared/authorization';
 import { ROLES, AUDIT_ACTIONS } from '@/shared/constants';
 import { ForbiddenError, ValidationError, NotFoundError } from '@/shared/errors';
 import { PaginationHelper, PaginatedResult } from '@/shared/database/pagination';
-import { dbQuery } from '@/shared/database/db';
-import { logger } from '@/shared/logger';
-import { BrandCatalogItem } from '../domain/types';
+import { AuditService } from '@/modules/audit';
 
 export interface CreateBrandDTO {
   name: string;
-  type: string;
-  unitPrice?: number;
+  type: 'CIGARETTE' | 'ZARDA';
   sortOrder?: number;
   companyId?: string | null;
+  unitPrice?: number;
 }
 
 export interface UpdateBrandDTO {
   id: string;
   name?: string;
-  type?: string;
-  unitPrice?: number;
+  type?: 'CIGARETTE' | 'ZARDA';
   sortOrder?: number;
   isActive?: boolean;
   companyId?: string | null;
+  unitPrice?: number;
 }
 
 export class ProductService {
@@ -34,86 +32,81 @@ export class ProductService {
    * Retrieves paginated brands with tenant scoping.
    */
   public static async getBrandsPaginated(
-    options: BrandFilterOptions,
+    options: Omit<BrandFilterOptions, 'companyId'> & { companyIdParam?: string | null },
     actor: UserAuthContext
   ): Promise<PaginatedResult<any>> {
-    let targetCompanyId = actor.role === ROLES.SUPER_ADMIN
-      ? (options.companyId && options.companyId !== 'ALL' ? options.companyId : null)
+    const targetCompanyId = actor.role === ROLES.SUPER_ADMIN
+      ? (options.companyIdParam && options.companyIdParam !== 'ALL' ? options.companyIdParam : null)
       : (actor.companyId || null);
 
     return await productRepository.getPaginatedBrands({
-      ...options,
+      page: options.page,
+      pageSize: options.pageSize,
+      search: options.search,
+      type: options.type,
       companyId: targetCompanyId,
+      sortBy: options.sortBy,
+      sortOrder: options.sortOrder,
     });
   }
 
   /**
-   * Exports brands as CSV.
+   * Generates CSV export for brands.
    */
   public static async exportBrandsCsv(
-    options: BrandFilterOptions,
+    options: Omit<BrandFilterOptions, 'companyId'> & { companyIdParam?: string | null },
     actor: UserAuthContext
   ): Promise<string> {
     const result = await this.getBrandsPaginated({ ...options, pageSize: -1 }, actor);
     return PaginationHelper.toCsv(result.data, {
       id: 'Brand ID',
       name: 'Brand Name',
-      type: 'Product Category',
+      type: 'Product Type',
       company_name: 'Company',
-      unit_price: 'Unit Price (BDT)',
+      current_price: 'Unit Price (BDT)',
       sort_order: 'Display Order',
       is_active: 'Active Status',
-      effective_from: 'Effective Date',
+      created_at: 'Created Date',
     });
   }
 
   /**
-   * Retrieves brands catalog list.
-   */
-  public static async getBrands(): Promise<BrandCatalogItem[]> {
-    return await productRepository.getBrands();
-  }
-
-  /**
-   * Creates a new brand with pricing and audit logging.
+   * Creates a new brand and initial price.
    */
   public static async createBrand(dto: CreateBrandDTO, actor: UserAuthContext): Promise<any> {
     if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
       throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can create brands');
     }
 
-    if (!dto.name || !dto.name.trim()) throw new ValidationError('Brand name is required');
-    if (!dto.type) throw new ValidationError('Product type (CIGARETTE or ZARDA) is required');
+    if (!dto.name || !dto.name.trim()) throw new ValidationError('Brand Name is required');
+    if (!dto.type) throw new ValidationError('Brand Type is required (CIGARETTE or ZARDA)');
 
-    const brandCompanyId = actor.role === ROLES.COMPANY_ADMIN
-      ? actor.companyId
-      : (dto.companyId && dto.companyId !== 'ALL' ? dto.companyId : actor.companyId);
+    const brandCompanyId = actor.role === ROLES.SUPER_ADMIN
+      ? (dto.companyId || null)
+      : actor.companyId;
+
+    const existing = await productRepository.getBrandByNameAndCompany(dto.name.trim(), brandCompanyId);
+    if (existing) {
+      throw new ValidationError(`Brand "${dto.name}" already exists in this scope`);
+    }
 
     const newBrand = await productRepository.createBrand(
-      dto.name,
+      dto.name.trim(),
       dto.type,
       dto.sortOrder || 0,
       brandCompanyId,
       dto.unitPrice
     );
 
-    // Audit Logging
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, company_id, event_type, entity_name, entity_id, new_values)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          actor.id,
-          brandCompanyId || null,
-          AUDIT_ACTIONS.CREATE,
-          'brands',
-          newBrand.id,
-          JSON.stringify(newBrand),
-        ]
-      );
-    } catch (auditErr) {
-      logger.warn('Failed to write brand creation audit log', 'ProductService', { auditErr });
-    }
+    // Centralized Audit Log
+    await AuditService.logEvent({
+      userId: actor.id,
+      companyId: brandCompanyId || null,
+      eventType: AUDIT_ACTIONS.CREATE,
+      entityName: 'brands',
+      entityId: newBrand.id,
+      newValues: newBrand,
+    });
 
     return newBrand;
   }
@@ -126,8 +119,6 @@ export class ProductService {
       throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can update brands');
     }
 
-    if (!dto.id) throw new ValidationError('Brand ID is required');
-
     const existing = await productRepository.getBrandById(dto.id);
     if (!existing) {
       throw new NotFoundError('Brand not found');
@@ -137,9 +128,16 @@ export class ProductService {
       throw new ForbiddenError('You can only update brands within your company');
     }
 
+    if (dto.name && dto.name.trim().toLowerCase() !== existing.name.toLowerCase()) {
+      const duplicate = await productRepository.getBrandByNameAndCompany(dto.name.trim(), existing.company_id);
+      if (duplicate && duplicate.id !== dto.id) {
+        throw new ValidationError(`Brand name "${dto.name}" is already taken`);
+      }
+    }
+
     const updated = await productRepository.updateBrand(
       dto.id,
-      dto.name,
+      dto.name ? dto.name.trim() : undefined,
       dto.type,
       dto.sortOrder,
       dto.isActive,
@@ -147,24 +145,16 @@ export class ProductService {
       dto.companyId
     );
 
-    // Audit Logging
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, company_id, event_type, entity_name, entity_id, old_values, new_values)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [
-          actor.id,
-          existing.company_id || null,
-          AUDIT_ACTIONS.UPDATE,
-          'brands',
-          dto.id,
-          JSON.stringify(existing),
-          JSON.stringify(updated),
-        ]
-      );
-    } catch (auditErr) {
-      logger.warn('Failed to write brand update audit log', 'ProductService', { auditErr });
-    }
+    // Centralized Audit Log
+    await AuditService.logEvent({
+      userId: actor.id,
+      companyId: existing.company_id || null,
+      eventType: AUDIT_ACTIONS.UPDATE,
+      entityName: 'brands',
+      entityId: dto.id,
+      oldValues: existing,
+      newValues: updated,
+    });
 
     return updated;
   }
@@ -192,16 +182,15 @@ export class ProductService {
 
     await productRepository.deleteBrands(ids);
 
-    // Audit Logging
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, company_id, event_type, entity_name, entity_id, old_values)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [actor.id, actor.companyId || null, AUDIT_ACTIONS.DELETE, 'brands', ids.join(','), JSON.stringify({ deletedIds: ids })]
-      );
-    } catch (auditErr) {
-      logger.warn('Failed to write brand deletion audit log', 'ProductService', { auditErr });
-    }
+    // Centralized Audit Log
+    await AuditService.logEvent({
+      userId: actor.id,
+      companyId: actor.companyId || null,
+      eventType: AUDIT_ACTIONS.DELETE,
+      entityName: 'brands',
+      entityId: ids.join(','),
+      oldValues: { deletedIds: ids },
+    });
 
     return ids.length;
   }

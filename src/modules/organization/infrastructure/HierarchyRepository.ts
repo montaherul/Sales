@@ -15,6 +15,8 @@ export interface HierarchyFilterOptions {
   sortOrder?: 'asc' | 'desc';
 }
 
+export type TerritoryFilterOptions = HierarchyFilterOptions;
+
 export class HierarchyRepository {
   /**
    * Queries paginated territories using stored procedure sp_get_territories_paginated.

@@ -11,6 +11,7 @@ import { ForbiddenError, ValidationError, NotFoundError } from '@/shared/errors'
 import { PaginationHelper, PaginatedResult } from '@/shared/database/pagination';
 import { dbQuery } from '@/shared/database/db';
 import { logger } from '@/shared/logger';
+import { AuditService } from '@/modules/audit';
 
 export interface CreateCompanyDTO {
   name: string;
@@ -172,23 +173,15 @@ export class CompanyService {
       }
     }
 
-    // Audit Logging
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values, company_id)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          actor.id,
-          AUDIT_ACTIONS.CREATE,
-          'companies',
-          companyId,
-          JSON.stringify({ name: dto.name, code: cleanCode, plan: dto.plan }),
-          companyId,
-        ]
-      );
-    } catch (auditErr) {
-      logger.warn('Failed to write company creation audit log', 'CompanyService', { auditErr });
-    }
+    // Centralized Audit Log
+    await AuditService.logEvent({
+      userId: actor.id,
+      companyId,
+      eventType: AUDIT_ACTIONS.CREATE,
+      entityName: 'companies',
+      entityId: companyId,
+      newValues: { name: dto.name, code: cleanCode, plan: dto.plan },
+    });
 
     return { ...newCompany, createdAdminUser };
   }
@@ -215,24 +208,16 @@ export class CompanyService {
 
     const updated = await companyRepository.updateCompany(dto);
 
-    // Audit Logging
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, old_values, new_values, company_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [
-          actor.id,
-          AUDIT_ACTIONS.UPDATE,
-          'companies',
-          dto.id,
-          JSON.stringify({ name: existing.name, status: existing.status }),
-          JSON.stringify({ name: dto.name, status: dto.status }),
-          dto.id,
-        ]
-      );
-    } catch (auditErr) {
-      logger.warn('Failed to write company update audit log', 'CompanyService', { auditErr });
-    }
+    // Centralized Audit Log
+    await AuditService.logEvent({
+      userId: actor.id,
+      companyId: dto.id,
+      eventType: AUDIT_ACTIONS.UPDATE,
+      entityName: 'companies',
+      entityId: dto.id,
+      oldValues: { name: existing.name, status: existing.status },
+      newValues: { name: dto.name, status: dto.status },
+    });
 
     return updated;
   }
@@ -251,16 +236,15 @@ export class CompanyService {
 
     await companyRepository.deleteCompanies(ids);
 
-    // Audit Logging
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, old_values)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [actor.id, AUDIT_ACTIONS.DELETE, 'companies', ids.join(','), JSON.stringify({ deletedIds: ids })]
-      );
-    } catch (auditErr) {
-      logger.warn('Failed to write company delete audit log', 'CompanyService', { auditErr });
-    }
+    // Centralized Audit Log
+    await AuditService.logEvent({
+      userId: actor.id,
+      companyId: actor.companyId || null,
+      eventType: AUDIT_ACTIONS.DELETE,
+      entityName: 'companies',
+      entityId: ids.join(','),
+      oldValues: { deletedIds: ids },
+    });
 
     return ids.length;
   }

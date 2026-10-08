@@ -1,13 +1,13 @@
 // Application: Google Sheets Use Cases
 // Orchestrates Google Sheets API v4 synchronization, Super Admin authorization, and audit logging
 // Architecture: Database -> Calculation Engine -> Web App -> XLSX Export -> Google Sheets -> Google Drive
+// AGENTS1.md Rule 4 & Rule 6 (Application / Service Layer)
 
 import { googleSheetsAdapter, GoogleSheetsSyncResult } from '@/infrastructure/google/GoogleSheetsAdapter';
 import { UserAuthContext } from '@/shared/authorization';
 import { ROLES, AUDIT_ACTIONS } from '@/shared/constants';
 import { ForbiddenError } from '@/shared/errors';
-import { dbQuery } from '@/shared/database/db';
-import { logger } from '@/shared/logger';
+import { AuditService } from '@/modules/audit';
 
 export interface GoogleSheetsSyncRequestDTO {
   year: number;
@@ -42,29 +42,21 @@ export class GoogleSheetsService {
     });
 
     // 3. Centralized Audit Log
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values, company_id)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          dto.user.id,
-          AUDIT_ACTIONS.UPDATE,
-          'google_sheet_syncs',
-          result.syncId || null,
-          JSON.stringify({
-            spreadsheetId: result.spreadsheetId,
-            spreadsheetUrl: result.spreadsheetUrl,
-            year: result.year,
-            month: result.month,
-            recordsSynced: result.recordsSynced,
-            status: result.status,
-          }),
-          targetCompanyId,
-        ]
-      );
-    } catch (auditErr) {
-      logger.warn('Audit log write skipped in Google Sheets sync', 'GoogleSheetsService', { auditErr });
-    }
+    await AuditService.logEvent({
+      userId: dto.user.id,
+      companyId: targetCompanyId,
+      eventType: AUDIT_ACTIONS.UPDATE,
+      entityName: 'google_sheet_syncs',
+      entityId: result.syncId || '',
+      newValues: {
+        spreadsheetId: result.spreadsheetId,
+        spreadsheetUrl: result.spreadsheetUrl,
+        year: result.year,
+        month: result.month,
+        recordsSynced: result.recordsSynced,
+        status: result.status,
+      },
+    });
 
     return result;
   }

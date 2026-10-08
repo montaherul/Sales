@@ -49,6 +49,14 @@ export class RoleRepository {
   }
 
   /**
+   * Retrieves roles by array of IDs.
+   */
+  public async getRolesByIds(ids: string[]): Promise<Array<{ id: string; name: string; is_system_role: boolean }>> {
+    const res = await dbQuery('SELECT id, name, is_system_role FROM roles WHERE id = ANY($1::uuid[])', [ids]);
+    return res.rows;
+  }
+
+  /**
    * Inserts a new role.
    */
   public async createRole(name: string, description?: string, companyId?: string | null): Promise<any> {
@@ -75,6 +83,21 @@ export class RoleRepository {
       [id, description || null, companyId || null]
     );
     return res.rows[0];
+  }
+
+  /**
+   * Assigns permission keys to a role.
+   */
+  public async assignPermissionsToRole(roleId: string, permissions: string[]): Promise<void> {
+    await dbQuery('DELETE FROM role_permissions WHERE role_id = $1', [roleId]);
+    for (const perm of permissions) {
+      await dbQuery(
+        `INSERT INTO role_permissions (role_id, permission_id)
+         SELECT $1, id FROM permissions WHERE name = $2
+         ON CONFLICT DO NOTHING`,
+        [roleId, perm]
+      );
+    }
   }
 
   /**

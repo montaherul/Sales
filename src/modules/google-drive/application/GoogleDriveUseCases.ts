@@ -1,13 +1,13 @@
 // Application: Google Drive Use Cases
 // Super Admin cloud archival with SHA-256 checksum, versioning, and audit logging
+// AGENTS1.md Rule 4 & Rule 6 (Application / Service Layer)
 
 import { googleDriveAdapter, DriveUploadResult } from '@/infrastructure/google/GoogleDriveAdapter';
 import { ExcelExportService } from '@/modules/excel-export';
 import { UserAuthContext } from '@/shared/authorization';
 import { ROLES, AUDIT_ACTIONS } from '@/shared/constants';
 import { ForbiddenError } from '@/shared/errors';
-import { dbQuery } from '@/shared/database/db';
-import { logger } from '@/shared/logger';
+import { AuditService } from '@/modules/audit';
 
 export interface DriveArchiveRequestDTO {
   year: number;
@@ -47,26 +47,18 @@ export class GoogleDriveService {
     });
 
     // 4. Centralized Audit Log
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values, company_id)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          dto.user.id,
-          AUDIT_ACTIONS.GOOGLE_UPLOAD,
-          'google_drive_files',
-          uploadResult.fileId,
-          JSON.stringify({
-            fileName: uploadResult.fileName,
-            folder: uploadResult.folderPath,
-            checksum: uploadResult.checksum,
-          }),
-          dto.user.companyId || null,
-        ]
-      );
-    } catch (auditErr) {
-      logger.warn('Audit log write skipped in Google Drive upload', 'GoogleDriveService', { auditErr });
-    }
+    await AuditService.logEvent({
+      userId: dto.user.id,
+      companyId: dto.user.companyId || null,
+      eventType: AUDIT_ACTIONS.GOOGLE_UPLOAD,
+      entityName: 'google_drive_files',
+      entityId: uploadResult.fileId,
+      newValues: {
+        fileName: uploadResult.fileName,
+        folder: uploadResult.folderPath,
+        checksum: uploadResult.checksum,
+      },
+    });
 
     return uploadResult;
   }

@@ -9,7 +9,7 @@ import { UserAuthContext } from '@/shared/authorization';
 import { ROLES, AUDIT_ACTIONS } from '@/shared/constants';
 import { ForbiddenError, ValidationError, NotFoundError } from '@/shared/errors';
 import { PaginationHelper, PaginatedResult } from '@/shared/database/pagination';
-import { dbQuery } from '@/shared/database/db';
+import { AuditService } from '@/modules/audit';
 import { logger } from '@/shared/logger';
 
 export interface CreateUserDTO {
@@ -69,7 +69,7 @@ export class IdentityService {
       full_name: 'Full Name',
       email: 'Email',
       phone: 'Phone',
-      role_name: 'Role',
+      role: 'Role',
       company_name: 'Company',
       region_name: 'Region',
       territory_name: 'Territory',
@@ -79,64 +79,68 @@ export class IdentityService {
   }
 
   /**
-   * Creates a new user with role validation, hierarchy auto-resolution, and audit logging.
+   * Creates a user with hierarchical scope auto-resolution and tenant protection.
    */
   public static async createUser(dto: CreateUserDTO, actor: UserAuthContext): Promise<string> {
-    // 1. Authorization check
+    // 1. Role validation
     if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
       throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can create users');
     }
 
-    if (!dto.email || !dto.fullName || !dto.roleName) {
-      throw new ValidationError('Email, Full Name, and Role are mandatory');
-    }
-
     if (actor.role === ROLES.COMPANY_ADMIN && dto.roleName === ROLES.SUPER_ADMIN) {
-      throw new ForbiddenError('Company Admin cannot create SUPER_ADMIN users');
+      throw new ForbiddenError('Company Administrators cannot provision Super Admin accounts');
     }
 
-    // 2. Resolve Role ID
+    if (!dto.email || !dto.email.trim()) throw new ValidationError('Email is required');
+    if (!dto.fullName || !dto.fullName.trim()) throw new ValidationError('Full Name is required');
+    if (!dto.roleName) throw new ValidationError('Role is required');
+
+    const cleanEmail = dto.email.trim().toLowerCase();
+
+    // 2. Duplicate email check
+    const existingUser = await userRepository.getUserByEmail(cleanEmail);
+    if (existingUser) {
+      throw new ValidationError(`User with email "${cleanEmail}" already exists`);
+    }
+
+    // 3. Resolve Role entity
     const role = await userRepository.getRoleByName(dto.roleName);
     if (!role) {
       throw new ValidationError(`Role "${dto.roleName}" does not exist`);
     }
 
-    // 3. Duplicate Email Check
-    const existingUser = await userRepository.getUserByEmail(dto.email);
-    if (existingUser) {
-      throw new ValidationError(`User with email "${dto.email}" already exists`);
-    }
-
-    // 4. Hierarchical Scope Resolution
-    let finalCompanyId = dto.companyId || null;
-    let finalRegionId = dto.regionId || null;
-    const finalTerritoryId = dto.territoryId || null;
-
-    if (actor.role === ROLES.COMPANY_ADMIN) {
+    // 4. Resolve Tenant Company ID
+    let finalCompanyId: string | null = null;
+    if (actor.role === ROLES.SUPER_ADMIN) {
+      finalCompanyId = dto.companyId && dto.companyId !== 'ALL' ? dto.companyId : null;
+    } else {
       finalCompanyId = actor.companyId || null;
     }
 
+    // 5. Hierarchical Scope Auto-Resolution
+    let finalTerritoryId = dto.territoryId && dto.territoryId !== 'ALL' ? dto.territoryId : null;
+    let finalRegionId = dto.regionId && dto.regionId !== 'ALL' ? dto.regionId : null;
+
     if (finalTerritoryId) {
-      const resolved = await userRepository.resolveHierarchyFromTerritory(finalTerritoryId);
-      if (resolved) {
-        finalRegionId = resolved.regionId;
-        if (!finalCompanyId) finalCompanyId = resolved.companyId;
+      const hierarchy = await userRepository.resolveHierarchyFromTerritory(finalTerritoryId);
+      if (hierarchy) {
+        finalRegionId = hierarchy.regionId;
+        if (!finalCompanyId) finalCompanyId = hierarchy.companyId;
       }
-    } else if (finalRegionId && !finalCompanyId) {
-      finalCompanyId = await userRepository.resolveCompanyFromRegion(finalRegionId);
+    } else if (finalRegionId) {
+      const regComp = await userRepository.resolveCompanyFromRegion(finalRegionId);
+      if (regComp && !finalCompanyId) finalCompanyId = regComp;
     }
 
-    // 5. Password Hashing
-    const rawPassword = dto.password || '123';
-    const passwordHash = await bcrypt.hash(rawPassword, 10);
+    // 6. Password Hash & Persistence
+    const passwordHash = await bcrypt.hash(dto.password || '123', 10);
     const userId = crypto.randomUUID();
 
-    // 6. Persistence via Repository
     await userRepository.createUser({
       id: userId,
-      email: dto.email,
+      email: cleanEmail,
       passwordHash,
-      fullName: dto.fullName,
+      fullName: dto.fullName.trim(),
       phone: dto.phone,
       roleId: role.id,
       roleName: dto.roleName,
@@ -145,28 +149,20 @@ export class IdentityService {
       regionId: finalRegionId,
     });
 
-    // 7. Audit Logging
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values, company_id)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          actor.id,
-          AUDIT_ACTIONS.CREATE,
-          'user_profiles',
-          userId,
-          JSON.stringify({
-            email: dto.email,
-            fullName: dto.fullName,
-            role: dto.roleName,
-            companyId: finalCompanyId,
-          }),
-          finalCompanyId,
-        ]
-      );
-    } catch (auditErr) {
-      logger.warn('Failed to write user creation audit log', 'IdentityService', { auditErr });
-    }
+    // 7. Centralized Audit Log
+    await AuditService.logEvent({
+      userId: actor.id,
+      companyId: finalCompanyId,
+      eventType: AUDIT_ACTIONS.CREATE,
+      entityName: 'user_profiles',
+      entityId: userId,
+      newValues: {
+        email: dto.email,
+        fullName: dto.fullName,
+        role: dto.roleName,
+        companyId: finalCompanyId,
+      },
+    });
 
     logger.info(`User created successfully: ${dto.email} (${dto.roleName}) by ${actor.email}`, 'IdentityService');
     return userId;
@@ -181,110 +177,81 @@ export class IdentityService {
       throw new NotFoundError('User not found');
     }
 
-    // Authorization & Scope Enforcement
+    // Tenant check
     if (actor.role !== ROLES.SUPER_ADMIN) {
       if (existing.company_id !== actor.companyId) {
-        throw new ForbiddenError('You can only modify users within your assigned company');
+        throw new ForbiddenError('You can only update users within your assigned company');
       }
-      if (existing.role_name === ROLES.SUPER_ADMIN) {
-        throw new ForbiddenError('Cannot modify Super Admin accounts');
-      }
-      if (dto.roleName === ROLES.SUPER_ADMIN) {
-        throw new ForbiddenError('Cannot elevate user to Super Admin');
+      if (existing.role === ROLES.SUPER_ADMIN || dto.roleName === ROLES.SUPER_ADMIN) {
+        throw new ForbiddenError('Company Administrators cannot modify Super Admin accounts');
       }
     }
 
-    let roleId: string | undefined = undefined;
+    let roleId: string | undefined;
     if (dto.roleName) {
       const role = await userRepository.getRoleByName(dto.roleName);
       if (!role) throw new ValidationError(`Role "${dto.roleName}" does not exist`);
       roleId = role.id;
     }
 
-    // Hierarchical resolution
-    let finalCompanyId = dto.companyId;
-    let finalRegionId = dto.regionId;
-    const finalTerritoryId = dto.territoryId;
+    let passwordHash: string | undefined;
+    if (dto.password && dto.password.trim().length > 0) {
+      passwordHash = await bcrypt.hash(dto.password, 10);
+    }
 
-    if (finalTerritoryId) {
-      const resolved = await userRepository.resolveHierarchyFromTerritory(finalTerritoryId);
-      if (resolved) {
-        finalRegionId = resolved.regionId;
-        if (!finalCompanyId) finalCompanyId = resolved.companyId;
+    // Hierarchical resolution on scope update
+    let finalTerritoryId = dto.territoryId !== undefined ? (dto.territoryId && dto.territoryId !== 'ALL' ? dto.territoryId : null) : existing.territory_id;
+    let finalRegionId = dto.regionId !== undefined ? (dto.regionId && dto.regionId !== 'ALL' ? dto.regionId : null) : existing.region_id;
+    let finalCompanyId = dto.companyId !== undefined ? (dto.companyId && dto.companyId !== 'ALL' ? dto.companyId : null) : existing.company_id;
+
+    if (dto.territoryId && dto.territoryId !== 'ALL') {
+      const hierarchy = await userRepository.resolveHierarchyFromTerritory(dto.territoryId);
+      if (hierarchy) {
+        finalRegionId = hierarchy.regionId;
+        if (actor.role === ROLES.SUPER_ADMIN && !finalCompanyId) finalCompanyId = hierarchy.companyId;
       }
     }
 
-    let newPasswordHash: string | undefined = undefined;
-    if (dto.password && dto.password.trim().length > 0) {
-      newPasswordHash = await bcrypt.hash(dto.password.trim(), 10);
-    }
-
-    // Update via Repository
     await userRepository.updateUser({
       id: dto.id,
       fullName: dto.fullName,
       phone: dto.phone,
-      isActive: dto.isActive,
       roleId,
-      roleName: dto.roleName,
-      companyId: finalCompanyId,
+      isActive: dto.isActive,
+      newPasswordHash: passwordHash,
       territoryId: finalTerritoryId,
       regionId: finalRegionId,
-      newPasswordHash,
+      companyId: finalCompanyId,
     });
 
-    // Audit Logging
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, old_values, new_values, company_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [
-          actor.id,
-          AUDIT_ACTIONS.UPDATE,
-          'user_profiles',
-          dto.id,
-          JSON.stringify({
-            fullName: existing.full_name,
-            role: existing.role_name,
-            companyId: existing.company_id,
-          }),
-          JSON.stringify({
-            fullName: dto.fullName,
-            role: dto.roleName,
-            companyId: finalCompanyId,
-          }),
-          finalCompanyId || existing.company_id,
-        ]
-      );
-    } catch (auditErr) {
-      logger.warn('Failed to write user update audit log', 'IdentityService', { auditErr });
-    }
+    // Centralized Audit Log
+    await AuditService.logEvent({
+      userId: actor.id,
+      companyId: finalCompanyId || existing.company_id,
+      eventType: AUDIT_ACTIONS.UPDATE,
+      entityName: 'user_profiles',
+      entityId: dto.id,
+      oldValues: { fullName: existing.full_name, role: existing.role, isActive: existing.is_active },
+      newValues: { fullName: dto.fullName, role: dto.roleName, isActive: dto.isActive },
+    });
   }
 
   /**
-   * Deletes users with cross-tenant guards and self-deletion prevention.
+   * Deletes users with tenant and system role protection.
    */
   public static async deleteUsers(ids: string[], actor: UserAuthContext): Promise<number> {
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
+      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can delete users');
+    }
+
     if (ids.length === 0) {
       throw new ValidationError('At least one User ID is required');
     }
 
-    if (ids.includes(actor.id)) {
-      throw new ForbiddenError('You cannot delete your own account');
-    }
-
     // Check target users
-    const targetUsersRes = await dbQuery(
-      `SELECT u.id, u.role, u.company_id, r.name as role_name 
-       FROM user_profiles u 
-       LEFT JOIN roles r ON u.role_id = r.id 
-       WHERE u.id = ANY($1::uuid[])`,
-      [ids]
-    );
+    const targetUsers = await userRepository.getUsersForDeletionCheck(ids);
 
-    const targetUsers = targetUsersRes.rows;
-
-    if (targetUsers.some((u: any) => u.role_name === ROLES.SUPER_ADMIN || u.role === ROLES.SUPER_ADMIN)) {
+    if (targetUsers.some((u: any) => u.role_name === ROLES.SUPER_ADMIN)) {
       throw new ForbiddenError('Super Admin accounts cannot be deleted');
     }
 
@@ -297,23 +264,15 @@ export class IdentityService {
 
     await userRepository.deleteUsers(ids);
 
-    // Audit Logging
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, old_values, company_id)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          actor.id,
-          AUDIT_ACTIONS.DELETE,
-          'user_profiles',
-          ids.join(','),
-          JSON.stringify({ deletedIds: ids }),
-          actor.companyId || null,
-        ]
-      );
-    } catch (auditErr) {
-      logger.warn('Failed to write user delete audit log', 'IdentityService', { auditErr });
-    }
+    // Centralized Audit Log
+    await AuditService.logEvent({
+      userId: actor.id,
+      companyId: actor.companyId || null,
+      eventType: AUDIT_ACTIONS.DELETE,
+      entityName: 'user_profiles',
+      entityId: ids.join(','),
+      oldValues: { deletedIds: ids },
+    });
 
     return ids.length;
   }
@@ -360,20 +319,16 @@ export class IdentityService {
       isOnboarded: user.isOnboarded,
     };
 
-    // Audit log
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values, ip_address)
-         VALUES ($1, 'AUTH_LOGIN', 'user_profiles', $1, $2, $3)`,
-        [
-          user.id,
-          JSON.stringify({ email: user.email, role: user.role, timestamp: new Date().toISOString() }),
-          ipAddress || '127.0.0.1',
-        ]
-      );
-    } catch (auditErr) {
-      logger.warn('Audit log failed for login', 'IdentityService', { auditErr });
-    }
+    // Centralized Audit Log
+    await AuditService.logEvent({
+      userId: user.id,
+      companyId: user.companyId || null,
+      eventType: 'AUTH_LOGIN',
+      entityName: 'user_profiles',
+      entityId: user.id,
+      newValues: { email: user.email, role: user.role, timestamp: new Date().toISOString() },
+      ipAddress: ipAddress || '127.0.0.1',
+    });
 
     return { sessionUser, user };
   }
@@ -390,11 +345,7 @@ export class IdentityService {
     let user = await userRepository.getUserForAuth(cleanEmail);
 
     if (!user) {
-      logger.info(`Auto-provisioning verified Google user via bridge: ${cleanEmail}`, 'IdentityService');
-      user = await userRepository.autoProvisionGoogleUser(cleanEmail);
-      if (!user) {
-        throw new ForbiddenError(`Google account (${cleanEmail}) could not be provisioned. Please contact your Super Administrator.`);
-      }
+      throw new ForbiddenError(`Google account (${cleanEmail}) is not pre-registered. Please contact your Super Administrator.`);
     }
 
     if (!user.isActive) {
@@ -419,20 +370,16 @@ export class IdentityService {
       isOnboarded: user.isOnboarded,
     };
 
-    // Audit log
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values, ip_address)
-         VALUES ($1, 'AUTH_GOOGLE_SIGNIN', 'user_profiles', $1, $2, $3)`,
-        [
-          user.id,
-          JSON.stringify({ email: user.email, role: user.role, provider: 'google', timestamp: new Date().toISOString() }),
-          ipAddress || '127.0.0.1',
-        ]
-      );
-    } catch (auditErr) {
-      logger.warn('Audit log failed for Google login', 'IdentityService', { auditErr });
-    }
+    // Centralized Audit Log
+    await AuditService.logEvent({
+      userId: user.id,
+      companyId: user.companyId || null,
+      eventType: 'AUTH_GOOGLE_SIGNIN',
+      entityName: 'user_profiles',
+      entityId: user.id,
+      newValues: { email: user.email, role: user.role, provider: 'google', timestamp: new Date().toISOString() },
+      ipAddress: ipAddress || '127.0.0.1',
+    });
 
     return { sessionUser, user };
   }
@@ -441,19 +388,14 @@ export class IdentityService {
    * Records logout audit event.
    */
   public static async recordLogout(user: { id: string; email: string; role: string }, ipAddress?: string): Promise<void> {
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values, ip_address)
-         VALUES ($1, 'AUTH_LOGOUT', 'user_profiles', $1, $2, $3)`,
-        [
-          user.id,
-          JSON.stringify({ email: user.email, role: user.role }),
-          ipAddress || '127.0.0.1',
-        ]
-      );
-    } catch (auditErr) {
-      logger.warn('Audit log failed for logout', 'IdentityService', { auditErr });
-    }
+    await AuditService.logEvent({
+      userId: user.id,
+      eventType: 'AUTH_LOGOUT',
+      entityName: 'user_profiles',
+      entityId: user.id,
+      newValues: { email: user.email, role: user.role },
+      ipAddress: ipAddress || '127.0.0.1',
+    });
   }
 
   /**
@@ -483,19 +425,15 @@ export class IdentityService {
       isOnboarded: true,
     };
 
-    // Audit log
-    try {
-      await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values)
-         VALUES ($1, 'AUTH_ONBOARDING_COMPLETE', 'user_profiles', $1, $2)`,
-        [
-          sessionUser.id,
-          JSON.stringify({ fullName: cleanFullName, phone: cleanPhone, email: sessionUser.email, timestamp: new Date().toISOString() }),
-        ]
-      );
-    } catch (auditErr) {
-      logger.warn('Audit log failed for onboarding', 'IdentityService', { auditErr });
-    }
+    // Centralized Audit Log
+    await AuditService.logEvent({
+      userId: sessionUser.id,
+      companyId: sessionUser.companyId || null,
+      eventType: 'AUTH_ONBOARDING_COMPLETE',
+      entityName: 'user_profiles',
+      entityId: sessionUser.id,
+      newValues: { fullName: cleanFullName, phone: cleanPhone, email: sessionUser.email, timestamp: new Date().toISOString() },
+    });
 
     return updatedUser;
   }

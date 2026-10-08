@@ -51,6 +51,19 @@ export class ProductRepository {
   }
 
   /**
+   * Retrieves brand by name and company.
+   */
+  public async getBrandByNameAndCompany(name: string, companyId?: string | null): Promise<any | null> {
+    const res = await dbQuery(
+      `SELECT id, name, type, company_id FROM brands 
+       WHERE LOWER(name) = LOWER($1) AND ($2::uuid IS NULL OR company_id = $2 OR company_id IS NULL)
+       LIMIT 1`,
+      [name.trim(), companyId || null]
+    );
+    return res.rows[0] || null;
+  }
+
+  /**
    * Creates brand and sets active price.
    */
   public async createBrand(
