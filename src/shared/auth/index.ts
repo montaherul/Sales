@@ -3,6 +3,7 @@
 
 import { NextRequest } from 'next/server';
 import { UserAuthContext } from '../authorization';
+export type { UserAuthContext };
 import { ROLES, RoleType } from '../constants';
 
 import { getSessionUser, verifyToken, SessionUser } from '@/lib/auth/session';

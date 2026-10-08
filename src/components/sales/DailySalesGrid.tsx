@@ -111,6 +111,42 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
   const [emptyPackets, setEmptyPackets] = useState<number>(0);
   const [remarks, setRemarks] = useState<string>('');
 
+  // Period Control & Locking State
+  const [isPeriodLocked, setIsPeriodLocked] = useState(false);
+  const [periodLockReason, setPeriodLockReason] = useState<string | null>(null);
+  const [isCheckingPeriod, setIsCheckingPeriod] = useState(false);
+
+  // Check reporting period status whenever reportDate or companyId changes
+  useEffect(() => {
+    let isMounted = true;
+    async function checkPeriod() {
+      if (!reportDate) return;
+      setIsCheckingPeriod(true);
+      try {
+        const q = companyId && companyId !== 'ALL' ? `&companyId=${companyId}` : '';
+        const res = await fetch(`/api/periods?type=check&date=${reportDate}${q}`);
+        const json = await res.json();
+        if (isMounted) {
+          if (json.success && json.data) {
+            setIsPeriodLocked(!json.data.isOpen);
+            setPeriodLockReason(json.data.reason || null);
+          } else {
+            setIsPeriodLocked(false);
+            setPeriodLockReason(null);
+          }
+        }
+      } catch (err) {
+        console.warn('Period check error:', err);
+      } finally {
+        if (isMounted) setIsCheckingPeriod(false);
+      }
+    }
+    checkPeriod();
+    return () => {
+      isMounted = false;
+    };
+  }, [reportDate, companyId]);
+
   // 1. Load Master Territories (Scoped to Company)
   useEffect(() => {
     async function loadMasterData() {
@@ -142,7 +178,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
   const totalZardaSales = useMemo(() => calculateZardaSalesValuation(zardaSales), [zardaSales]);
   const totalZardaStock = useMemo(() => calculateZardaStockValuation(zardaStock), [zardaStock]);
 
-  const isReadOnly = currentStatus === 'FINALIZED';
+  const isReadOnly = currentStatus === 'FINALIZED' || isPeriodLocked;
 
   // 2. Load submission into form state
   const loadSubmissionData = (record: any, mode: 'create' | 'edit') => {
@@ -215,6 +251,10 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
 
   // 3. Save Draft Handler
   const handleSaveDraft = async () => {
+    if (isPeriodLocked) {
+      alert(`Cannot save draft: ${periodLockReason || 'Reporting period is closed or locked.'}`);
+      return;
+    }
     setIsSaving(true);
     try {
       const selectedTerr = territories.find(t => t.id === selectedTerritoryId);
@@ -263,6 +303,10 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
 
   // 4. Submit for Review Handler
   const handleSubmit = async () => {
+    if (isPeriodLocked) {
+      alert(`Cannot submit record: ${periodLockReason || 'Reporting period is closed or locked.'}`);
+      return;
+    }
     setIsSaving(true);
     try {
       const selectedTerr = territories.find(t => t.id === selectedTerritoryId);
@@ -665,6 +709,17 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
             </div>
           )}
 
+          {/* Period Locked Warning Banner */}
+          {isPeriodLocked && (
+            <div className="flex items-center gap-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 p-3.5 text-xs text-amber-800 dark:text-amber-200 shadow-xs">
+              <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <div className="flex-1">
+                <span className="font-bold uppercase tracking-wider block text-[11px]">Reporting Period Locked</span>
+                <span>{periodLockReason || 'This date falls within a closed reporting year, closed month, or locked holiday. Operational data entry is restricted.'}</span>
+              </div>
+            </div>
+          )}
+
           {/* Operational Scope Strip */}
           <div className="relative z-30 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm grid grid-cols-1 sm:grid-cols-3 gap-4 shadow-sm dark:shadow-none transition-colors duration-200">
             <div className="relative z-40">
@@ -672,7 +727,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
               <Select2
                 value={selectedTerritoryId}
                 onChange={handleTerritoryChange}
-                disabled={isReadOnly}
+                disabled={currentStatus === 'FINALIZED'}
                 options={territories.map((t) => ({
                   value: t.id,
                   label: t.name,
@@ -686,7 +741,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
               <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1">Reporting Date</label>
               <DatePicker
                 value={reportDate}
-                disabled={isReadOnly}
+                disabled={currentStatus === 'FINALIZED'}
                 onChange={(d) => setReportDate(d)}
               />
             </div>

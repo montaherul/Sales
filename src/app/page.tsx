@@ -15,6 +15,7 @@ import { MenuManagement } from '@/components/admin/MenuManagement';
 import { CompanyManagement } from '@/components/admin/CompanyManagement';
 import { UserRoleManagement } from '@/components/admin/UserRoleManagement';
 import { MasterHierarchyManagement } from '@/components/admin/MasterHierarchyManagement';
+import { PeriodManagement } from '@/components/admin/PeriodManagement';
 import { AuditLogViewer } from '@/components/audit/AuditLogViewer';
 import { ImportModal } from '@/components/import/ImportModal';
 import { DriveUploadWidget } from '@/components/drive/DriveUploadWidget';
@@ -199,6 +200,7 @@ export default function Home() {
           {/* Platform & Tenant Administrative Modules */}
           {activeTab === 'companies' && currentRole === 'SUPER_ADMIN' && <CompanyManagement />}
           {activeTab === 'users' && (currentRole === 'SUPER_ADMIN' || currentRole === 'COMPANY_ADMIN') && <UserRoleManagement companyId={effectiveCompanyId} />}
+          {activeTab === 'periods' && (currentRole === 'SUPER_ADMIN' || currentRole === 'COMPANY_ADMIN') && <PeriodManagement companyId={effectiveCompanyId} />}
           {activeTab === 'menu_management' && currentRole === 'SUPER_ADMIN' && <MenuManagement companyId={effectiveCompanyId} />}
           {activeTab === 'master_hierarchy' && (currentRole === 'SUPER_ADMIN' || currentRole === 'COMPANY_ADMIN') && <MasterHierarchyManagement companyId={effectiveCompanyId} />}
           {activeTab === 'audit' && <AuditLogViewer companyId={effectiveCompanyId} />}

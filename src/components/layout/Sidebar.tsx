@@ -17,7 +17,8 @@ import {
   ChevronRight,
   Lock,
   Sparkles,
-  X
+  X,
+  CalendarDays
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -60,6 +61,7 @@ export function Sidebar({
   const adminNav = [
     { id: 'companies', label: 'Company Management', icon: Building2 },
     { id: 'users', label: 'User & Role Directory', icon: Users },
+    { id: 'periods', label: 'Year & Period Control', icon: CalendarDays },
     { id: 'menu_management', label: 'Menu Access (RWMA / UWMA)', icon: ShieldAlert },
     { id: 'master_hierarchy', label: 'Hierarchy & Pricing', icon: Database },
     { id: 'audit', label: 'Audit & Governance Trail', icon: History },
@@ -216,6 +218,7 @@ export function Sidebar({
               ? adminNav
               : [
                   { id: 'users', label: 'Company Staff & Roles', icon: Users },
+                  { id: 'periods', label: 'Year & Period Control', icon: CalendarDays },
                   { id: 'master_hierarchy', label: 'Hierarchy & Pricing', icon: Database },
                   { id: 'audit', label: 'Company Audit Trail', icon: History },
                 ]
