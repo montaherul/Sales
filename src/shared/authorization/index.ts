@@ -35,7 +35,7 @@ export interface UserAuthContext {
 }
 
 // Default role permission mapping
-export const DEFAULT_ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
+export const DEFAULT_ROLE_PERMISSIONS: Partial<Record<RoleType, Permission[]>> = {
   [ROLES.SUPER_ADMIN]: [
     'daily_entry.create',
     'daily_entry.edit_draft',
@@ -55,6 +55,11 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     'admin.manage_menus',
     'audit.view',
   ],
+  [ROLES.PLATFORM_SUPPORT]: [
+    'reports.view',
+    'admin.manage_users',
+    'audit.view',
+  ],
   [ROLES.COMPANY_ADMIN]: [
     'daily_entry.create',
     'daily_entry.edit_draft',
@@ -72,6 +77,42 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     'admin.manage_menus',
     'audit.view',
   ],
+  [ROLES.TENANT_ADMIN]: [
+    'daily_entry.create',
+    'daily_entry.edit_draft',
+    'daily_entry.submit',
+    'daily_entry.approve_tso',
+    'daily_entry.approve_rso',
+    'daily_entry.reject',
+    'daily_entry.view',
+    'reports.view',
+    'reports.export',
+    'reports.import',
+    'admin.manage_users',
+    'admin.manage_roles',
+    'admin.manage_hierarchy',
+    'admin.manage_menus',
+    'audit.view',
+  ],
+  [ROLES.CEO]: [
+    'daily_entry.view',
+    'reports.view',
+    'reports.export',
+    'audit.view',
+  ],
+  [ROLES.COMMERCIAL_DIRECTOR]: [
+    'daily_entry.view',
+    'reports.view',
+    'reports.export',
+    'audit.view',
+  ],
+  [ROLES.HEAD_OF_SALES]: [
+    'daily_entry.view',
+    'daily_entry.approve_rso',
+    'reports.view',
+    'reports.export',
+    'admin.manage_hierarchy',
+  ],
   [ROLES.RSO]: [
     'daily_entry.view',
     'daily_entry.approve_rso',
@@ -79,6 +120,21 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     'reports.view',
     'reports.export',
     'audit.view',
+  ],
+  [ROLES.REGIONAL_MANAGER]: [
+    'daily_entry.view',
+    'daily_entry.approve_rso',
+    'daily_entry.reject',
+    'reports.view',
+    'reports.export',
+    'audit.view',
+  ],
+  [ROLES.AREA_MANAGER]: [
+    'daily_entry.view',
+    'daily_entry.approve_tso',
+    'daily_entry.reject',
+    'reports.view',
+    'reports.export',
   ],
   [ROLES.TSO]: [
     'daily_entry.create',
@@ -89,11 +145,37 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     'reports.view',
     'reports.export',
   ],
+  [ROLES.TERRITORY_OFFICER]: [
+    'daily_entry.create',
+    'daily_entry.edit_draft',
+    'daily_entry.view',
+    'daily_entry.approve_tso',
+    'daily_entry.reject',
+    'reports.view',
+    'reports.export',
+  ],
+  [ROLES.FIELD_SUPERVISOR]: [
+    'daily_entry.create',
+    'daily_entry.edit_draft',
+    'daily_entry.view',
+    'daily_entry.approve_tso',
+    'reports.view',
+  ],
   [ROLES.CSR]: [
     'daily_entry.create',
     'daily_entry.edit_draft',
     'daily_entry.submit',
     'daily_entry.view',
+  ],
+  [ROLES.DISTRIBUTOR_ADMIN]: [
+    'daily_entry.view',
+    'reports.view',
+    'reports.export',
+  ],
+  [ROLES.SALES_ANALYST]: [
+    'daily_entry.view',
+    'reports.view',
+    'reports.export',
   ],
 };
 

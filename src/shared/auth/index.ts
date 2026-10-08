@@ -60,7 +60,7 @@ export async function getAuthenticatedUser(request?: NextRequest): Promise<UserA
     const territoryHeader = request.headers.get('x-user-territory');
     const companyHeader = request.headers.get('x-user-company');
 
-    if (roleHeader && Object.values(ROLES).includes(roleHeader)) {
+    if (roleHeader && (Object.values(ROLES) as string[]).includes(roleHeader)) {
       return {
         id: `sim-${roleHeader.toLowerCase()}`,
         email: emailHeader || `${roleHeader.toLowerCase()}@afaztobacco.com`,

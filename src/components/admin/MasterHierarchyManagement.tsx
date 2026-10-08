@@ -12,13 +12,15 @@ import {
   Plus, 
   Edit, 
   Trash2, 
-  Coins, 
-  Layers, 
-  CheckCircle2, 
+  CalendarDays,
+  Briefcase,
+  Network,
+  Truck,
+  Sparkles,
+  Loader2,
+  CheckCircle2,
   XCircle,
-  TrendingUp,
-  ShieldAlert,
-  CalendarDays
+  Users
 } from 'lucide-react';
 import { PeriodManagement } from './PeriodManagement';
 
@@ -27,13 +29,20 @@ interface MasterHierarchyManagementProps {
 }
 
 export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchyManagementProps) {
-  const [activeTab, setActiveTab] = useState<'TERRITORIES' | 'BRANDS' | 'TARGETS' | 'PERIODS'>('TERRITORIES');
+  const [activeTab, setActiveTab] = useState<
+    'DEPARTMENTS' | 'POSITIONS' | 'DISTRIBUTORS' | 'TERRITORIES' | 'BRANDS' | 'TARGETS' | 'PERIODS'
+  >('DEPARTMENTS');
+
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(companyId);
   const [companies, setCompanies] = useState<Select2Option[]>([]);
   const [regions, setRegions] = useState<Select2Option[]>([]);
   const [brands, setBrands] = useState<Select2Option[]>([]);
   const [territories, setTerritories] = useState<Select2Option[]>([]);
+  const [departmentOptions, setDepartmentOptions] = useState<Select2Option[]>([]);
+  const [positionOptions, setPositionOptions] = useState<Select2Option[]>([]);
+  const [roleOptions, setRoleOptions] = useState<Select2Option[]>([]);
   const [refreshKey, setRefreshKey] = useState<number>(0);
+  const [isProvisioning, setIsProvisioning] = useState<boolean>(false);
 
   // Sync external companyId change
   useEffect(() => {
@@ -47,18 +56,24 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [editingItem, setEditingItem] = useState<any>(null);
 
-  // Load master options for Select2 dropdowns (scoped to selectedCompanyId)
+  // Load master options for Select2 dropdowns
   useEffect(() => {
     async function loadOptions() {
       try {
         const query = selectedCompanyId && selectedCompanyId !== 'ALL' ? `?companyId=${selectedCompanyId}` : '';
-        const [compRes, masterRes] = await Promise.all([
+        const [compRes, masterRes, deptRes, posRes, rolesRes] = await Promise.all([
           fetch('/api/companies?pageSize=100'),
           fetch(`/api/master-data${query}`),
+          fetch(`/api/organization/departments${query}`),
+          fetch(`/api/organization/positions${query}`),
+          fetch('/api/roles?all=true'),
         ]);
 
         const compJson = await compRes.json();
         const masterJson = await masterRes.json();
+        const deptJson = await deptRes.json();
+        const posJson = await posRes.json();
+        const rolesJson = await rolesRes.json();
 
         if (compJson.success) {
           setCompanies([
@@ -72,29 +87,61 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
         }
 
         if (masterJson.success) {
-          // Region options from master data
-          const regOpts: Select2Option[] = (masterJson.data?.regions || []).map((r: any) => ({
-            value: r.id,
-            label: `${r.name} Region`,
-            subLabel: r.company_name || 'Assigned Company',
-          }));
-          setRegions(regOpts);
+          setRegions(
+            (masterJson.data?.regions || []).map((r: any) => ({
+              value: r.id,
+              label: `${r.name} Region`,
+              subLabel: r.company_name || 'Assigned Company',
+            }))
+          );
 
-          // Brand options
-          const brandOpts: Select2Option[] = (masterJson.data?.brands || []).map((b: any) => ({
-            value: b.id,
-            label: b.name,
-            badge: b.type,
-          }));
-          setBrands(brandOpts);
+          setBrands(
+            (masterJson.data?.brands || []).map((b: any) => ({
+              value: b.id,
+              label: b.name,
+              badge: b.type,
+            }))
+          );
 
-          // Territory options
-          const terrOpts: Select2Option[] = (masterJson.data?.territories || []).map((t: any) => ({
-            value: t.id,
-            label: t.name,
-            subLabel: t.region_name ? `${t.region_name} Region` : 'Assigned Region',
-          }));
-          setTerritories(terrOpts);
+          setTerritories(
+            (masterJson.data?.territories || []).map((t: any) => ({
+              value: t.id,
+              label: t.name,
+              subLabel: t.region_name ? `${t.region_name} Region` : 'Assigned Region',
+            }))
+          );
+        }
+
+        if (deptJson.success) {
+          setDepartmentOptions(
+            (deptJson.data || []).map((d: any) => ({
+              value: d.id,
+              label: d.name,
+              badge: d.code,
+              subLabel: d.company_name,
+            }))
+          );
+        }
+
+        if (posJson.success) {
+          setPositionOptions(
+            (posJson.data || []).map((p: any) => ({
+              value: p.id,
+              label: `${p.name} (Lvl ${p.level})`,
+              badge: p.department_name || p.code,
+              subLabel: p.company_name,
+            }))
+          );
+        }
+
+        if (rolesJson.success) {
+          setRoleOptions(
+            (rolesJson.data || []).map((r: any) => ({
+              value: r.id,
+              label: r.name,
+              badge: r.is_system_role ? 'SYSTEM' : 'CUSTOM',
+            }))
+          );
         }
       } catch (err) {
         console.error('Failed to load hierarchy options:', err);
@@ -102,9 +149,427 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
     }
 
     loadOptions();
-  }, [selectedCompanyId]);
+  }, [selectedCompanyId, refreshKey]);
 
-  // 1. TERRITORY CRUD DEFINITIONS
+  // Handle template provision
+  const handleProvisionTemplate = async () => {
+    if (selectedCompanyId === 'ALL') {
+      alert('Please filter by a specific company first to provision its organization template.');
+      return;
+    }
+    if (
+      !confirm(
+        'Provision default FMCG/Tobacco organizational hierarchy (Departments, Position tree, Roles, Supervisor relations, and Distributor structure) for this tenant?'
+      )
+    ) {
+      return;
+    }
+
+    setIsProvisioning(true);
+    try {
+      const res = await fetch('/api/organization/template', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId: selectedCompanyId }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        alert(
+          `Success! Provisioned ${json.data.departments} departments, ${json.data.positions} positions, and verified organizational reporting structure.`
+        );
+        setRefreshKey((prev) => prev + 1);
+      } else {
+        alert(json.error || 'Failed to provision template');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Provisioning failed');
+    } finally {
+      setIsProvisioning(false);
+    }
+  };
+
+  // 1. DEPARTMENTS COLUMNS & FIELDS
+  const departmentColumns: ColumnDef<any>[] = [
+    {
+      key: 'name',
+      header: 'Department Name',
+      sortable: true,
+      render: (row) => (
+        <div className="flex items-center gap-2">
+          <Briefcase className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+          <span className="font-semibold text-slate-900 dark:text-white">{row.name}</span>
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+            {row.code}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: 'company_name',
+      header: 'Company / Tenant',
+      render: (row) => (
+        <span className="inline-flex items-center gap-1 text-slate-700 dark:text-slate-300 text-xs">
+          <Building2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+          {row.company_name || 'Afaz Tobacco'}
+        </span>
+      ),
+    },
+    {
+      key: 'description',
+      header: 'Description',
+      render: (row) => (
+        <span className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
+          {row.description || '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'is_active',
+      header: 'Status',
+      align: 'center',
+      render: (row) => (
+        <span
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+            row.is_active
+              ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/60'
+              : 'bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800/60'
+          }`}
+        >
+          {row.is_active ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+          {row.is_active ? 'Active' : 'Inactive'}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (row) => (
+        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => {
+              setEditingItem(row);
+              setModalMode('edit');
+              setModalOpen(true);
+            }}
+            className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-400 dark:hover:bg-blue-900/60 dark:border-blue-800/50 transition-all cursor-pointer shadow-xs"
+            title="Edit Department"
+          >
+            <Edit className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => handleDelete('/api/organization/departments', row.id)}
+            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-400 dark:hover:bg-rose-900/60 dark:border-rose-800/50 transition-all cursor-pointer shadow-xs"
+            title="Delete Department"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  const departmentFields: DynamicFormField[] = [
+    {
+      name: 'name',
+      label: 'Department Name',
+      type: 'text',
+      required: true,
+      placeholder: 'e.g. Sales, Marketing, Logistics',
+    },
+    {
+      name: 'code',
+      label: 'Department Code',
+      type: 'text',
+      required: true,
+      placeholder: 'e.g. SALES, MKT, LOG',
+    },
+    {
+      name: 'description',
+      label: 'Description',
+      type: 'textarea',
+      placeholder: 'Scope and operations of this department...',
+    },
+    {
+      name: 'isActive',
+      label: 'Active Status',
+      type: 'boolean',
+      defaultValue: true,
+    },
+  ];
+
+  // 2. POSITIONS COLUMNS & FIELDS
+  const positionColumns: ColumnDef<any>[] = [
+    {
+      key: 'name',
+      header: 'Position Title',
+      sortable: true,
+      render: (row) => (
+        <div className="flex items-center gap-2">
+          <Network className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <div>
+            <span className="font-semibold text-slate-900 dark:text-white">{row.name}</span>
+            <span className="ml-2 text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+              {row.code}
+            </span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'department_name',
+      header: 'Department',
+      render: (row) => (
+        <span className="inline-flex items-center gap-1 text-slate-800 dark:text-slate-200 text-xs font-medium">
+          <Briefcase className="w-3.5 h-3.5 text-indigo-500" />
+          {row.department_name || 'General'}
+        </span>
+      ),
+    },
+    {
+      key: 'level',
+      header: 'Hierarchy Level',
+      align: 'center',
+      render: (row) => {
+        let badgeColor = 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300';
+        if (row.level === 1) badgeColor = 'bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300';
+        if (row.level === 2) badgeColor = 'bg-orange-100 text-orange-800 dark:bg-orange-950/70 dark:text-orange-300';
+        if (row.level === 3) badgeColor = 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300';
+        if (row.level === 4) badgeColor = 'bg-purple-100 text-purple-800 dark:bg-purple-950/70 dark:text-purple-300';
+        if (row.level === 5) badgeColor = 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950/70 dark:text-cyan-300';
+        if (row.level === 6) badgeColor = 'bg-blue-100 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300';
+        if (row.level >= 7) badgeColor = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300';
+
+        return (
+          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold ${badgeColor}`}>
+            Lvl {row.level}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'parent_position_name',
+      header: 'Reports To (Supervisor Position)',
+      render: (row) => (
+        <span className="text-xs text-slate-600 dark:text-slate-400">
+          {row.parent_position_name ? `↳ ${row.parent_position_name}` : '★ Direct to Board / Executive'}
+        </span>
+      ),
+    },
+    {
+      key: 'default_role_name',
+      header: 'Default RBAC Role',
+      render: (row) => (
+        <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+          {row.default_role_name || 'CSR'}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (row) => (
+        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => {
+              setEditingItem(row);
+              setModalMode('edit');
+              setModalOpen(true);
+            }}
+            className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-400 dark:hover:bg-blue-900/60 dark:border-blue-800/50 transition-all cursor-pointer shadow-xs"
+            title="Edit Position"
+          >
+            <Edit className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => handleDelete('/api/organization/positions', row.id)}
+            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-400 dark:hover:bg-rose-900/60 dark:border-rose-800/50 transition-all cursor-pointer shadow-xs"
+            title="Delete Position"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  const positionFields: DynamicFormField[] = [
+    {
+      name: 'name',
+      label: 'Position Title',
+      type: 'text',
+      required: true,
+      placeholder: 'e.g. Regional Manager, Area Manager, TSO, CSR',
+    },
+    {
+      name: 'code',
+      label: 'Position Code',
+      type: 'text',
+      required: true,
+      placeholder: 'e.g. RM, ASM, TSO, CSR, BM',
+    },
+    {
+      name: 'departmentId',
+      label: 'Department',
+      type: 'select2',
+      required: true,
+      options: departmentOptions,
+      defaultValue: departmentOptions[0]?.value,
+    },
+    {
+      name: 'level',
+      label: 'Hierarchy Level (1=Top Executive to 8=Field Rep)',
+      type: 'number',
+      required: true,
+      defaultValue: 6,
+    },
+    {
+      name: 'parentPositionId',
+      label: 'Reporting Parent Position',
+      type: 'select2',
+      options: [{ value: '', label: 'None (Top Level Executive)' }, ...positionOptions],
+    },
+    {
+      name: 'defaultRoleId',
+      label: 'Default RBAC Role',
+      type: 'select2',
+      options: roleOptions,
+    },
+  ];
+
+  // 3. DISTRIBUTORS COLUMNS & FIELDS
+  const distributorColumns: ColumnDef<any>[] = [
+    {
+      key: 'name',
+      header: 'Distributor House',
+      sortable: true,
+      render: (row) => (
+        <div className="flex items-center gap-2">
+          <Truck className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+          <div>
+            <span className="font-semibold text-slate-900 dark:text-white">{row.name}</span>
+            <span className="ml-2 text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+              {row.code}
+            </span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'proprietor_name',
+      header: 'Proprietor / Contact',
+      render: (row) => (
+        <div className="text-xs">
+          <div className="font-medium text-slate-800 dark:text-slate-200">{row.proprietor_name || '—'}</div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">{row.phone || row.email || '—'}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'territory_name',
+      header: 'Territory Coverage',
+      render: (row) => (
+        <span className="inline-flex items-center gap-1 text-slate-700 dark:text-slate-300 text-xs">
+          <MapPin className="w-3.5 h-3.5 text-emerald-500" />
+          {row.territory_name || 'All Territory'}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      align: 'center',
+      render: (row) => (
+        <span
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+            row.status === 'ACTIVE'
+              ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/60'
+              : 'bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800/60'
+          }`}
+        >
+          {row.status === 'ACTIVE' ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+          {row.status}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (row) => (
+        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => {
+              setEditingItem(row);
+              setModalMode('edit');
+              setModalOpen(true);
+            }}
+            className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-400 dark:hover:bg-blue-900/60 dark:border-blue-800/50 transition-all cursor-pointer shadow-xs"
+            title="Edit Distributor"
+          >
+            <Edit className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => handleDelete('/api/organization/distributors', row.id)}
+            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-400 dark:hover:bg-rose-900/60 dark:border-rose-800/50 transition-all cursor-pointer shadow-xs"
+            title="Delete Distributor"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  const distributorFields: DynamicFormField[] = [
+    {
+      name: 'name',
+      label: 'Distributor House Name',
+      type: 'text',
+      required: true,
+      placeholder: 'e.g. Chittagong Tobacco Traders',
+    },
+    {
+      name: 'code',
+      label: 'Distributor Code',
+      type: 'text',
+      required: true,
+      placeholder: 'e.g. DIST-CTG-01',
+    },
+    {
+      name: 'proprietorName',
+      label: 'Proprietor Name',
+      type: 'text',
+      placeholder: 'e.g. Al-Haj Abdul Karim',
+    },
+    {
+      name: 'phone',
+      label: 'Contact Phone',
+      type: 'text',
+      placeholder: '+880 1711-000000',
+    },
+    {
+      name: 'email',
+      label: 'Email Address',
+      type: 'email',
+      placeholder: 'contact@distributor.com',
+    },
+    {
+      name: 'territoryId',
+      label: 'Assigned Territory Scope',
+      type: 'select2',
+      options: territories,
+    },
+    {
+      name: 'address',
+      label: 'Warehouse Address',
+      type: 'textarea',
+      placeholder: 'Physical depot/warehouse location...',
+    },
+  ];
+
+  // 4. TERRITORY CRUD DEFINITIONS
   const territoryColumns: ColumnDef<any>[] = [
     {
       key: 'territory_name',
@@ -123,7 +588,9 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
       render: (row) => (
         <div className="text-xs">
           <div className="text-slate-800 dark:text-slate-200 font-medium">{row.region_name}</div>
-          <div className="text-[10px] text-slate-500 dark:text-slate-400">{row.wing_name} • {row.division_name}</div>
+          <div className="text-[10px] text-slate-500 dark:text-slate-400">
+            {row.wing_name} • {row.division_name}
+          </div>
         </div>
       ),
     },
@@ -201,7 +668,7 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
     },
   ];
 
-  // 2. BRAND CRUD DEFINITIONS
+  // 5. BRAND CRUD DEFINITIONS
   const brandColumns: ColumnDef<any>[] = [
     {
       key: 'name',
@@ -209,21 +676,33 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
       sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2">
-          <Tag className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <Tag className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
           <span className="font-semibold text-slate-900 dark:text-white">{row.name}</span>
         </div>
       ),
     },
     {
+      key: 'company_name',
+      header: 'Company / Tenant',
+      render: (row) => (
+        <span className="inline-flex items-center gap-1 text-slate-700 dark:text-slate-300">
+          <Building2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+          {row.company_name}
+        </span>
+      ),
+    },
+    {
       key: 'type',
-      header: 'Category',
-      sortable: true,
+      header: 'Product Line Type',
+      align: 'center',
       render: (row) => (
         <span
-          className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide border ${
+          className={`font-mono text-xs px-2.5 py-0.5 rounded-full font-semibold border ${
             row.type === 'CIGARETTE'
-              ? 'bg-blue-100 dark:bg-blue-950/70 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-800'
-              : 'bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+              ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800'
+              : row.type === 'BIDI'
+              ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800'
+              : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800'
           }`}
         >
           {row.type}
@@ -232,22 +711,12 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
     },
     {
       key: 'unit_price',
-      header: 'Unit Price (BDT)',
+      header: 'Unit Price (Tk)',
       align: 'right',
+      sortable: true,
       render: (row) => (
-        <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
-          {row.unit_price ? `BDT ${parseFloat(row.unit_price).toFixed(2)}` : '—'}
-        </span>
-      ),
-    },
-    {
-      key: 'is_active',
-      header: 'Status',
-      align: 'center',
-      render: (row) => (
-        <span className={`inline-flex items-center gap-1 text-[11px] ${row.is_active ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
-          {row.is_active ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-          {row.is_active ? 'Active' : 'Inactive'}
+        <span className="font-mono font-bold text-slate-900 dark:text-white">
+          ৳{parseFloat(row.unit_price || 0).toFixed(2)}
         </span>
       ),
     },
@@ -286,79 +755,87 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
       label: 'Brand Name',
       type: 'text',
       required: true,
-      placeholder: 'e.g. Wilson or 22/25',
+      placeholder: 'e.g. Navy, Sheikh, Gold Leaf',
     },
     {
       name: 'type',
-      label: 'Product Category',
+      label: 'Product Line Type',
       type: 'select2',
       required: true,
       options: [
         { value: 'CIGARETTE', label: 'Cigarette' },
+        { value: 'BIDI', label: 'Bidi' },
         { value: 'ZARDA', label: 'Zarda' },
+        { value: 'EMPTY_PACKET', label: 'Empty Packet' },
       ],
       defaultValue: 'CIGARETTE',
     },
     {
       name: 'unitPrice',
-      label: 'Unit Price in BDT',
+      label: 'Unit Price (BDT)',
       type: 'number',
+      required: true,
       placeholder: '0.00',
     },
     {
       name: 'sortOrder',
-      label: 'Sort Order',
+      label: 'Display Order',
       type: 'number',
       defaultValue: 1,
     },
-    {
-      name: 'isActive',
-      label: 'Is Active',
-      type: 'boolean',
-      defaultValue: true,
-    },
   ];
 
-  // 3. TARGET CRUD DEFINITIONS
+  // 6. TARGET CRUD DEFINITIONS
   const targetColumns: ColumnDef<any>[] = [
     {
       key: 'territory_name',
       header: 'Territory',
       sortable: true,
-      render: (row) => <span className="font-semibold text-slate-900 dark:text-white">{row.territory_name}</span>,
+      render: (row) => (
+        <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+          <MapPin className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
+          {row.territory_name}
+        </div>
+      ),
     },
     {
       key: 'brand_name',
-      header: 'Brand',
+      header: 'Target Product Brand',
       sortable: true,
       render: (row) => (
-        <span className="font-medium text-slate-700 dark:text-slate-300">
-          {row.brand_name} <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">({row.brand_type})</span>
-        </span>
+        <span className="font-medium text-slate-800 dark:text-slate-200">{row.brand_name}</span>
       ),
     },
     {
       key: 'target_quantity',
-      header: 'Target Volume',
+      header: 'Target Volume (Mille/Units)',
       align: 'right',
       sortable: true,
       render: (row) => (
         <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
-          {parseFloat(row.target_quantity || 0).toFixed(2)}
+          {parseFloat(row.target_quantity || 0).toLocaleString()}
+        </span>
+      ),
+    },
+    {
+      key: 'target_amount',
+      header: 'Value (Tk)',
+      align: 'right',
+      render: (row) => (
+        <span className="font-mono text-xs text-slate-600 dark:text-slate-400">
+          ৳{parseFloat(row.target_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
         </span>
       ),
     },
     {
       key: 'route_count',
-      header: 'Routes',
+      header: 'Routes / Outlets',
       align: 'center',
-      render: (row) => <span className="text-slate-600 dark:text-slate-400 font-mono">{row.route_count || 0}</span>,
-    },
-    {
-      key: 'outlet_count',
-      header: 'Outlets',
-      align: 'center',
-      render: (row) => <span className="text-slate-600 dark:text-slate-400 font-mono">{row.outlet_count || 0}</span>,
+      render: (row) => (
+        <span className="text-xs font-mono text-slate-600 dark:text-slate-400">
+          {row.route_count} / {row.outlet_count}
+        </span>
+      ),
     },
     {
       key: 'actions',
@@ -442,6 +919,9 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
 
   const handleFormSubmit = async (formData: Record<string, any>, mode: 'create' | 'edit') => {
     let endpoint = '/api/hierarchy';
+    if (activeTab === 'DEPARTMENTS') endpoint = '/api/organization/departments';
+    if (activeTab === 'POSITIONS') endpoint = '/api/organization/positions';
+    if (activeTab === 'DISTRIBUTORS') endpoint = '/api/organization/distributors';
     if (activeTab === 'BRANDS') endpoint = '/api/brands';
     if (activeTab === 'TARGETS') endpoint = '/api/targets';
 
@@ -478,84 +958,143 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
-                Master Hierarchy, Pricing & Target Suite
+                Tenant Organization & Master Hierarchy Suite
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Configure Company-Scoped Divisions, Wings, Regions, Territories, Product Pricing, and Monthly Territory Targets.
+                Configurable Organization Structure: Departments, Reporting Positions, Distributors, Geographical Boundaries, Pricing & Targets.
               </p>
             </div>
           </div>
 
-          {activeTab !== 'PERIODS' && (
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            {/* 1-Click Provision FMCG / Tobacco Template */}
             <button
-              onClick={() => {
-                setEditingItem(null);
-                setModalMode('create');
-                setModalOpen(true);
-              }}
-              className="w-full md:w-auto flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white shadow-lg shadow-blue-500/20 transition-all cursor-pointer"
+              onClick={handleProvisionTemplate}
+              disabled={isProvisioning || selectedCompanyId === 'ALL'}
+              className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-white shadow-lg shadow-indigo-500/20 transition-all cursor-pointer"
+              title={
+                selectedCompanyId === 'ALL'
+                  ? 'Select a specific company to provision template'
+                  : 'Auto-provision full FMCG department and position tree'
+              }
             >
-              <Plus className="w-4 h-4" />
-              <span>
-                {activeTab === 'TERRITORIES'
-                  ? 'Add Territory'
-                  : activeTab === 'BRANDS'
-                  ? 'Add Brand / Price'
-                  : 'Set Territory Target'}
-              </span>
+              {isProvisioning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              <span>Provision FMCG Template</span>
             </button>
-          )}
+
+            {activeTab !== 'PERIODS' && (
+              <button
+                onClick={() => {
+                  setEditingItem(null);
+                  setModalMode('create');
+                  setModalOpen(true);
+                }}
+                className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white shadow-lg shadow-blue-500/20 transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>
+                  {activeTab === 'DEPARTMENTS'
+                    ? 'Add Department'
+                    : activeTab === 'POSITIONS'
+                    ? 'Add Position'
+                    : activeTab === 'DISTRIBUTORS'
+                    ? 'Add Distributor'
+                    : activeTab === 'TERRITORIES'
+                    ? 'Add Territory'
+                    : activeTab === 'BRANDS'
+                    ? 'Add Brand / Price'
+                    : 'Set Monthly Target'}
+                </span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Company Filter via Select2 & Navigation Tabs */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setActiveTab('DEPARTMENTS')}
+              className={`flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'DEPARTMENTS'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-900'
+              }`}
+            >
+              <Briefcase className="w-3.5 h-3.5" />
+              <span>Departments</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('POSITIONS')}
+              className={`flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'POSITIONS'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-900'
+              }`}
+            >
+              <Network className="w-3.5 h-3.5" />
+              <span>Positions & Hierarchy</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('DISTRIBUTORS')}
+              className={`flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'DISTRIBUTORS'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-900'
+              }`}
+            >
+              <Truck className="w-3.5 h-3.5" />
+              <span>Distributors</span>
+            </button>
+
             <button
               onClick={() => setActiveTab('TERRITORIES')}
-              className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === 'TERRITORIES'
                   ? 'bg-blue-600 text-white shadow-md'
                   : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-900'
               }`}
             >
               <MapPin className="w-3.5 h-3.5" />
-              <span>Territories & Geography</span>
+              <span>Territories</span>
             </button>
 
             <button
               onClick={() => setActiveTab('BRANDS')}
-              className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === 'BRANDS'
                   ? 'bg-blue-600 text-white shadow-md'
                   : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-900'
               }`}
             >
               <Tag className="w-3.5 h-3.5" />
-              <span>Brand Catalog & Pricing</span>
+              <span>Brands & Pricing</span>
             </button>
 
             <button
               onClick={() => setActiveTab('TARGETS')}
-              className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === 'TARGETS'
                   ? 'bg-blue-600 text-white shadow-md'
                   : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-900'
               }`}
             >
               <Target className="w-3.5 h-3.5" />
-              <span>Territory Targets</span>
+              <span>Targets</span>
             </button>
 
             <button
               onClick={() => setActiveTab('PERIODS')}
-              className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === 'PERIODS'
                   ? 'bg-blue-600 text-white shadow-md'
                   : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-900'
               }`}
             >
               <CalendarDays className="w-3.5 h-3.5" />
-              <span>Periods & Calendar</span>
+              <span>Periods</span>
             </button>
           </div>
 
@@ -572,6 +1111,66 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
       </div>
 
       {/* Dynamic Tab Body with ServerDataTable */}
+      {activeTab === 'DEPARTMENTS' && (
+        <ServerDataTable
+          key={`dept_${refreshKey}_${selectedCompanyId}`}
+          endpoint="/api/organization/departments"
+          columns={departmentColumns}
+          idField="id"
+          title="Tenant Organizational Departments"
+          searchPlaceholder="Search department name or code..."
+          additionalParams={{ companyId: selectedCompanyId }}
+          exportFilenamePrefix="Tenant_Departments"
+          onBatchDelete={async (ids) => {
+            await fetch('/api/organization/departments', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids }),
+            });
+          }}
+        />
+      )}
+
+      {activeTab === 'POSITIONS' && (
+        <ServerDataTable
+          key={`pos_${refreshKey}_${selectedCompanyId}`}
+          endpoint="/api/organization/positions"
+          columns={positionColumns}
+          idField="id"
+          title="Organizational Position Hierarchy & Reporting Lines"
+          searchPlaceholder="Search position name, department, or code..."
+          additionalParams={{ companyId: selectedCompanyId }}
+          exportFilenamePrefix="Tenant_Positions"
+          onBatchDelete={async (ids) => {
+            await fetch('/api/organization/positions', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids }),
+            });
+          }}
+        />
+      )}
+
+      {activeTab === 'DISTRIBUTORS' && (
+        <ServerDataTable
+          key={`dist_${refreshKey}_${selectedCompanyId}`}
+          endpoint="/api/organization/distributors"
+          columns={distributorColumns}
+          idField="id"
+          title="Distributor Houses & Logistics Network"
+          searchPlaceholder="Search distributor name, code, proprietor..."
+          additionalParams={{ companyId: selectedCompanyId }}
+          exportFilenamePrefix="Tenant_Distributors"
+          onBatchDelete={async (ids) => {
+            await fetch('/api/organization/distributors', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids }),
+            });
+          }}
+        />
+      )}
+
       {activeTab === 'TERRITORIES' && (
         <ServerDataTable
           key={`terr_${refreshKey}_${selectedCompanyId}`}
@@ -641,14 +1240,26 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
         isOpen={modalOpen}
         mode={modalMode}
         title={
-          activeTab === 'TERRITORIES'
+          activeTab === 'DEPARTMENTS'
+            ? modalMode === 'create' ? 'Add New Department' : `Edit Department: ${editingItem?.name}`
+            : activeTab === 'POSITIONS'
+            ? modalMode === 'create' ? 'Add Organizational Position' : `Edit Position: ${editingItem?.name}`
+            : activeTab === 'DISTRIBUTORS'
+            ? modalMode === 'create' ? 'Add Distributor House' : `Edit Distributor: ${editingItem?.name}`
+            : activeTab === 'TERRITORIES'
             ? modalMode === 'create' ? 'Add New Territory' : `Edit Territory: ${editingItem?.territory_name}`
             : activeTab === 'BRANDS'
             ? modalMode === 'create' ? 'Add New Product Brand' : `Edit Brand: ${editingItem?.name}`
             : modalMode === 'create' ? 'Set Monthly Target' : `Edit Target: ${editingItem?.territory_name}`
         }
         fields={
-          activeTab === 'TERRITORIES'
+          activeTab === 'DEPARTMENTS'
+            ? departmentFields
+            : activeTab === 'POSITIONS'
+            ? positionFields
+            : activeTab === 'DISTRIBUTORS'
+            ? distributorFields
+            : activeTab === 'TERRITORIES'
             ? territoryFields
             : activeTab === 'BRANDS'
             ? brandFields
@@ -659,11 +1270,21 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
             ? {
                 id: editingItem.id,
                 name: editingItem.territory_name || editingItem.name,
+                code: editingItem.code,
+                description: editingItem.description,
+                departmentId: editingItem.department_id,
+                level: editingItem.level,
+                parentPositionId: editingItem.parent_position_id,
+                defaultRoleId: editingItem.default_role_id,
+                proprietorName: editingItem.proprietor_name,
+                phone: editingItem.phone,
+                email: editingItem.email,
+                address: editingItem.address,
                 regionId: editingItem.region_id,
                 sortOrder: editingItem.sort_order,
                 type: editingItem.type,
                 unitPrice: editingItem.unit_price,
-                isActive: editingItem.is_active,
+                isActive: editingItem.is_active ?? true,
                 territoryId: editingItem.territory_id,
                 brandId: editingItem.brand_id,
                 targetQuantity: editingItem.target_quantity,

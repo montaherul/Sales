@@ -19,8 +19,14 @@ export interface CreateUserDTO {
   phone?: string;
   password?: string;
   companyId?: string | null;
+  departmentId?: string | null;
+  positionId?: string | null;
+  supervisorId?: string | null;
+  distributorId?: string | null;
+  scopeLevel?: string | null;
   territoryId?: string | null;
   regionId?: string | null;
+  routeId?: string | null;
 }
 
 export interface UpdateUserDTO {
@@ -31,8 +37,14 @@ export interface UpdateUserDTO {
   isActive?: boolean;
   password?: string;
   companyId?: string | null;
+  departmentId?: string | null;
+  positionId?: string | null;
+  supervisorId?: string | null;
+  distributorId?: string | null;
+  scopeLevel?: string | null;
   territoryId?: string | null;
   regionId?: string | null;
+  routeId?: string | null;
 }
 
 export class IdentityService {
@@ -136,6 +148,13 @@ export class IdentityService {
     const passwordHash = await bcrypt.hash(dto.password || '123', 10);
     const userId = crypto.randomUUID();
 
+    const deptId = dto.departmentId ?? (dto as any).department_id ?? null;
+    const posId = dto.positionId ?? (dto as any).position_id ?? null;
+    const supId = dto.supervisorId ?? (dto as any).supervisor_id ?? null;
+    const distId = dto.distributorId ?? (dto as any).distributor_id ?? null;
+    const scpLvl = dto.scopeLevel ?? (dto as any).scope_level ?? null;
+    const rtId = dto.routeId ?? (dto as any).route_id ?? null;
+
     await userRepository.createUser({
       id: userId,
       email: cleanEmail,
@@ -145,8 +164,14 @@ export class IdentityService {
       roleId: role.id,
       roleName: dto.roleName,
       companyId: finalCompanyId,
+      departmentId: deptId,
+      positionId: posId,
+      supervisorId: supId,
+      distributorId: distId,
+      scopeLevel: scpLvl,
       territoryId: finalTerritoryId,
       regionId: finalRegionId,
+      routeId: rtId,
     });
 
     // 7. Centralized Audit Log
@@ -161,6 +186,9 @@ export class IdentityService {
         fullName: dto.fullName,
         role: dto.roleName,
         companyId: finalCompanyId,
+        departmentId: deptId,
+        positionId: posId,
+        supervisorId: supId,
       },
     });
 
@@ -212,16 +240,30 @@ export class IdentityService {
       }
     }
 
+    const deptId = dto.departmentId !== undefined ? dto.departmentId : (dto as any).department_id;
+    const posId = dto.positionId !== undefined ? dto.positionId : (dto as any).position_id;
+    const supId = dto.supervisorId !== undefined ? dto.supervisorId : (dto as any).supervisor_id;
+    const distId = dto.distributorId !== undefined ? dto.distributorId : (dto as any).distributor_id;
+    const scpLvl = dto.scopeLevel !== undefined ? dto.scopeLevel : (dto as any).scope_level;
+    const rtId = dto.routeId !== undefined ? dto.routeId : (dto as any).route_id;
+
     await userRepository.updateUser({
       id: dto.id,
       fullName: dto.fullName,
       phone: dto.phone,
       roleId,
+      roleName: dto.roleName,
       isActive: dto.isActive,
       newPasswordHash: passwordHash,
+      departmentId: deptId,
+      positionId: posId,
+      supervisorId: supId,
+      distributorId: distId,
+      scopeLevel: scpLvl,
       territoryId: finalTerritoryId,
       regionId: finalRegionId,
       companyId: finalCompanyId,
+      routeId: rtId,
     });
 
     // Centralized Audit Log
@@ -232,7 +274,14 @@ export class IdentityService {
       entityName: 'user_profiles',
       entityId: dto.id,
       oldValues: { fullName: existing.full_name, role: existing.role, isActive: existing.is_active },
-      newValues: { fullName: dto.fullName, role: dto.roleName, isActive: dto.isActive },
+      newValues: {
+        fullName: dto.fullName,
+        role: dto.roleName,
+        isActive: dto.isActive,
+        departmentId: dto.departmentId,
+        positionId: dto.positionId,
+        supervisorId: dto.supervisorId,
+      },
     });
   }
 

@@ -16,7 +16,11 @@ import {
   ShieldCheck,
   Shield,
   Plus,
-  Globe
+  Globe,
+  Briefcase,
+  Network,
+  Truck,
+  UserCheck
 } from 'lucide-react';
 import { RoleType } from '@/shared/constants';
 
@@ -51,6 +55,20 @@ interface UserRecord {
   territory_name?: string;
   region_id?: string;
   region_name?: string;
+  wing_name?: string;
+  division_name?: string;
+  department_id?: string;
+  department_name?: string;
+  position_id?: string;
+  position_name?: string;
+  position_level?: number;
+  supervisor_id?: string;
+  supervisor_name?: string;
+  distributor_id?: string;
+  distributor_name?: string;
+  scope_level?: string;
+  route_id?: string;
+  route_name?: string;
   created_at?: string;
 }
 
@@ -91,6 +109,12 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
   // Active form state inside User Modal (for dependent dropdown cascading)
   const [modalUserCompanyId, setModalUserCompanyId] = useState<string>('');
   const [modalUserRoleName, setModalUserRoleName] = useState<string>('CSR');
+
+  // Organization Dropdowns State for User Modal
+  const [rawDepartments, setRawDepartments] = useState<any[]>([]);
+  const [rawPositions, setRawPositions] = useState<any[]>([]);
+  const [rawDistributors, setRawDistributors] = useState<any[]>([]);
+  const [companyUsers, setCompanyUsers] = useState<any[]>([]);
 
   // Role Tab State
   const [selectedRoleCompanyId, setSelectedRoleCompanyId] = useState<string>(companyId);
@@ -154,6 +178,36 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
     loadMasterData();
   }, [roleRefreshTrigger]);
 
+  // Load organizational structure for the modal's company
+  useEffect(() => {
+    if (!modalUserCompanyId || modalUserCompanyId === 'ALL') return;
+
+    async function loadCompanyOrg() {
+      try {
+        const [deptRes, posRes, distRes, usersRes] = await Promise.all([
+          fetch(`/api/organization/departments?companyId=${modalUserCompanyId}`),
+          fetch(`/api/organization/positions?companyId=${modalUserCompanyId}`),
+          fetch(`/api/organization/distributors?companyId=${modalUserCompanyId}`),
+          fetch(`/api/users?pageSize=100&companyId=${modalUserCompanyId}`),
+        ]);
+
+        const deptJson = await deptRes.json();
+        const posJson = await posRes.json();
+        const distJson = await distRes.json();
+        const usersJson = await usersRes.json();
+
+        if (deptJson.success) setRawDepartments(deptJson.data || []);
+        if (posJson.success) setRawPositions(posJson.data || []);
+        if (distJson.success) setRawDistributors(distJson.data || []);
+        if (usersJson.success) setCompanyUsers(usersJson.data || []);
+      } catch (err) {
+        console.error('Failed to load company organization data:', err);
+      }
+    }
+
+    loadCompanyOrg();
+  }, [modalUserCompanyId]);
+
   // When opening Create or Edit user, sync modal state
   const handleOpenUserModal = (user: UserRecord | null, mode: 'create' | 'edit') => {
     setCurrentUser(user);
@@ -162,7 +216,6 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
       setModalUserCompanyId(user.company_id || (companies[1]?.value || ''));
       setModalUserRoleName(user.role_name || 'CSR');
     } else {
-      // Default to the first available real company or currently filtered company
       const defaultComp = selectedCompanyId !== 'ALL' ? selectedCompanyId : (companies[1]?.value || '');
       setModalUserCompanyId(defaultComp);
       setModalUserRoleName('CSR');
@@ -193,7 +246,59 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
     }));
   }, [modalUserCompanyId, rawTerritories]);
 
-  // Dynamic user form fields depending on Role and Company
+  // Department options for modal
+  const departmentOptions = useMemo(() => {
+    return [
+      { value: '', label: 'Select Department...' },
+      ...rawDepartments.map((d) => ({
+        value: d.id,
+        label: d.name,
+        badge: d.code,
+      })),
+    ];
+  }, [rawDepartments]);
+
+  // Position options for modal
+  const positionOptions = useMemo(() => {
+    return [
+      { value: '', label: 'Select Organizational Position...' },
+      ...rawPositions.map((p) => ({
+        value: p.id,
+        label: `${p.name} (Lvl ${p.level})`,
+        badge: p.department_name || p.code,
+      })),
+    ];
+  }, [rawPositions]);
+
+  // Supervisor options for modal
+  const supervisorOptions = useMemo(() => {
+    return [
+      { value: '', label: 'None (Direct to MD / Board)' },
+      ...companyUsers
+        .filter((u) => !currentUser || u.id !== currentUser.id)
+        .map((u) => ({
+          value: u.id,
+          label: u.full_name,
+          badge: u.position_name || u.role_name,
+          subLabel: u.email,
+        })),
+    ];
+  }, [companyUsers, currentUser]);
+
+  // Distributor options for modal
+  const distributorOptions = useMemo(() => {
+    return [
+      { value: '', label: 'None (Company Staff)' },
+      ...rawDistributors.map((d) => ({
+        value: d.id,
+        label: d.name,
+        badge: d.code,
+        subLabel: d.proprietor_name,
+      })),
+    ];
+  }, [rawDistributors]);
+
+  // Dynamic user form fields depending on Role, Company, and Organization
   const userFormFields = useMemo((): DynamicFormField[] => {
     const fields: DynamicFormField[] = [
       {
@@ -218,17 +323,49 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
       },
       {
         name: 'companyId',
-        label: 'Assigned Company',
+        label: 'Assigned Company / Tenant',
         type: 'select2',
         required: true,
         placeholder: 'Select company...',
         options: companies.filter((c) => c.value !== 'ALL'),
         defaultValue: modalUserCompanyId || companies.filter((c) => c.value !== 'ALL')[0]?.value,
-        hint: 'Primary enterprise organization that owns this user account and scopes.',
+        hint: 'Primary enterprise tenant that owns this user account and scopes.',
+      },
+      {
+        name: 'departmentId',
+        label: 'Department',
+        type: 'select2',
+        placeholder: 'Assign department...',
+        options: departmentOptions,
+        hint: 'Functional business division (e.g. Sales, Marketing, Logistics).',
+      },
+      {
+        name: 'positionId',
+        label: 'Organizational Position',
+        type: 'select2',
+        placeholder: 'Assign position...',
+        options: positionOptions,
+        hint: 'Official job position with hierarchy level (e.g. Regional Manager, TSO, CSR).',
+      },
+      {
+        name: 'supervisorId',
+        label: 'Direct Reporting Line (Supervisor)',
+        type: 'select2',
+        placeholder: 'Select line manager...',
+        options: supervisorOptions,
+        hint: 'Direct manager responsible for reviewing and approving work.',
+      },
+      {
+        name: 'distributorId',
+        label: 'Distribution House (If Applicable)',
+        type: 'select2',
+        placeholder: 'Select distributor...',
+        options: distributorOptions,
+        hint: 'Link user to a specific distribution depot or logistics house.',
       },
       {
         name: 'roleName',
-        label: 'Assigned Role',
+        label: 'System Access Role (RBAC)',
         type: 'select2',
         required: true,
         defaultValue: modalUserRoleName || 'CSR',
@@ -239,24 +376,27 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
           { value: 'TSO', label: 'TSO (Territory Sales Officer)', badge: 'TERRITORY' },
           { value: 'CSR', label: 'CSR (Customer Sales Representative)', badge: 'OPERATIONAL' },
         ],
-        hint: 'Determines operational permissions and workflow capabilities.',
+        hint: 'Software capabilities: dictates authorization permissions.',
+      },
+      {
+        name: 'scopeLevel',
+        label: 'Data Access Scope Boundary',
+        type: 'select2',
+        options: [
+          { value: 'TENANT', label: 'TENANT (Full Company Oversight)' },
+          { value: 'REGION', label: 'REGION (Assigned Regional Scope)' },
+          { value: 'AREA', label: 'AREA (Assigned Area Scope)' },
+          { value: 'TERRITORY', label: 'TERRITORY (Assigned Territory Scope)' },
+          { value: 'ROUTE', label: 'ROUTE (Assigned Route Level)' },
+          { value: 'OUTLET', label: 'OUTLET (Assigned Point of Sale)' },
+        ],
+        defaultValue: 'TERRITORY',
+        hint: 'Strict boundary enforcing what data records this user can query or modify.',
       },
     ];
 
-    // COMPANY_ADMIN scope notice
-    if (modalUserRoleName === 'COMPANY_ADMIN') {
-      fields.push({
-        name: '_companyAdminNotice',
-        label: 'Tenant Scope Level',
-        type: 'text',
-        disabled: true,
-        defaultValue: 'Full Company Oversight (All Divisions, Wings, Regions & Territories)',
-        hint: 'Company Administrator operates across the entire company. No sub-geographical restriction required.',
-      });
-    }
-
-    // RSO scope: Region
-    if (modalUserRoleName === 'RSO') {
+    // Geographic Scopes: RSO scope (Region)
+    if (modalUserRoleName === 'RSO' || modalUserRoleName === 'REGIONAL_MANAGER') {
       fields.push({
         name: 'regionId',
         label: 'Assigned Regional Scope',
@@ -264,12 +404,17 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
         required: true,
         placeholder: availableRegions.length > 0 ? 'Select region...' : 'No regions found for this company',
         options: availableRegions,
-        hint: 'RSO supervises all territories within this assigned region.',
+        hint: 'Supervises all territories within this assigned region.',
       });
     }
 
-    // TSO and CSR scope: Territory
-    if (modalUserRoleName === 'TSO' || modalUserRoleName === 'CSR') {
+    // TSO and CSR scope (Territory)
+    if (
+      modalUserRoleName === 'TSO' ||
+      modalUserRoleName === 'CSR' ||
+      modalUserRoleName === 'TERRITORY_OFFICER' ||
+      modalUserRoleName === 'FIELD_SUPERVISOR'
+    ) {
       fields.push({
         name: 'territoryId',
         label: 'Assigned Territory Scope',
@@ -277,7 +422,7 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
         required: true,
         placeholder: availableTerritories.length > 0 ? 'Select territory...' : 'No territories found for this company',
         options: availableTerritories,
-        hint: `${modalUserRoleName} operational boundary for daily data entries and review.`,
+        hint: 'Operational boundary for daily data entries, review, and stock analysis.',
       });
     }
 
@@ -289,7 +434,18 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
     });
 
     return fields;
-  }, [modalUserCompanyId, modalUserRoleName, companies, roles, availableRegions, availableTerritories]);
+  }, [
+    modalUserCompanyId,
+    modalUserRoleName,
+    companies,
+    roles,
+    availableRegions,
+    availableTerritories,
+    departmentOptions,
+    positionOptions,
+    supervisorOptions,
+    distributorOptions,
+  ]);
 
   // Handle dynamic field changes inside User modal
   const handleUserModalFieldChange = (fieldName: string, value: any) => {
@@ -319,15 +475,43 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
       ),
     },
     {
+      key: 'position_name',
+      header: 'Organization & Position',
+      render: (row) => (
+        <div className="text-xs space-y-0.5">
+          <div className="flex items-center gap-1.5">
+            <Network className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+            <span className="font-semibold text-slate-900 dark:text-white">
+              {row.position_name || 'Unassigned Position'}
+            </span>
+            {row.position_level && (
+              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                Lvl {row.position_level}
+              </span>
+            )}
+          </div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+            <Briefcase className="w-3 h-3 text-slate-400" />
+            <span>{row.department_name || 'General Dept'}</span>
+            {row.supervisor_name && (
+              <span className="text-slate-400 dark:text-slate-500">
+                • ↳ Sup: {row.supervisor_name}
+              </span>
+            )}
+          </div>
+        </div>
+      ),
+    },
+    {
       key: 'role_name',
-      header: 'Role',
+      header: 'RBAC Role',
       sortable: true,
       render: (row) => {
         let badgeStyle = 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700';
         if (row.role_name === 'SUPER_ADMIN') badgeStyle = 'bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-800';
-        if (row.role_name === 'COMPANY_ADMIN') badgeStyle = 'bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800';
-        if (row.role_name === 'RSO') badgeStyle = 'bg-purple-100 dark:bg-purple-950/70 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-800';
-        if (row.role_name === 'TSO') badgeStyle = 'bg-blue-100 dark:bg-blue-950/70 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-800';
+        if (row.role_name === 'COMPANY_ADMIN' || row.role_name === 'TENANT_ADMIN') badgeStyle = 'bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800';
+        if (row.role_name === 'RSO' || row.role_name === 'REGIONAL_MANAGER') badgeStyle = 'bg-purple-100 dark:bg-purple-950/70 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-800';
+        if (row.role_name === 'TSO' || row.role_name === 'TERRITORY_OFFICER') badgeStyle = 'bg-blue-100 dark:bg-blue-950/70 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-800';
         if (row.role_name === 'CSR') badgeStyle = 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800';
 
         return (
@@ -355,7 +539,7 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
     },
     {
       key: 'territory_name',
-      header: 'Geographic Scope',
+      header: 'Data Boundary Scope',
       render: (row) => {
         if (row.role_name === 'SUPER_ADMIN') {
           return (
@@ -366,16 +550,16 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
           );
         }
 
-        if (row.role_name === 'COMPANY_ADMIN') {
+        if (row.role_name === 'COMPANY_ADMIN' || row.role_name === 'TENANT_ADMIN') {
           return (
             <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300 text-xs font-medium">
               <Building2 className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-              <span>Full Company Scope (All Territories)</span>
+              <span>Full Tenant Scope</span>
             </div>
           );
         }
 
-        if (row.role_name === 'RSO') {
+        if (row.role_name === 'RSO' || row.role_name === 'REGIONAL_MANAGER') {
           return (
             <div className="flex items-center gap-1.5 text-purple-700 dark:text-purple-300 text-xs font-medium">
               <MapPin className="w-3.5 h-3.5 text-purple-500 shrink-0" />
@@ -388,9 +572,9 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
           <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 text-xs font-medium">
             <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
             <span>{row.territory_name || 'Assigned Territory'}</span>
-            {row.region_name && (
-              <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                ({row.region_name})
+            {row.distributor_name && (
+              <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                • {row.distributor_name}
               </span>
             )}
           </div>
@@ -522,64 +706,48 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
   const roleColumns: ColumnDef<RoleRecord>[] = [
     {
       key: 'name',
-      header: 'Role Name & Type',
+      header: 'Role Identifier',
       sortable: true,
       render: (row) => (
-        <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400">
-            <Shield className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <span>{row.name}</span>
-              <span
-                className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${
-                  row.is_system_role
-                    ? 'bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-800'
-                    : 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
-                }`}
-              >
-                {row.is_system_role ? 'PROTECTED SYSTEM' : 'CUSTOM ROLE'}
-              </span>
-            </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400">{row.description || 'No description configured'}</div>
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'company_name',
-      header: 'Company Scope',
-      sortable: true,
-      render: (row) => (
-        <div className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300">
-          <Building2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-          {row.company_name ? (
-            <span className="font-medium text-slate-900 dark:text-white">{row.company_name}</span>
-          ) : (
-            <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">Global (All Companies)</span>
+        <div className="flex items-center gap-2">
+          <Shield className="w-4 h-4 text-indigo-500 shrink-0" />
+          <span className="font-semibold text-slate-900 dark:text-white font-mono text-xs">{row.name}</span>
+          {row.is_system_role && (
+            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+              CORE SYSTEM
+            </span>
           )}
         </div>
       ),
     },
     {
-      key: 'user_count',
-      header: 'Assigned Personnel',
-      align: 'center',
+      key: 'company_name',
+      header: 'Scoping Tenant',
       sortable: true,
       render: (row) => (
-        <span className="font-mono text-xs px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">
-          {row.user_count} User{row.user_count !== 1 ? 's' : ''}
+        <div className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300">
+          <Building2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+          <span>{row.company_name || 'Global Enterprise (Cross-Tenant)'}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'description',
+      header: 'Description',
+      render: (row) => (
+        <span className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
+          {row.description || '—'}
         </span>
       ),
     },
     {
-      key: 'created_at',
-      header: 'Created On',
-      sortable: true,
+      key: 'user_count',
+      header: 'Assigned Users',
+      align: 'center',
       render: (row) => (
-        <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-          {row.created_at ? new Date(row.created_at).toLocaleDateString() : 'Initial Setup'}
+        <span className="inline-flex items-center gap-1 font-mono text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+          <Users className="w-3 h-3 text-slate-400" />
+          {row.user_count}
         </span>
       ),
     },
@@ -587,48 +755,43 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
       key: 'actions',
       header: 'Actions',
       align: 'right',
-      render: (row) => (
-        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-          <button
-            onClick={() => {
-              setCurrentRoleItem(row);
-              setRoleModalMode('edit');
-              setRoleModalOpen(true);
-            }}
-            className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-400 dark:hover:bg-blue-900/60 dark:border-blue-800/50 transition-all cursor-pointer shadow-xs"
-            title="Edit Role Description"
-          >
-            <Edit className="w-3.5 h-3.5" />
-          </button>
+      render: (row) => {
+        if (row.is_system_role) {
+          return (
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono italic">
+              Locked (System)
+            </span>
+          );
+        }
 
-          {!row.is_system_role ? (
+        return (
+          <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
             <button
-              onClick={() => handleDeleteRoleSingle(row.id, row.name, row.user_count)}
+              onClick={() => {
+                setCurrentRoleItem(row);
+                setRoleModalMode('edit');
+                setRoleModalOpen(true);
+              }}
+              className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-400 dark:hover:bg-blue-900/60 dark:border-blue-800/50 transition-all cursor-pointer shadow-xs"
+              title="Edit Role"
+            >
+              <Edit className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => handleDeleteRoleSingle(row.id)}
               className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-400 dark:hover:bg-rose-900/60 dark:border-rose-800/50 transition-all cursor-pointer shadow-xs"
               title="Delete Role"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
-          ) : (
-            <span
-              className="p-1.5 text-slate-300 dark:text-slate-600 cursor-not-allowed"
-              title="System protected role cannot be deleted"
-            >
-              <Trash2 className="w-3.5 h-3.5 opacity-30" />
-            </span>
-          )}
-        </div>
-      ),
+          </div>
+        );
+      },
     },
   ];
 
-  const handleDeleteRoleSingle = async (roleId: string, roleName: string, userCount: number) => {
-    if (userCount > 0) {
-      alert(`Cannot delete role "${roleName}" because ${userCount} active users are currently assigned to it.`);
-      return;
-    }
-    if (!confirm(`Are you sure you want to delete role "${roleName}"?`)) return;
-
+  const handleDeleteRoleSingle = async (roleId: string) => {
+    if (!confirm('Are you sure you want to delete this custom role? This cannot be undone.')) return;
     try {
       const res = await fetch(`/api/roles?id=${roleId}`, { method: 'DELETE' });
       const json = await res.json();
@@ -650,9 +813,8 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
     });
     const json = await res.json();
     if (!json.success) {
-      throw new Error(json.error || 'Batch deletion failed');
+      throw new Error(json.error || 'Batch role deletion failed');
     }
-    setRoleRefreshTrigger((prev) => prev + 1);
   };
 
   const handleRoleFormSubmit = async (formData: Record<string, any>, mode: 'create' | 'edit') => {
@@ -677,19 +839,19 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
 
   return (
     <div className="space-y-6">
-      {/* Module Overview Banner & Sub-Tabs */}
-      <div className="relative z-30 p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 backdrop-blur-md space-y-4 shadow-sm dark:shadow-none transition-colors duration-200">
+      {/* Module Overview Banner */}
+      <div className="relative z-30 p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 backdrop-blur-md shadow-sm space-y-4">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-600/20 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
+            <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-600/20 border border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400">
               <Users className="w-6 h-6" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
-                Enterprise Users & Roles Governance
+                Enterprise Personnel & Organization Hierarchy
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Manage company-scoped personnel (RSO, TSO, CSR), geographic boundaries, and company-wise role catalogs.
+                Multi-Tenant Hierarchy: Tenant → Department → Position → User → Role/Permissions → Scope.
               </p>
             </div>
           </div>
@@ -701,7 +863,7 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
                 className="w-full md:w-auto flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white shadow-lg shadow-blue-500/20 transition-all cursor-pointer"
               >
                 <UserPlus className="w-4 h-4" />
-                <span>Create New User</span>
+                <span>Register User Profile</span>
               </button>
             ) : (
               <button
@@ -730,7 +892,7 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>Personnel Directory (Company & Role Wise)</span>
+            <span>Personnel Directory (Company & Position Wise)</span>
           </button>
 
           <button
@@ -804,7 +966,7 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
             columns={userColumns}
             idField="id"
             title="Active Personnel Directory"
-            searchPlaceholder="Search users by name, email, or role..."
+            searchPlaceholder="Search users by name, email, department, position, or role..."
             additionalParams={{
               companyId: selectedCompanyId,
               roleName: selectedRole,
@@ -838,7 +1000,7 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
       <DynamicCrudModal
         isOpen={modalOpen}
         mode={modalMode}
-        title={modalMode === 'create' ? 'Register New User Account' : `Edit User: ${currentUser?.full_name}`}
+        title={modalMode === 'create' ? 'Register New User Profile' : `Edit User: ${currentUser?.full_name}`}
         fields={userFormFields}
         onFieldChange={handleUserModalFieldChange}
         initialData={
@@ -850,6 +1012,11 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
                 phone: currentUser.phone,
                 roleName: currentUser.role_name,
                 companyId: currentUser.company_id,
+                departmentId: currentUser.department_id,
+                positionId: currentUser.position_id,
+                supervisorId: currentUser.supervisor_id,
+                distributorId: currentUser.distributor_id,
+                scopeLevel: currentUser.scope_level || 'TERRITORY',
                 regionId: currentUser.region_id,
                 territoryId: currentUser.territory_id,
                 isActive: currentUser.is_active,

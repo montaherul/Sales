@@ -25,8 +25,14 @@ export interface CreateUserData {
   roleId: string;
   roleName: string;
   companyId?: string | null;
+  departmentId?: string | null;
+  positionId?: string | null;
+  supervisorId?: string | null;
+  distributorId?: string | null;
+  scopeLevel?: string | null;
   territoryId?: string | null;
   regionId?: string | null;
+  routeId?: string | null;
 }
 
 export interface UpdateUserData {
@@ -37,8 +43,14 @@ export interface UpdateUserData {
   roleId?: string;
   roleName?: string;
   companyId?: string | null;
+  departmentId?: string | null;
+  positionId?: string | null;
+  supervisorId?: string | null;
+  distributorId?: string | null;
+  scopeLevel?: string | null;
   territoryId?: string | null;
   regionId?: string | null;
+  routeId?: string | null;
   newPasswordHash?: string;
 }
 
@@ -67,15 +79,26 @@ export class UserRepository {
    */
   public async getUserById(id: string): Promise<any | null> {
     const res = await dbQuery(
-      `SELECT u.id, u.email, u.full_name, u.phone, r.name as role, u.is_active, s.company_id,
+      `SELECT u.id, u.email, u.full_name, u.phone, r.name as role, u.is_active, 
+              COALESCE(u.company_id, s.company_id) as company_id,
               c.name as company_name, r.name as role_name,
-              s.territory_id, s.region_id, t.name as territory_name, reg.name as region_name
+              u.department_id, dept.name as department_name,
+              u.position_id, pos.name as position_name, pos.level as position_level,
+              u.supervisor_id, sup.full_name as supervisor_name,
+              u.distributor_id, dist.name as distributor_name,
+              s.scope_level, s.territory_id, s.region_id, s.route_id,
+              t.name as territory_name, reg.name as region_name, rt.name as route_name
        FROM user_profiles u
        LEFT JOIN roles r ON u.role_id = r.id
+       LEFT JOIN departments dept ON u.department_id = dept.id
+       LEFT JOIN positions pos ON u.position_id = pos.id
+       LEFT JOIN user_profiles sup ON u.supervisor_id = sup.id
+       LEFT JOIN distributors dist ON u.distributor_id = dist.id
        LEFT JOIN user_scopes s ON u.id = s.user_id
-       LEFT JOIN companies c ON s.company_id = c.id
+       LEFT JOIN companies c ON COALESCE(u.company_id, s.company_id) = c.id
        LEFT JOIN territories t ON s.territory_id = t.id
        LEFT JOIN regions reg ON s.region_id = reg.id
+       LEFT JOIN routes rt ON s.route_id = rt.id
        WHERE u.id = $1 LIMIT 1`,
       [id]
     );
@@ -87,7 +110,7 @@ export class UserRepository {
    */
   public async getUserByEmail(email: string): Promise<any | null> {
     const res = await dbQuery(
-      `SELECT u.id, u.email, u.full_name, u.role_id, s.company_id 
+      `SELECT u.id, u.email, u.full_name, u.role_id, COALESCE(u.company_id, s.company_id) as company_id 
        FROM user_profiles u 
        LEFT JOIN user_scopes s ON u.id = s.user_id
        WHERE u.email = $1 LIMIT 1`,
@@ -137,8 +160,9 @@ export class UserRepository {
     // 1. Insert user_profile
     await dbQuery(
       `INSERT INTO user_profiles (
-        id, email, password_hash, full_name, phone, role_id, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6, TRUE)`,
+        id, email, password_hash, full_name, phone, role_id, company_id,
+        department_id, position_id, supervisor_id, distributor_id, is_active
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, TRUE)`,
       [
         data.id,
         data.email.toLowerCase().trim(),
@@ -146,21 +170,27 @@ export class UserRepository {
         data.fullName.trim(),
         data.phone || null,
         data.roleId,
+        data.companyId || null,
+        data.departmentId || null,
+        data.positionId || null,
+        data.supervisorId || null,
+        data.distributorId || null,
       ]
     );
 
     // 2. Insert user_scope
-    if (data.territoryId || data.regionId || data.companyId) {
-      await dbQuery(
-        `INSERT INTO user_scopes (user_id, territory_id, region_id, company_id)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (user_id) DO UPDATE
-         SET territory_id = EXCLUDED.territory_id,
-             region_id = EXCLUDED.region_id,
-             company_id = EXCLUDED.company_id`,
-        [data.id, data.territoryId || null, data.regionId || null, data.companyId || null]
-      );
-    }
+    const scopeLevel = data.scopeLevel || (data.routeId ? 'ROUTE' : data.territoryId ? 'TERRITORY' : data.regionId ? 'REGION' : 'TENANT');
+    await dbQuery(
+      `INSERT INTO user_scopes (user_id, territory_id, region_id, company_id, scope_level, route_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (user_id) DO UPDATE
+       SET territory_id = EXCLUDED.territory_id,
+           region_id = EXCLUDED.region_id,
+           company_id = EXCLUDED.company_id,
+           scope_level = EXCLUDED.scope_level,
+           route_id = EXCLUDED.route_id`,
+      [data.id, data.territoryId || null, data.regionId || null, data.companyId || null, scopeLevel, data.routeId || null]
+    );
 
     return data.id;
   }
@@ -188,6 +218,26 @@ export class UserRepository {
       params.push(data.roleId);
       setClauses.push(`role_id = $${params.length}`);
     }
+    if (data.companyId !== undefined) {
+      params.push(data.companyId || null);
+      setClauses.push(`company_id = $${params.length}`);
+    }
+    if (data.departmentId !== undefined) {
+      params.push(data.departmentId || null);
+      setClauses.push(`department_id = $${params.length}`);
+    }
+    if (data.positionId !== undefined) {
+      params.push(data.positionId || null);
+      setClauses.push(`position_id = $${params.length}`);
+    }
+    if (data.supervisorId !== undefined) {
+      params.push(data.supervisorId || null);
+      setClauses.push(`supervisor_id = $${params.length}`);
+    }
+    if (data.distributorId !== undefined) {
+      params.push(data.distributorId || null);
+      setClauses.push(`distributor_id = $${params.length}`);
+    }
     if (data.newPasswordHash) {
       params.push(data.newPasswordHash);
       setClauses.push(`password_hash = $${params.length}`);
@@ -196,15 +246,24 @@ export class UserRepository {
     await dbQuery(`UPDATE user_profiles SET ${setClauses.join(', ')} WHERE id = $1`, params);
 
     // Update scopes
-    if (data.territoryId !== undefined || data.regionId !== undefined || data.companyId !== undefined) {
+    if (
+      data.territoryId !== undefined ||
+      data.regionId !== undefined ||
+      data.companyId !== undefined ||
+      data.scopeLevel !== undefined ||
+      data.routeId !== undefined
+    ) {
+      const scopeLevel = data.scopeLevel || (data.routeId ? 'ROUTE' : data.territoryId ? 'TERRITORY' : data.regionId ? 'REGION' : 'TENANT');
       await dbQuery(
-        `INSERT INTO user_scopes (user_id, territory_id, region_id, company_id)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO user_scopes (user_id, territory_id, region_id, company_id, scope_level, route_id)
+         VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (user_id) DO UPDATE
-         SET territory_id = EXCLUDED.territory_id,
-             region_id = EXCLUDED.region_id,
-             company_id = EXCLUDED.company_id`,
-        [data.id, data.territoryId || null, data.regionId || null, data.companyId || null]
+         SET territory_id = COALESCE(EXCLUDED.territory_id, user_scopes.territory_id),
+             region_id = COALESCE(EXCLUDED.region_id, user_scopes.region_id),
+             company_id = COALESCE(EXCLUDED.company_id, user_scopes.company_id),
+             scope_level = COALESCE(EXCLUDED.scope_level, user_scopes.scope_level),
+             route_id = COALESCE(EXCLUDED.route_id, user_scopes.route_id)`,
+        [data.id, data.territoryId || null, data.regionId || null, data.companyId || null, scopeLevel, data.routeId || null]
       );
     }
   }
