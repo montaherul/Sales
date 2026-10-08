@@ -31,7 +31,9 @@ import {
   Building2,
   Calendar,
   Trash2,
-  Filter
+  Filter,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import { ServerDataTable, ColumnDef } from '@/components/common/ServerDataTable';
 import { Select2, Select2Option } from '@/components/common/Select2';
@@ -464,6 +466,13 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
     }
   };
 
+  const handleExportDailyReport = (dateStr?: string) => {
+    const targetDate = dateStr || reportDate || '2026-10-06';
+    const [y, m, d] = targetDate.split('-').map(Number);
+    const compParam = companyId && companyId !== 'ALL' ? `&companyId=${companyId}` : '';
+    window.location.href = `/api/exports/xlsx?year=${y || 2026}&month=${m || 10}&day=${d || 6}&type=daily${compParam}`;
+  };
+
   return (
     <div className="space-y-6">
       {/* 1. Module Header & View Mode Switcher */}
@@ -528,7 +537,16 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
                 />
               </div>
 
-              <div className="shrink-0 relative z-10">
+              <div className="shrink-0 relative z-10 flex items-center gap-2">
+                <button
+                  onClick={() => handleExportDailyReport()}
+                  className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50 px-3.5 py-2 text-xs font-semibold transition-all cursor-pointer shadow-xs"
+                  title="Export Authoritative Single-Day XLSX Report"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Export Day (XLSX)</span>
+                </button>
+
                 <button
                   onClick={handleCreateNew}
                   className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 shadow-sm shadow-blue-500/20 transition-all cursor-pointer"
@@ -666,7 +684,17 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-4">
+            <div className="flex items-center justify-end gap-3 pt-4">
+              <button
+                type="button"
+                onClick={() => handleExportDailyReport(reportDate)}
+                className="flex items-center gap-1.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50 px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer shadow-xs"
+                title="Export this specific day's report preserving exact Excel layout and formulas"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span>Export Day (XLSX)</span>
+              </button>
+
               <div className="text-right">
                 <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Record Status</span>
                 <span className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400">{currentStatus}</span>

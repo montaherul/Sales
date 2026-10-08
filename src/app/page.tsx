@@ -18,6 +18,7 @@ import { MasterHierarchyManagement } from '@/components/admin/MasterHierarchyMan
 import { AuditLogViewer } from '@/components/audit/AuditLogViewer';
 import { ImportModal } from '@/components/import/ImportModal';
 import { DriveUploadWidget } from '@/components/drive/DriveUploadWidget';
+import { ExportModal } from '@/components/export/ExportModal';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 
 export default function Home() {
@@ -29,6 +30,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
   const [importOpen, setImportOpen] = useState<boolean>(false);
   const [driveOpen, setDriveOpen] = useState<boolean>(false);
+  const [exportOpen, setExportOpen] = useState<boolean>(false);
 
   // Global Company Scoping State
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
@@ -135,9 +137,8 @@ export default function Home() {
   const effectiveCompanyId = isSuperAdmin ? selectedCompanyId : (currentUser?.companyId || 'ALL');
 
   const handleExport = () => {
-    // Triggers direct download of authoritative 34-sheet Excel report scoped to tenant
-    const compParam = effectiveCompanyId && effectiveCompanyId !== 'ALL' ? `&companyId=${effectiveCompanyId}` : '';
-    window.location.href = `/api/exports/xlsx?year=2026&month=10&day=6${compParam}`;
+    // Opens dynamic Excel report configuration modal
+    setExportOpen(true);
   };
 
   // Loading splash while checking session
@@ -222,6 +223,12 @@ export default function Home() {
       {/* Modals & Drawers */}
       <ImportModal isOpen={importOpen} onClose={() => setImportOpen(false)} companyId={effectiveCompanyId} />
       <DriveUploadWidget isOpen={driveOpen} onClose={() => setDriveOpen(false)} companyId={effectiveCompanyId} />
+      <ExportModal 
+        isOpen={exportOpen} 
+        onClose={() => setExportOpen(false)} 
+        currentCompanyId={effectiveCompanyId} 
+        isSuperAdmin={isSuperAdmin}
+      />
 
       {/* Mandatory Onboarding Modal if user needs initial setup */}
       {currentUser && (currentUser.mustChangePassword || !currentUser.isOnboarded) && (

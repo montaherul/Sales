@@ -161,11 +161,11 @@ export function Sidebar({
               onExport();
               if (typeof window !== 'undefined' && window.innerWidth < 1024 && isOpen) onToggle();
             }}
-            title={!isOpen ? 'Export 34-Sheet XLSX' : undefined}
+            title={!isOpen ? 'Export Excel Reports (XLSX)' : undefined}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 transition-all border border-transparent hover:border-emerald-200 dark:hover:border-emerald-800/40 cursor-pointer"
           >
             <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span className={`truncate ${!isOpen ? 'hidden lg:hidden' : 'block'}`}>Export 34-Sheet XLSX</span>
+            <span className={`truncate ${!isOpen ? 'hidden lg:hidden' : 'block'}`}>Export Reports (XLSX)</span>
           </button>
 
           {/* Import Button */}

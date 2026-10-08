@@ -87,3 +87,19 @@ export const ZARDA_BRANDS = [
   { code: 'qty_99_14', name: '99/14', unitPrice: 6 },
   { code: 'qty_33_15', name: '33/15', unitPrice: 8 },
 ] as const;
+
+export const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
