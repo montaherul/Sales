@@ -10,6 +10,7 @@ import {
   ShieldAlert 
 } from 'lucide-react';
 import { ImportPreviewPayload } from '@/lib/excel/import';
+import { DatePicker } from '@/components/common/DatePicker';
 
 interface ImportModalProps {
   isOpen: boolean;
@@ -113,11 +114,9 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL' }: ImportModalP
             <label className="text-xs font-semibold text-slate-900 dark:text-white block mb-1">
               Application Selected Reporting Date
             </label>
-            <input
-              type="date"
+            <DatePicker
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-full rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-blue-500"
+              onChange={(d) => setSelectedDate(d)}
             />
             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Must match filename date and sheet number</p>
           </div>

@@ -22,6 +22,7 @@ import {
   Pie, 
   Cell 
 } from 'recharts';
+import { DatePicker } from '@/components/common/DatePicker';
 
 interface ExecutiveDashboardProps {
   companyId?: string;
@@ -188,13 +189,15 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <input
-            type="date"
-            value={reportDate}
-            onChange={(e) => setReportDate(e.target.value)}
-            className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:border-blue-500 focus:outline-none font-mono"
-          />
+        <div className="flex items-center gap-2">
+          <div className="w-48 sm:w-56">
+            <DatePicker
+              value={reportDate}
+              onChange={(d) => setReportDate(d)}
+              align="right"
+              size="sm"
+            />
+          </div>
 
           <button
             onClick={() => fetchDashboardData(reportDate)}

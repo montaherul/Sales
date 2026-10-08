@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { ServerDataTable, ColumnDef } from '@/components/common/ServerDataTable';
 import { Select2, Select2Option } from '@/components/common/Select2';
+import { DatePicker } from '@/components/common/DatePicker';
 
 interface TerritoryItem {
   id: string;
@@ -522,7 +523,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
           <div className="relative z-30 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm space-y-3.5 shadow-sm dark:shadow-none transition-colors duration-200">
             {/* Top Toolbar: Territory Filter & Create Action */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-end justify-between gap-3 relative z-40">
-              <div className="w-full sm:w-80 relative z-50">
+              <div className="w-full sm:w-72 relative z-50">
                 <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1 block">
                   Filter by Territory Scope
                 </label>
@@ -534,6 +535,16 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
                     ...territories.map(t => ({ value: t.id, label: t.name, subLabel: t.region_name }))
                   ]}
                   placeholder="Select Territory"
+                />
+              </div>
+
+              <div className="w-full sm:w-56 relative z-50">
+                <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1 block">
+                  Reporting Date Scope
+                </label>
+                <DatePicker
+                  value={reportDate}
+                  onChange={(d) => setReportDate(d)}
                 />
               </div>
 
@@ -671,17 +682,13 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
               />
             </div>
 
-            <div>
+            <div className="relative z-40">
               <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1">Reporting Date</label>
-              <div className="relative">
-                <input
-                  type="date"
-                  value={reportDate}
-                  disabled={isReadOnly}
-                  onChange={(e) => setReportDate(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-blue-500 focus:outline-none font-mono disabled:opacity-50"
-                />
-              </div>
+              <DatePicker
+                value={reportDate}
+                disabled={isReadOnly}
+                onChange={(d) => setReportDate(d)}
+              />
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-4">

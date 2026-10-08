@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
     const search = searchParams.get('search') || '';
-    const date = searchParams.get('date');
+    const date = searchParams.get('date') || searchParams.get('reportingDate');
     const territoryId = searchParams.get('territoryId');
     const status = searchParams.get('status');
     const companyId = searchParams.get('companyId');

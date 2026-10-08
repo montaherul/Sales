@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { ServerDataTable, ColumnDef } from '@/components/common/ServerDataTable';
 import { Select2 } from '@/components/common/Select2';
+import { DatePicker } from '@/components/common/DatePicker';
 
 interface ApprovalHubProps {
   currentRole: RoleType;
@@ -26,6 +27,7 @@ interface ApprovalHubProps {
 
 export function ApprovalHub({ currentRole, companyId = 'ALL' }: ApprovalHubProps) {
   const [reportDate, setReportDate] = useState('2026-10-06');
+  const [filterDate, setFilterDate] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [tableRefreshKey, setTableRefreshKey] = useState(0);
 
@@ -355,8 +357,25 @@ export function ApprovalHub({ currentRole, companyId = 'ALL' }: ApprovalHubProps
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-slate-500 dark:text-slate-400">Authorized Scope:</span>
-            <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-bold">
+            <div className="w-44 sm:w-52">
+              <DatePicker
+                value={filterDate}
+                onChange={setFilterDate}
+                placeholder="Filter by date..."
+                size="sm"
+                align="right"
+              />
+            </div>
+            {filterDate && (
+              <button
+                type="button"
+                onClick={() => setFilterDate('')}
+                className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-semibold cursor-pointer"
+              >
+                Clear
+              </button>
+            )}
+            <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-bold shrink-0">
               {currentRole} Access
             </span>
           </div>
@@ -394,13 +413,14 @@ export function ApprovalHub({ currentRole, companyId = 'ALL' }: ApprovalHubProps
 
       {/* ServerDataTable Calling PostgreSQL Stored Procedure */}
       <ServerDataTable
-        key={`${tableRefreshKey}_${companyId}`}
+        key={`${tableRefreshKey}_${companyId}_${filterDate}`}
         endpoint="/api/daily-submissions"
         columns={columns}
         searchPlaceholder="Search territory, status, remarks..."
         exportFilenamePrefix="Approval_Queue"
         additionalParams={{
           status: statusFilter,
+          reportingDate: filterDate || undefined,
           companyId: companyId !== 'ALL' ? companyId : undefined,
         }}
       />

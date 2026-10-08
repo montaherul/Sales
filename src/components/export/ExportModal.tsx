@@ -16,6 +16,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { MONTH_NAMES } from '@/shared/constants';
+import { DatePicker } from '@/components/common/DatePicker';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -232,11 +233,11 @@ export function ExportModal({
             </div>
           </div>
 
-          {/* 2. Date Scope: Year, Month, Day */}
+          {/* 2. Date Scope: Interactive Calendar UI */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Reporting Period
+                {reportType === 'daily' ? 'Reporting Date (Interactive Calendar)' : 'Period & Active Day (Interactive Calendar)'}
               </label>
               <button
                 type="button"
@@ -252,58 +253,16 @@ export function ExportModal({
               </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              {/* Year */}
-              <div>
-                <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">
-                  Year
-                </label>
-                <select
-                  value={year}
-                  onChange={(e) => setYear(parseInt(e.target.value, 10))}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-medium"
-                >
-                  {[2024, 2025, 2026, 2027, 2028].map((y) => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Month */}
-              <div>
-                <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">
-                  Month
-                </label>
-                <select
-                  value={month}
-                  onChange={(e) => setMonth(parseInt(e.target.value, 10))}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-medium"
-                >
-                  {MONTH_NAMES.map((mName: string, idx: number) => (
-                    <option key={idx + 1} value={idx + 1}>
-                      {String(idx + 1).padStart(2, '0')} - {mName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Reporting Day */}
-              <div>
-                <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">
-                  {reportType === 'daily' ? 'Report Day' : 'Active Day (STD/ADS)'}
-                </label>
-                <select
-                  value={day}
-                  onChange={(e) => setDay(parseInt(e.target.value, 10))}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-medium"
-                >
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-                    <option key={d} value={d}>
-                      Day {d} ({String(d).padStart(2, '0')})
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div>
+              <DatePicker
+                value={`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`}
+                onChange={(dateStr) => {
+                  const [y, m, d] = dateStr.split('-').map(Number);
+                  setYear(y);
+                  setMonth(m);
+                  setDay(d);
+                }}
+              />
             </div>
           </div>
 

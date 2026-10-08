@@ -9,6 +9,7 @@ import {
   X, 
   ShieldCheck 
 } from 'lucide-react';
+import { DatePicker } from '@/components/common/DatePicker';
 
 interface DriveUploadWidgetProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ interface DriveUploadWidgetProps {
 }
 
 export function DriveUploadWidget({ isOpen, onClose, companyId = 'ALL' }: DriveUploadWidgetProps) {
+  const [selectedDate, setSelectedDate] = useState('2026-10-06');
   const [uploading, setUploading] = useState(false);
   const [driveResult, setDriveResult] = useState<{
     fileId: string;
@@ -27,6 +29,13 @@ export function DriveUploadWidget({ isOpen, onClose, companyId = 'ALL' }: DriveU
 
   if (!isOpen) return null;
 
+  const [y, m, d] = selectedDate.split('-').map(Number);
+  const dateObj = new Date(y, (m || 10) - 1, d || 6);
+  const monthName = dateObj.toLocaleString('en-US', { month: 'long' });
+  const folderMonth = `${String(m).padStart(2, '0')}_${monthName}`;
+  const targetFolderPath = `Afaz_Tobacco_Reports/${y}/${folderMonth}/${selectedDate}/`;
+  const targetFileName = `Daily sales and Closing Stock Information ${monthName} ${d} ${y}.xlsx`;
+
   const handleUpload = async () => {
     setUploading(true);
     try {
@@ -35,9 +44,9 @@ export function DriveUploadWidget({ isOpen, onClose, companyId = 'ALL' }: DriveU
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userRole: 'SUPER_ADMIN',
-          year: 2026,
-          month: 10,
-          day: 6,
+          year: y,
+          month: m,
+          day: d,
           companyId: companyId !== 'ALL' ? companyId : undefined,
         }),
       });
@@ -81,19 +90,30 @@ export function DriveUploadWidget({ isOpen, onClose, companyId = 'ALL' }: DriveU
           </button>
         </div>
 
+        {/* Date Selector */}
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-slate-900 dark:text-white block">
+            Select Reporting Date to Archive
+          </label>
+          <DatePicker
+            value={selectedDate}
+            onChange={(d) => setSelectedDate(d)}
+          />
+        </div>
+
         {/* Cloud Hierarchy Specifications */}
         <div className="space-y-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-4 text-xs font-mono">
           <div>
             <span className="text-slate-500 dark:text-slate-400 block text-[11px] font-sans">Target Cloud Directory:</span>
             <span className="text-blue-600 dark:text-blue-400 font-semibold break-all">
-              Afaz_Tobacco_Reports/2026/10_October/2026-10-06/
+              {targetFolderPath}
             </span>
           </div>
 
           <div>
             <span className="text-slate-500 dark:text-slate-400 block text-[11px] font-sans">Authoritative Target Filename:</span>
             <span className="text-slate-800 dark:text-slate-200 break-all font-semibold">
-              Daily sales and Closing Stock Information October 6 2026.xlsx
+              {targetFileName}
             </span>
           </div>
 
