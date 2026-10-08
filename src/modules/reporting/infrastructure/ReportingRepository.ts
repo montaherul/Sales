@@ -6,9 +6,9 @@ import { SATKANIA_TERRITORIES } from '@/shared/constants';
 
 export class ReportingRepository {
   /**
-   * Fetches aggregated sales and stock totals for a given month.
+   * Fetches aggregated sales and stock totals for a given month with company scoping.
    */
-  public async getMonthlyAggregation(year: number, month: number): Promise<{
+  public async getMonthlyAggregation(year: number, month: number, companyId?: string): Promise<{
     territorySales: Record<string, number>;
     territoryStock: Record<string, number>;
     activeDaysElapsed: number;
@@ -23,22 +23,28 @@ export class ReportingRepository {
     try {
       const res = await dbQuery(
         `SELECT s.territory_id,
-                SUM(ds.sales_quantity) as total_sales,
-                MAX(dst.closing_stock_quantity) as latest_stock,
-                COUNT(DISTINCT s.reporting_date) as days_count
+                COALESCE(SUM(ds.quantity), 0) as total_sales,
+                COALESCE(MAX(dst.closing_stock), 0) as latest_stock,
+                COUNT(DISTINCT s.report_date) as days_count
          FROM daily_submissions s
+         JOIN territories t ON s.territory_id = t.id
+         JOIN regions r ON t.region_id = r.id
+         JOIN wings w ON r.wing_id = w.id
+         JOIN divisions d ON w.division_id = d.id
          LEFT JOIN daily_sales ds ON s.id = ds.submission_id
          LEFT JOIN daily_stock dst ON s.id = dst.submission_id
-         WHERE s.reporting_date >= $1 AND s.reporting_date <= $2
+         WHERE s.report_date >= $1 AND s.report_date <= $2
+           AND ($3::uuid IS NULL OR d.company_id = $3 OR s.company_id = $3)
          GROUP BY s.territory_id`,
-        [startDate, endDate]
+        [startDate, endDate, companyId || null]
       );
 
       res.rows.forEach((r: any) => {
         territorySales[r.territory_id] = parseFloat(r.total_sales || 0);
         territoryStock[r.territory_id] = parseFloat(r.latest_stock || 0);
-        if (r.days_count > activeDaysElapsed) {
-          activeDaysElapsed = parseInt(r.days_count, 10);
+        const days = parseInt(r.days_count, 10);
+        if (days > activeDaysElapsed) {
+          activeDaysElapsed = days;
         }
       });
     } catch {

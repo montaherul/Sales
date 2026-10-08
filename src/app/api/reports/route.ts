@@ -10,8 +10,18 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const year = parseInt(searchParams.get('year') || '2026', 10);
     const month = parseInt(searchParams.get('month') || '10', 10);
+    const companyIdParam = searchParams.get('companyId');
 
-    const report = await ReportingService.getExecutiveKPIs(year, month);
+    const { getAuthenticatedUser } = await import('@/shared/auth');
+    let targetCompanyId = companyIdParam && companyIdParam !== 'ALL' ? companyIdParam : null;
+    try {
+      const actor = await getAuthenticatedUser(request);
+      if (actor.role !== 'SUPER_ADMIN' && actor.companyId) {
+        targetCompanyId = actor.companyId;
+      }
+    } catch {}
+
+    const report = await ReportingService.getExecutiveKPIs(year, month, targetCompanyId || undefined);
 
     return NextResponse.json({
       success: true,

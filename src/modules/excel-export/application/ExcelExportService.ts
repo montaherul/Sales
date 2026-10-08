@@ -15,7 +15,8 @@ export class ExcelExportService {
     year: number,
     month: number,
     reportingDay: number,
-    userId: string = 'system'
+    userId: string = 'system',
+    companyId?: string
   ): Promise<{ filename: string; buffer: Buffer }> {
     const filename = generateExportFilename(year, month, reportingDay);
 
@@ -27,27 +28,32 @@ export class ExcelExportService {
 
     try {
       const res = await dbQuery(
-        `SELECT s.id, s.reporting_date, s.remarks, t.name as territory_name,
-                EXTRACT(DAY FROM s.reporting_date) as day_num,
-                COALESCE(MAX(CASE WHEN ds.brand_id = 'wilson' THEN ds.sales_quantity END), 0) as c_wilson_sales,
-                COALESCE(MAX(CASE WHEN ds.brand_id = 'shahara' THEN ds.sales_quantity END), 0) as c_shahara_sales,
-                COALESCE(MAX(CASE WHEN ds.brand_id = 'express' THEN ds.sales_quantity END), 0) as c_express_sales,
-                COALESCE(MAX(CASE WHEN ds.brand_id = 'nexus' THEN ds.sales_quantity END), 0) as c_nexus_sales,
-                COALESCE(MAX(CASE WHEN ds.brand_id = 'sb' THEN ds.sales_quantity END), 0) as c_sb_sales,
-                COALESCE(MAX(CASE WHEN ds.brand_id = 'sm' THEN ds.sales_quantity END), 0) as c_sm_sales,
-                COALESCE(MAX(CASE WHEN dst.brand_id = 'wilson' THEN dst.closing_stock_quantity END), 0) as c_wilson_stock,
-                COALESCE(MAX(CASE WHEN dst.brand_id = 'shahara' THEN dst.closing_stock_quantity END), 0) as c_shahara_stock,
-                COALESCE(MAX(CASE WHEN dst.brand_id = 'express' THEN dst.closing_stock_quantity END), 0) as c_express_stock,
-                COALESCE(MAX(CASE WHEN dst.brand_id = 'nexus' THEN dst.closing_stock_quantity END), 0) as c_nexus_stock,
-                COALESCE(MAX(CASE WHEN dst.brand_id = 'sb' THEN dst.closing_stock_quantity END), 0) as c_sb_stock,
-                COALESCE(MAX(CASE WHEN dst.brand_id = 'sm' THEN dst.closing_stock_quantity END), 0) as c_sm_stock
+        `SELECT s.id, s.report_date, s.remarks, t.name as territory_name,
+                EXTRACT(DAY FROM s.report_date) as day_num,
+                COALESCE(MAX(CASE WHEN b.name ILIKE '%wilson%' THEN ds.quantity END), 0) as c_wilson_sales,
+                COALESCE(MAX(CASE WHEN b.name ILIKE '%shahara%' THEN ds.quantity END), 0) as c_shahara_sales,
+                COALESCE(MAX(CASE WHEN b.name ILIKE '%express%' THEN ds.quantity END), 0) as c_express_sales,
+                COALESCE(MAX(CASE WHEN b.name ILIKE '%nexus%' THEN ds.quantity END), 0) as c_nexus_sales,
+                COALESCE(MAX(CASE WHEN b.name ILIKE '%sb%' THEN ds.quantity END), 0) as c_sb_sales,
+                COALESCE(MAX(CASE WHEN b.name ILIKE '%sm%' THEN ds.quantity END), 0) as c_sm_sales,
+                COALESCE(MAX(CASE WHEN b.name ILIKE '%wilson%' THEN dst.closing_stock END), 0) as c_wilson_stock,
+                COALESCE(MAX(CASE WHEN b.name ILIKE '%shahara%' THEN dst.closing_stock END), 0) as c_shahara_stock,
+                COALESCE(MAX(CASE WHEN b.name ILIKE '%express%' THEN dst.closing_stock END), 0) as c_express_stock,
+                COALESCE(MAX(CASE WHEN b.name ILIKE '%nexus%' THEN dst.closing_stock END), 0) as c_nexus_stock,
+                COALESCE(MAX(CASE WHEN b.name ILIKE '%sb%' THEN dst.closing_stock END), 0) as c_sb_stock,
+                COALESCE(MAX(CASE WHEN b.name ILIKE '%sm%' THEN dst.closing_stock END), 0) as c_sm_stock
          FROM daily_submissions s
          JOIN territories t ON s.territory_id = t.id
+         JOIN regions r ON t.region_id = r.id
+         JOIN wings w ON r.wing_id = w.id
+         JOIN divisions d ON w.division_id = d.id
          LEFT JOIN daily_sales ds ON s.id = ds.submission_id
          LEFT JOIN daily_stock dst ON s.id = dst.submission_id
-         WHERE s.reporting_date >= $1 AND s.reporting_date <= $2
-         GROUP BY s.id, s.reporting_date, s.remarks, t.name`,
-        [startDate, endDate]
+         LEFT JOIN brands b ON (ds.brand_id = b.id OR dst.brand_id = b.id)
+         WHERE s.report_date >= $1 AND s.report_date <= $2
+           AND ($3::uuid IS NULL OR d.company_id = $3 OR s.company_id = $3)
+         GROUP BY s.id, s.report_date, s.remarks, t.name`,
+        [startDate, endDate, companyId || null]
       );
 
       res.rows.forEach((row: any) => {

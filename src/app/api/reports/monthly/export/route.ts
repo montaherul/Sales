@@ -19,12 +19,14 @@ export async function POST(request: NextRequest) {
     const year = parseInt(body.year || '2026', 10);
     const month = parseInt(body.month || '10', 10);
     const day = parseInt(body.day || '6', 10);
+    const companyId = user.role === 'SUPER_ADMIN' ? (body.companyId || null) : user.companyId;
 
     const { filename, buffer } = await ExcelExportService.generateMonthlyReport(
       year,
       month,
       day,
-      user.id
+      user.id,
+      companyId || undefined
     );
 
     return new NextResponse(new Uint8Array(buffer), {
