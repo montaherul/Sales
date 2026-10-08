@@ -234,6 +234,7 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
         defaultValue: modalUserRoleName || 'CSR',
         options: roles.length > 0 ? roles : [
           { value: 'SUPER_ADMIN', label: 'SUPER_ADMIN (Global System Access)', badge: 'GLOBAL' },
+          { value: 'COMPANY_ADMIN', label: 'COMPANY_ADMIN (Tenant Administrator)', badge: 'TENANT' },
           { value: 'RSO', label: 'RSO (Regional Sales Officer)', badge: 'REGION' },
           { value: 'TSO', label: 'TSO (Territory Sales Officer)', badge: 'TERRITORY' },
           { value: 'CSR', label: 'CSR (Customer Sales Representative)', badge: 'OPERATIONAL' },
@@ -241,6 +242,18 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
         hint: 'Determines operational permissions and workflow capabilities.',
       },
     ];
+
+    // COMPANY_ADMIN scope notice
+    if (modalUserRoleName === 'COMPANY_ADMIN') {
+      fields.push({
+        name: '_companyAdminNotice',
+        label: 'Tenant Scope Level',
+        type: 'text',
+        disabled: true,
+        defaultValue: 'Full Company Oversight (All Divisions, Wings, Regions & Territories)',
+        hint: 'Company Administrator operates across the entire company. No sub-geographical restriction required.',
+      });
+    }
 
     // RSO scope: Region
     if (modalUserRoleName === 'RSO') {
@@ -312,6 +325,7 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
       render: (row) => {
         let badgeStyle = 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700';
         if (row.role_name === 'SUPER_ADMIN') badgeStyle = 'bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-800';
+        if (row.role_name === 'COMPANY_ADMIN') badgeStyle = 'bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800';
         if (row.role_name === 'RSO') badgeStyle = 'bg-purple-100 dark:bg-purple-950/70 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-800';
         if (row.role_name === 'TSO') badgeStyle = 'bg-blue-100 dark:bg-blue-950/70 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-800';
         if (row.role_name === 'CSR') badgeStyle = 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800';
@@ -348,6 +362,15 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
             <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 text-xs font-mono">
               <Globe className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
               <span>Global Enterprise</span>
+            </div>
+          );
+        }
+
+        if (row.role_name === 'COMPANY_ADMIN') {
+          return (
+            <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300 text-xs font-medium">
+              <Building2 className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span>Full Company Scope (All Territories)</span>
             </div>
           );
         }
@@ -444,11 +467,14 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
   };
 
   const handleUserFormSubmit = async (formData: Record<string, any>, mode: 'create' | 'edit') => {
+    const payload = Object.fromEntries(
+      Object.entries(formData).filter(([key]) => !key.startsWith('_'))
+    );
     const method = mode === 'create' ? 'POST' : 'PUT';
     const res = await fetch('/api/users', {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData),
+      body: JSON.stringify(payload),
     });
 
     const json = await res.json();
@@ -734,10 +760,18 @@ export function UserRoleManagement({ companyId = 'ALL' }: UserRoleManagementProp
 
             <Select2
               label="Filter by Role"
-              options={[
-                { value: 'ALL', label: 'All Roles' },
-                ...roles,
-              ]}
+              options={
+                roles.length > 0
+                  ? [{ value: 'ALL', label: 'All Roles (Global)' }, ...roles]
+                  : [
+                      { value: 'ALL', label: 'All Roles (Global)' },
+                      { value: 'SUPER_ADMIN', label: 'SUPER_ADMIN' },
+                      { value: 'COMPANY_ADMIN', label: 'COMPANY_ADMIN' },
+                      { value: 'RSO', label: 'RSO' },
+                      { value: 'TSO', label: 'TSO' },
+                      { value: 'CSR', label: 'CSR' },
+                    ]
+              }
               value={selectedRole}
               onChange={(val) => setSelectedRole(val || 'ALL')}
               placeholder="Select Role..."

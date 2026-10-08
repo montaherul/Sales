@@ -61,6 +61,7 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
 
   const demoAccounts: { role: RoleType; email: string; label: string; desc: string }[] = [
     { role: 'SUPER_ADMIN', email: 'admin@afaztobacco.com', label: 'Super Admin', desc: 'Full Enterprise Access' },
+    { role: 'COMPANY_ADMIN', email: 'admin.atc@afaztobacco.com', label: 'Company Admin', desc: 'Afaz Tenant Administrator' },
     { role: 'RSO', email: 'rso.satkania@afaztobacco.com', label: 'RSO', desc: 'Satkania Region Scope' },
     { role: 'TSO', email: 'tso.keranihat@afaztobacco.com', label: 'TSO', desc: 'Kerani Hat Territory Scope' },
     { role: 'CSR', email: 'csr.keranihat@afaztobacco.com', label: 'CSR', desc: 'Field Route Operations' },

@@ -9,7 +9,7 @@ import { ROLES, AUDIT_ACTIONS } from '@/shared/constants';
 import { ForbiddenError, ValidationError } from '@/shared/errors';
 import { logger } from '@/shared/logger';
 
-const CORE_SYSTEM_ROLES = ['SUPER_ADMIN', 'RSO', 'TSO', 'CSR'];
+const CORE_SYSTEM_ROLES = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'RSO', 'TSO', 'CSR'];
 
 export async function GET(request: NextRequest) {
   try {

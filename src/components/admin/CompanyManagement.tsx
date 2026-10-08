@@ -16,7 +16,8 @@ import {
   TrendingUp, 
   FileSpreadsheet,
   Globe,
-  Sparkles
+  Sparkles,
+  UserPlus
 } from 'lucide-react';
 
 interface CompanyRecord {
@@ -53,6 +54,10 @@ export function CompanyManagement() {
   const [selectedCompany, setSelectedCompany] = useState<CompanyRecord | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
+
+  // Quick Company Admin Creation Modal State
+  const [adminModalOpen, setAdminModalOpen] = useState(false);
+  const [adminCompany, setAdminCompany] = useState<CompanyRecord | null>(null);
 
   // Fetch platform stats on mount and refresh
   useEffect(() => {
@@ -159,6 +164,40 @@ export function CompanyManagement() {
       type: 'text',
       required: false,
       placeholder: 'Corporate Headquarters, Dhaka, Bangladesh',
+    },
+  ];
+
+  // Form Fields Schema for Quick Company Admin Creation
+  const adminFormFields: DynamicFormField[] = [
+    {
+      name: 'fullName',
+      label: 'Administrator Full Name',
+      type: 'text',
+      required: true,
+      placeholder: 'e.g. Mohammad Rahim',
+    },
+    {
+      name: 'email',
+      label: 'Corporate Email',
+      type: 'email',
+      required: true,
+      placeholder: 'e.g. admin@company.com',
+      hint: 'Primary login identifier for this tenant administrator.',
+    },
+    {
+      name: 'phone',
+      label: 'Contact Phone Number',
+      type: 'text',
+      required: false,
+      placeholder: '+880 1711-000000',
+    },
+    {
+      name: 'password',
+      label: 'Initial Password',
+      type: 'text',
+      required: true,
+      defaultValue: '123',
+      hint: 'Default password is 123. Can be changed upon first login.',
     },
   ];
 
@@ -284,6 +323,16 @@ export function CompanyManagement() {
       render: (row) => (
         <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
           <button
+            onClick={() => {
+              setAdminCompany(row);
+              setAdminModalOpen(true);
+            }}
+            className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-400 dark:hover:bg-indigo-900/60 dark:border-indigo-800/50 transition-all cursor-pointer shadow-xs"
+            title={`Create / Assign Administrator for ${row.name}`}
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+          </button>
+          <button
             onClick={() => handleEditClick(row)}
             className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-400 dark:hover:bg-blue-900/60 dark:border-blue-800/50 transition-all cursor-pointer shadow-xs"
             title="Configure Tenant"
@@ -359,6 +408,31 @@ export function CompanyManagement() {
       throw new Error(json.error || `Failed to ${mode} company`);
     }
 
+    setRefreshTrigger((prev) => prev + 1);
+  };
+
+  const handleAdminFormSubmit = async (formData: Record<string, any>) => {
+    if (!adminCompany) return;
+    const res = await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password || '123',
+        roleName: 'COMPANY_ADMIN',
+        companyId: adminCompany.id,
+      }),
+    });
+
+    const json = await res.json();
+    if (!json.success) {
+      throw new Error(json.error || 'Failed to create Company Administrator');
+    }
+
+    alert(`✓ Company Administrator created successfully for ${adminCompany.name}!\nEmail: ${formData.email}\nInitial Password: ${formData.password || '123'}`);
+    setAdminModalOpen(false);
     setRefreshTrigger((prev) => prev + 1);
   };
 
@@ -486,6 +560,17 @@ export function CompanyManagement() {
         initialData={selectedCompany}
         onSubmit={handleFormSubmit}
         onClose={() => setModalOpen(false)}
+      />
+
+      {/* 5. Quick Company Admin Creation Modal */}
+      <DynamicCrudModal
+        isOpen={adminModalOpen}
+        mode="create"
+        title={`Create Administrator: ${adminCompany?.name || ''}`}
+        fields={adminFormFields}
+        onSubmit={handleAdminFormSubmit}
+        onClose={() => setAdminModalOpen(false)}
+        submitButtonText="Create Company Admin"
       />
     </div>
   );
