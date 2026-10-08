@@ -79,8 +79,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const actor = await getAuthenticatedUser(request);
-    if (actor.role !== ROLES.SUPER_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN can create users');
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
+      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can create users');
     }
 
     const body = await request.json();
@@ -88,6 +88,10 @@ export async function POST(request: NextRequest) {
 
     if (!email || !fullName || !roleName) {
       throw new ValidationError('Email, Full Name, and Role are mandatory');
+    }
+
+    if (actor.role === ROLES.COMPANY_ADMIN && roleName === ROLES.SUPER_ADMIN) {
+      throw new ForbiddenError('Company Admin cannot create SUPER_ADMIN users');
     }
 
     // Lookup role ID
@@ -114,7 +118,10 @@ export async function POST(request: NextRequest) {
     const userId = userRes.rows[0].id;
 
     // Resolve organizational scope hierarchically
-    let finalCompanyId = companyId && companyId !== 'ALL' ? companyId : null;
+    let finalCompanyId = actor.role === ROLES.COMPANY_ADMIN 
+      ? actor.companyId 
+      : (companyId && companyId !== 'ALL' ? companyId : null);
+
     let finalRegionId = regionId && regionId !== 'ALL' ? regionId : null;
     let finalTerritoryId = territoryId && territoryId !== 'ALL' ? territoryId : null;
 
@@ -131,6 +138,10 @@ export async function POST(request: NextRequest) {
       if (terrInfo.rows.length > 0) {
         if (!finalRegionId) finalRegionId = terrInfo.rows[0].region_id;
         if (!finalCompanyId) finalCompanyId = terrInfo.rows[0].company_id;
+
+        if (actor.role === ROLES.COMPANY_ADMIN && terrInfo.rows[0].company_id !== actor.companyId) {
+          throw new ForbiddenError('Cannot assign territory belonging to another company');
+        }
       }
     } else if (finalRegionId && !finalCompanyId) {
       const regInfo = await dbQuery(
@@ -143,7 +154,14 @@ export async function POST(request: NextRequest) {
       );
       if (regInfo.rows.length > 0) {
         finalCompanyId = regInfo.rows[0].company_id;
+        if (actor.role === ROLES.COMPANY_ADMIN && regInfo.rows[0].company_id !== actor.companyId) {
+          throw new ForbiddenError('Cannot assign region belonging to another company');
+        }
       }
+    }
+
+    if (!finalCompanyId && actor.companyId) {
+      finalCompanyId = actor.companyId;
     }
 
     // Assign organizational scope (Company + Region + Territory)
@@ -157,10 +175,11 @@ export async function POST(request: NextRequest) {
     // Audit log
     try {
       await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values)
-         VALUES ($1, $2, $3, $4, $5)`,
+        `INSERT INTO audit_logs (user_id, company_id, event_type, entity_name, entity_id, new_values)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
         [
           actor.id,
+          finalCompanyId,
           AUDIT_ACTIONS.CREATE,
           'user_profiles',
           userId,
@@ -169,7 +188,7 @@ export async function POST(request: NextRequest) {
       );
     } catch {}
 
-    logger.info(`User created/scoped: ${email} (${roleName})`, 'UserController');
+    logger.info(`User created/scoped: ${email} (${roleName}) in company ${finalCompanyId}`, 'UserController');
 
     return NextResponse.json({
       success: true,
@@ -187,14 +206,32 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const actor = await getAuthenticatedUser(request);
-    if (actor.role !== ROLES.SUPER_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN can update users');
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
+      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can update users');
     }
 
     const body = await request.json();
-    const { id, email, fullName, phone, roleName, companyId, territoryId, regionId, isActive } = body;
+    const { id, fullName, phone, roleName, companyId, territoryId, regionId, isActive } = body;
 
     if (!id) throw new ValidationError('User ID is required');
+
+    // Tenant isolation check for COMPANY_ADMIN
+    if (actor.role === ROLES.COMPANY_ADMIN) {
+      const scopeCheck = await dbQuery(
+        `SELECT us.company_id, r.name as role_name 
+         FROM user_profiles u 
+         JOIN roles r ON u.role_id = r.id 
+         LEFT JOIN user_scopes us ON u.id = us.user_id 
+         WHERE u.id = $1 LIMIT 1`,
+        [id]
+      );
+      if (scopeCheck.rows.length === 0 || scopeCheck.rows[0].company_id !== actor.companyId) {
+        throw new ForbiddenError('You can only update users within your assigned company');
+      }
+      if (roleName === ROLES.SUPER_ADMIN) {
+        throw new ForbiddenError('Company Admin cannot promote users to SUPER_ADMIN');
+      }
+    }
 
     // Lookup role ID if roleName provided
     let roleId: string | undefined;
@@ -216,7 +253,10 @@ export async function PUT(request: NextRequest) {
 
     // Update scopes hierarchically
     if (companyId !== undefined || territoryId !== undefined || regionId !== undefined) {
-      let finalCompanyId = companyId && companyId !== 'ALL' ? companyId : null;
+      let finalCompanyId = actor.role === ROLES.COMPANY_ADMIN 
+        ? actor.companyId 
+        : (companyId && companyId !== 'ALL' ? companyId : null);
+
       let finalRegionId = regionId && regionId !== 'ALL' ? regionId : null;
       let finalTerritoryId = territoryId && territoryId !== 'ALL' ? territoryId : null;
 
@@ -259,9 +299,9 @@ export async function PUT(request: NextRequest) {
     // Audit log
     try {
       await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [actor.id, AUDIT_ACTIONS.UPDATE, 'user_profiles', id, JSON.stringify(body)]
+        `INSERT INTO audit_logs (user_id, company_id, event_type, entity_name, entity_id, new_values)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [actor.id, actor.companyId, AUDIT_ACTIONS.UPDATE, 'user_profiles', id, JSON.stringify(body)]
       );
     } catch {}
 
@@ -280,8 +320,8 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const actor = await getAuthenticatedUser(request);
-    if (actor.role !== ROLES.SUPER_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN can delete users');
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
+      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can delete users');
     }
 
     const { searchParams } = new URL(request.url);
@@ -293,14 +333,34 @@ export async function DELETE(request: NextRequest) {
       throw new ValidationError('At least one User ID is required');
     }
 
+    // Tenant isolation check for COMPANY_ADMIN
+    if (actor.role === ROLES.COMPANY_ADMIN) {
+      const scopeCheck = await dbQuery(
+        `SELECT us.user_id, us.company_id, r.name as role_name 
+         FROM user_profiles u 
+         JOIN roles r ON u.role_id = r.id 
+         LEFT JOIN user_scopes us ON u.id = us.user_id 
+         WHERE u.id = ANY($1::uuid[])`,
+        [idsToDelete]
+      );
+      const foreignUsers = scopeCheck.rows.filter(r => r.company_id !== actor.companyId);
+      if (foreignUsers.length > 0) {
+        throw new ForbiddenError('You can only delete users within your assigned company');
+      }
+      const superAdmins = scopeCheck.rows.filter(r => r.role_name === ROLES.SUPER_ADMIN);
+      if (superAdmins.length > 0) {
+        throw new ForbiddenError('Cannot delete SUPER_ADMIN users');
+      }
+    }
+
     await dbQuery(`DELETE FROM user_profiles WHERE id = ANY($1::uuid[])`, [idsToDelete]);
 
     // Audit log
     try {
       await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, old_values)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [actor.id, 'DELETE', 'user_profiles', idsToDelete.join(','), JSON.stringify({ deletedIds: idsToDelete })]
+        `INSERT INTO audit_logs (user_id, company_id, event_type, entity_name, entity_id, old_values)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [actor.id, actor.companyId, 'DELETE', 'user_profiles', idsToDelete.join(','), JSON.stringify({ deletedIds: idsToDelete })]
       );
     } catch {}
 

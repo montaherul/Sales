@@ -24,10 +24,16 @@ export async function GET(request: NextRequest) {
     const actualPageSize = isExport ? -1 : pageSize;
     const filterType = type && type !== 'ALL' ? type : null;
 
+    const companyIdParam = searchParams.get('companyId');
+    const actor = await getAuthenticatedUser(request);
+    let targetCompanyId = actor.role === 'SUPER_ADMIN' 
+      ? (companyIdParam && companyIdParam !== 'ALL' ? companyIdParam : null)
+      : (actor.companyId || null);
+
     // PostgreSQL Stored Procedure: sp_get_brands_paginated
     const result = await PaginationHelper.executeFunction(
       'sp_get_brands_paginated',
-      [page, actualPageSize, search || null, filterType, cleanSortBy, sortOrder]
+      [page, actualPageSize, search || null, filterType, targetCompanyId, cleanSortBy, sortOrder]
     );
 
     // Handle CSV Export
@@ -36,6 +42,7 @@ export async function GET(request: NextRequest) {
         id: 'Brand ID',
         name: 'Brand Name',
         type: 'Product Category',
+        company_name: 'Company',
         unit_price: 'Unit Price (BDT)',
         sort_order: 'Display Order',
         is_active: 'Active Status',
@@ -46,7 +53,7 @@ export async function GET(request: NextRequest) {
         status: 200,
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="Brand_Catalog_${Date.now()}.csv"`,
+          'Content-Disposition': `attachment; filename="Brands_Catalog_${Date.now()}.csv"`,
         },
       });
     }
@@ -67,21 +74,25 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const actor = await getAuthenticatedUser(request);
-    if (actor.role !== ROLES.SUPER_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN can create brands');
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
+      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can create brands');
     }
 
     const body = await request.json();
-    const { name, type, unitPrice, sortOrder } = body;
+    const { name, type, unitPrice, sortOrder, companyId } = body;
 
     if (!name || !name.trim()) throw new ValidationError('Brand name is required');
     if (!type) throw new ValidationError('Product type (CIGARETTE or ZARDA) is required');
 
+    const brandCompanyId = actor.role === ROLES.COMPANY_ADMIN 
+      ? actor.companyId 
+      : (companyId && companyId !== 'ALL' ? companyId : actor.companyId);
+
     const brandRes = await dbQuery(
-      `INSERT INTO brands (name, type, sort_order, is_active)
-       VALUES ($1, $2, $3, TRUE)
-       RETURNING id, name, type, sort_order`,
-      [name.trim(), type, sortOrder || 0]
+      `INSERT INTO brands (name, type, sort_order, is_active, company_id)
+       VALUES ($1, $2, $3, TRUE, $4)
+       RETURNING id, name, type, sort_order, company_id`,
+      [name.trim(), type, sortOrder || 0, brandCompanyId]
     );
 
     const newBrand = brandRes.rows[0];
@@ -98,13 +109,13 @@ export async function POST(request: NextRequest) {
     // Audit log
     try {
       await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [actor.id, AUDIT_ACTIONS.PRICE_UPDATE, 'brands', newBrand.id, JSON.stringify({ name, type, unitPrice })]
+        `INSERT INTO audit_logs (user_id, company_id, event_type, entity_name, entity_id, new_values)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [actor.id, brandCompanyId, AUDIT_ACTIONS.PRICE_UPDATE, 'brands', newBrand.id, JSON.stringify({ name, type, unitPrice, companyId: brandCompanyId })]
       );
     } catch {}
 
-    logger.info(`Brand created: ${newBrand.name} (${newBrand.type})`, 'BrandController');
+    logger.info(`Brand created: ${newBrand.name} (${newBrand.type}) in company ${brandCompanyId}`, 'BrandController');
 
     return NextResponse.json({
       success: true,
@@ -122,14 +133,21 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const actor = await getAuthenticatedUser(request);
-    if (actor.role !== ROLES.SUPER_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN can update brands');
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
+      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can update brands');
     }
 
     const body = await request.json();
     const { id, name, type, unitPrice, sortOrder, isActive } = body;
 
     if (!id) throw new ValidationError('Brand ID is required');
+
+    if (actor.role === ROLES.COMPANY_ADMIN) {
+      const check = await dbQuery('SELECT company_id FROM brands WHERE id = $1', [id]);
+      if (check.rows.length === 0 || check.rows[0].company_id !== actor.companyId) {
+        throw new ForbiddenError('You can only update brands within your company');
+      }
+    }
 
     await dbQuery(
       `UPDATE brands
@@ -152,9 +170,9 @@ export async function PUT(request: NextRequest) {
     // Audit log
     try {
       await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [actor.id, AUDIT_ACTIONS.PRICE_UPDATE, 'brands', id, JSON.stringify(body)]
+        `INSERT INTO audit_logs (user_id, company_id, event_type, entity_name, entity_id, new_values)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [actor.id, actor.companyId, AUDIT_ACTIONS.PRICE_UPDATE, 'brands', id, JSON.stringify(body)]
       );
     } catch {}
 
@@ -173,8 +191,8 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const actor = await getAuthenticatedUser(request);
-    if (actor.role !== ROLES.SUPER_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN can delete brands');
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
+      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can delete brands');
     }
 
     const { searchParams } = new URL(request.url);
@@ -186,14 +204,22 @@ export async function DELETE(request: NextRequest) {
       throw new ValidationError('At least one Brand ID is required');
     }
 
+    if (actor.role === ROLES.COMPANY_ADMIN) {
+      const check = await dbQuery('SELECT company_id FROM brands WHERE id = ANY($1::uuid[])', [idsToDelete]);
+      const unauthorized = check.rows.filter(r => r.company_id !== actor.companyId);
+      if (unauthorized.length > 0) {
+        throw new ForbiddenError('You can only delete brands within your company');
+      }
+    }
+
     await dbQuery(`DELETE FROM brands WHERE id = ANY($1::uuid[])`, [idsToDelete]);
 
     // Audit log
     try {
       await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, old_values)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [actor.id, 'DELETE', 'brands', idsToDelete.join(','), JSON.stringify({ deletedIds: idsToDelete })]
+        `INSERT INTO audit_logs (user_id, company_id, event_type, entity_name, entity_id, old_values)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [actor.id, actor.companyId, 'DELETE', 'brands', idsToDelete.join(','), JSON.stringify({ deletedIds: idsToDelete })]
       );
     } catch {}
 

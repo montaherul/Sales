@@ -197,18 +197,29 @@ export function Sidebar({
           )}
         </div>
 
-        {/* ADMINISTRATIVE SECTION (SUPER ADMIN ONLY) */}
-        {isSuperAdmin && (
+        {/* ADMINISTRATIVE SECTION (SUPER ADMIN & COMPANY ADMIN) */}
+        {(isSuperAdmin || currentRole === 'COMPANY_ADMIN') && (
           <div className="space-y-1 pt-2 border-t border-slate-200 dark:border-slate-900">
             <div className={`px-3 mb-2 flex items-center justify-between ${!isOpen ? 'hidden lg:hidden' : 'flex'}`}>
               <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-                Administration
+                {isSuperAdmin ? 'Platform Control' : 'Tenant Admin'}
               </span>
-              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
-                SUPER ADMIN
+              <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${
+                isSuperAdmin 
+                  ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20' 
+                  : 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/20'
+              }`}>
+                {isSuperAdmin ? 'SUPER ADMIN' : 'COMPANY ADMIN'}
               </span>
             </div>
-            {adminNav.map((item) => {
+            {(isSuperAdmin
+              ? adminNav
+              : [
+                  { id: 'users', label: 'Company Staff & Roles', icon: Users },
+                  { id: 'master_hierarchy', label: 'Hierarchy & Pricing', icon: Database },
+                  { id: 'audit', label: 'Company Audit Trail', icon: History },
+                ]
+            ).map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
               return (
@@ -218,7 +229,9 @@ export function Sidebar({
                   title={!isOpen ? item.label : undefined}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                     isActive
-                      ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 font-bold'
+                      ? isSuperAdmin 
+                        ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 font-bold'
+                        : 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 font-bold'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900/80'
                   }`}
                 >

@@ -23,7 +23,11 @@ export async function GET(request: NextRequest) {
 
     const cleanSortBy = sortBy.replace(/^t\./, '');
     const actualPageSize = isExport ? -1 : pageSize;
-    const filterCompanyId = companyId && companyId !== 'ALL' ? companyId : null;
+    const actor = await getAuthenticatedUser(request);
+    let filterCompanyId = actor.role === 'SUPER_ADMIN' 
+      ? (companyId && companyId !== 'ALL' ? companyId : null)
+      : (actor.companyId || null);
+
     const filterRegionId = regionId && regionId !== 'ALL' ? regionId : null;
 
     // PostgreSQL Stored Procedure: sp_get_territories_paginated
@@ -70,8 +74,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const actor = await getAuthenticatedUser(request);
-    if (actor.role !== ROLES.SUPER_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN can create territories');
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
+      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can create territories');
     }
 
     const body = await request.json();
@@ -79,6 +83,21 @@ export async function POST(request: NextRequest) {
 
     if (!name || !name.trim()) throw new ValidationError('Territory name is required');
     if (!regionId) throw new ValidationError('Region selection is required');
+
+    // Tenant check for COMPANY_ADMIN
+    if (actor.role === ROLES.COMPANY_ADMIN) {
+      const regRes = await dbQuery(
+        `SELECT d.company_id 
+         FROM regions r 
+         JOIN wings w ON r.wing_id = w.id 
+         JOIN divisions d ON w.division_id = d.id 
+         WHERE r.id = $1 LIMIT 1`,
+        [regionId]
+      );
+      if (regRes.rows.length === 0 || regRes.rows[0].company_id !== actor.companyId) {
+        throw new ForbiddenError('Cannot create territories under regions outside your company');
+      }
+    }
 
     const insertResult = await dbQuery(
       `INSERT INTO territories (name, region_id, sort_order)
@@ -92,9 +111,9 @@ export async function POST(request: NextRequest) {
     // Audit log
     try {
       await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [actor.id, AUDIT_ACTIONS.CREATE, 'territories', newTerritory.id, JSON.stringify(newTerritory)]
+        `INSERT INTO audit_logs (user_id, company_id, event_type, entity_name, entity_id, new_values)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [actor.id, actor.companyId, AUDIT_ACTIONS.CREATE, 'territories', newTerritory.id, JSON.stringify(newTerritory)]
       );
     } catch {}
 
@@ -116,8 +135,8 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const actor = await getAuthenticatedUser(request);
-    if (actor.role !== ROLES.SUPER_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN can update territories');
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
+      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can update territories');
     }
 
     const body = await request.json();
@@ -125,6 +144,22 @@ export async function PUT(request: NextRequest) {
 
     if (!id) throw new ValidationError('Territory ID is required');
     if (!name || !name.trim()) throw new ValidationError('Territory name is required');
+
+    // Tenant check for COMPANY_ADMIN
+    if (actor.role === ROLES.COMPANY_ADMIN) {
+      const terrCheck = await dbQuery(
+        `SELECT d.company_id 
+         FROM territories t 
+         JOIN regions r ON t.region_id = r.id 
+         JOIN wings w ON r.wing_id = w.id 
+         JOIN divisions d ON w.division_id = d.id 
+         WHERE t.id = $1 LIMIT 1`,
+        [id]
+      );
+      if (terrCheck.rows.length === 0 || terrCheck.rows[0].company_id !== actor.companyId) {
+        throw new ForbiddenError('You can only update territories within your company');
+      }
+    }
 
     const updateResult = await dbQuery(
       `UPDATE territories
@@ -143,9 +178,9 @@ export async function PUT(request: NextRequest) {
     // Audit log
     try {
       await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [actor.id, AUDIT_ACTIONS.UPDATE, 'territories', updated.id, JSON.stringify(updated)]
+        `INSERT INTO audit_logs (user_id, company_id, event_type, entity_name, entity_id, new_values)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [actor.id, actor.companyId, AUDIT_ACTIONS.UPDATE, 'territories', updated.id, JSON.stringify(updated)]
       );
     } catch {}
 
@@ -165,8 +200,8 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const actor = await getAuthenticatedUser(request);
-    if (actor.role !== ROLES.SUPER_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN can delete territories');
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
+      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can delete territories');
     }
 
     const { searchParams } = new URL(request.url);
@@ -178,14 +213,31 @@ export async function DELETE(request: NextRequest) {
       throw new ValidationError('At least one Territory ID is required');
     }
 
+    // Tenant check for COMPANY_ADMIN
+    if (actor.role === ROLES.COMPANY_ADMIN) {
+      const terrCheck = await dbQuery(
+        `SELECT t.id, d.company_id 
+         FROM territories t 
+         JOIN regions r ON t.region_id = r.id 
+         JOIN wings w ON r.wing_id = w.id 
+         JOIN divisions d ON w.division_id = d.id 
+         WHERE t.id = ANY($1::uuid[])`,
+        [idsToDelete]
+      );
+      const foreign = terrCheck.rows.filter(r => r.company_id !== actor.companyId);
+      if (foreign.length > 0) {
+        throw new ForbiddenError('You can only delete territories within your company');
+      }
+    }
+
     await dbQuery(`DELETE FROM territories WHERE id = ANY($1::uuid[])`, [idsToDelete]);
 
     // Audit log
     try {
       await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, old_values)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [actor.id, 'DELETE', 'territories', idsToDelete.join(','), JSON.stringify({ deletedIds: idsToDelete })]
+        `INSERT INTO audit_logs (user_id, company_id, event_type, entity_name, entity_id, old_values)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [actor.id, actor.companyId, 'DELETE', 'territories', idsToDelete.join(','), JSON.stringify({ deletedIds: idsToDelete })]
       );
     } catch {}
 

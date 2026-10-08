@@ -55,6 +55,23 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     'admin.manage_menus',
     'audit.view',
   ],
+  [ROLES.COMPANY_ADMIN]: [
+    'daily_entry.create',
+    'daily_entry.edit_draft',
+    'daily_entry.submit',
+    'daily_entry.approve_tso',
+    'daily_entry.approve_rso',
+    'daily_entry.reject',
+    'daily_entry.view',
+    'reports.view',
+    'reports.export',
+    'reports.import',
+    'admin.manage_users',
+    'admin.manage_roles',
+    'admin.manage_hierarchy',
+    'admin.manage_menus',
+    'audit.view',
+  ],
   [ROLES.RSO]: [
     'daily_entry.view',
     'daily_entry.approve_rso',
@@ -112,6 +129,11 @@ export function validateOrganizationalScope(
     );
   }
 
+  // COMPANY_ADMIN has scope over all territories within their assigned company
+  if (user.role === ROLES.COMPANY_ADMIN) {
+    return;
+  }
+
   if (user.role === ROLES.RSO) {
     if (user.regionId && targetRegionId && user.regionId !== targetRegionId) {
       throw new ForbiddenError(`RSO scope violation: User region (${user.regionId}) does not match target region (${targetRegionId})`);
@@ -160,34 +182,34 @@ export function validateWorkflowTransition(
 
   if (action === 'APPROVE') {
     if (currentStatus === SUBMISSION_STATUS.SUBMITTED) {
-      if (user.role !== ROLES.TSO && user.role !== ROLES.SUPER_ADMIN) {
-        throw new ForbiddenError('Only TSO or SUPER_ADMIN can approve a SUBMITTED daily entry');
+      if (user.role !== ROLES.TSO && user.role !== ROLES.SUPER_ADMIN && user.role !== ROLES.COMPANY_ADMIN) {
+        throw new ForbiddenError('Only TSO, COMPANY_ADMIN or SUPER_ADMIN can approve a SUBMITTED daily entry');
       }
       return SUBMISSION_STATUS.TSO_APPROVED;
     }
 
     if (currentStatus === SUBMISSION_STATUS.TSO_APPROVED) {
-      if (user.role !== ROLES.RSO && user.role !== ROLES.SUPER_ADMIN) {
-        throw new ForbiddenError('Only RSO or SUPER_ADMIN can approve a TSO_APPROVED daily entry');
+      if (user.role !== ROLES.RSO && user.role !== ROLES.SUPER_ADMIN && user.role !== ROLES.COMPANY_ADMIN) {
+        throw new ForbiddenError('Only RSO, COMPANY_ADMIN or SUPER_ADMIN can approve a TSO_APPROVED daily entry');
       }
       return SUBMISSION_STATUS.RSO_APPROVED;
     }
 
     if (currentStatus === SUBMISSION_STATUS.RSO_APPROVED) {
-      if (user.role !== ROLES.SUPER_ADMIN) {
-        throw new ForbiddenError('Only SUPER_ADMIN can perform final report finalization');
+      if (user.role !== ROLES.SUPER_ADMIN && user.role !== ROLES.COMPANY_ADMIN) {
+        throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can perform final report finalization');
       }
       return SUBMISSION_STATUS.FINALIZED;
     }
 
-    throw new StateTransitionError(currentStatus, action, ['TSO', 'RSO', 'SUPER_ADMIN']);
+    throw new StateTransitionError(currentStatus, action, ['TSO', 'RSO', 'COMPANY_ADMIN', 'SUPER_ADMIN']);
   }
 
   if (action === 'REJECT') {
     if (currentStatus === SUBMISSION_STATUS.FINALIZED) {
       throw new ForbiddenError('Cannot reject a FINALIZED record. Super Admin must unlock first.');
     }
-    if (user.role !== ROLES.TSO && user.role !== ROLES.RSO && user.role !== ROLES.SUPER_ADMIN) {
+    if (user.role !== ROLES.TSO && user.role !== ROLES.RSO && user.role !== ROLES.SUPER_ADMIN && user.role !== ROLES.COMPANY_ADMIN) {
       throw new ForbiddenError('Insufficient role to reject submissions');
     }
     return SUBMISSION_STATUS.REJECTED;

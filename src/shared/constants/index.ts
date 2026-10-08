@@ -3,6 +3,7 @@
 
 export const ROLES = {
   SUPER_ADMIN: 'SUPER_ADMIN',
+  COMPANY_ADMIN: 'COMPANY_ADMIN',
   RSO: 'RSO',
   TSO: 'TSO',
   CSR: 'CSR',

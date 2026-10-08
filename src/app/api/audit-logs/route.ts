@@ -22,10 +22,24 @@ export async function GET(request: NextRequest) {
     const actualPageSize = isExport ? -1 : pageSize;
     const filterEventType = eventType && eventType !== 'ALL' ? eventType : null;
 
+    const companyIdParam = searchParams.get('companyId');
+    const { getAuthenticatedUser } = await import('@/shared/auth');
+    const { ForbiddenError } = await import('@/shared/errors');
+    const { ROLES } = await import('@/shared/constants');
+
+    const actor = await getAuthenticatedUser(request);
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
+      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can view audit logs');
+    }
+
+    let targetCompanyId = actor.role === ROLES.SUPER_ADMIN
+      ? (companyIdParam && companyIdParam !== 'ALL' ? companyIdParam : null)
+      : actor.companyId;
+
     // PostgreSQL Stored Procedure: sp_get_audit_logs_paginated
     const result = await PaginationHelper.executeFunction(
       'sp_get_audit_logs_paginated',
-      [page, actualPageSize, search || null, filterEventType, null, null, null, cleanSortBy, sortOrder]
+      [page, actualPageSize, search || null, filterEventType, null, targetCompanyId, null, null, cleanSortBy, sortOrder]
     );
 
     // Handle CSV Export

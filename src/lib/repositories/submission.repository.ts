@@ -241,19 +241,33 @@ export class SubmissionRepository {
         const userUuid = userRes.rows[0]?.id;
 
         if (terrId) {
+          // Resolve territory company
+          const compRes = await dbQuery(`
+            SELECT d.company_id 
+            FROM territories t 
+            JOIN regions r ON t.region_id = r.id 
+            JOIN wings w ON r.wing_id = w.id 
+            JOIN divisions d ON w.division_id = d.id 
+            WHERE t.id = $1 LIMIT 1
+          `, [terrId]);
+          const compId = compRes.rows[0]?.company_id;
+
           // Upsert submission
           const subRes = await dbQuery(`
-            INSERT INTO daily_submissions (territory_id, report_date, status, created_by)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO daily_submissions (territory_id, report_date, status, created_by, company_id)
+            VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (territory_id, report_date) DO UPDATE
-            SET status = EXCLUDED.status, updated_at = NOW()
+            SET status = EXCLUDED.status, company_id = COALESCE(daily_submissions.company_id, EXCLUDED.company_id), updated_at = NOW()
             RETURNING id, status;
-          `, [terrId, record.reportDate, record.status, userUuid]);
+          `, [terrId, record.reportDate, record.status, userUuid, compId]);
 
           const submissionId = subRes.rows[0].id;
 
-          // Fetch brands map
-          const brandsRes = await dbQuery('SELECT id, name FROM brands;');
+          // Fetch brands map for this company
+          const brandsRes = await dbQuery(
+            'SELECT id, name FROM brands WHERE company_id IS NULL OR company_id = $1;',
+            [compId]
+          );
           const brandMap: Record<string, string> = {};
           brandsRes.rows.forEach(b => brandMap[b.name.toLowerCase()] = b.id);
 

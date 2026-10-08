@@ -192,11 +192,11 @@ export default function Home() {
           {activeTab === 'entry' && <DailySalesGrid companyId={effectiveCompanyId} />}
           {activeTab === 'approvals' && <ApprovalHub currentRole={currentRole} companyId={effectiveCompanyId} />}
 
-          {/* Super Admin Administrative Modules */}
+          {/* Platform & Tenant Administrative Modules */}
           {activeTab === 'companies' && currentRole === 'SUPER_ADMIN' && <CompanyManagement />}
-          {activeTab === 'users' && currentRole === 'SUPER_ADMIN' && <UserRoleManagement companyId={effectiveCompanyId} />}
+          {activeTab === 'users' && (currentRole === 'SUPER_ADMIN' || currentRole === 'COMPANY_ADMIN') && <UserRoleManagement companyId={effectiveCompanyId} />}
           {activeTab === 'menu_management' && currentRole === 'SUPER_ADMIN' && <MenuManagement companyId={effectiveCompanyId} />}
-          {activeTab === 'master_hierarchy' && currentRole === 'SUPER_ADMIN' && <MasterHierarchyManagement companyId={effectiveCompanyId} />}
+          {activeTab === 'master_hierarchy' && (currentRole === 'SUPER_ADMIN' || currentRole === 'COMPANY_ADMIN') && <MasterHierarchyManagement companyId={effectiveCompanyId} />}
           {activeTab === 'audit' && <AuditLogViewer companyId={effectiveCompanyId} />}
         </main>
 

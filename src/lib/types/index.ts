@@ -1,6 +1,6 @@
 // Domain Models & Types for Afaz Tobacco Sales & Stock Intelligence Platform
 
-export type RoleType = 'SUPER_ADMIN' | 'RSO' | 'TSO' | 'CSR';
+export type RoleType = 'SUPER_ADMIN' | 'COMPANY_ADMIN' | 'RSO' | 'TSO' | 'CSR';
 
 export type SubmissionStatus = 
   | 'DRAFT' 

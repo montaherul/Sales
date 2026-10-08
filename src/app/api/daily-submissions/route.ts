@@ -8,7 +8,7 @@ import { SubmissionRepository } from '@/lib/repositories/submission.repository';
 import { DailyOperationalRecord } from '@/lib/types';
 import { getAuthenticatedUser } from '@/shared/auth';
 import { AUDIT_ACTIONS } from '@/shared/constants';
-import { ValidationError } from '@/shared/errors';
+import { ValidationError, ForbiddenError } from '@/shared/errors';
 import { logger } from '@/shared/logger';
 
 export async function GET(request: NextRequest) {
@@ -133,8 +133,17 @@ export async function DELETE(request: NextRequest) {
       throw new ValidationError('At least one Submission ID is required for deletion');
     }
 
-    // Prevent deletion of locked/finalized submissions by non-super admin
+    // Prevent cross-company deletion for non-super admin
     if (user.role !== 'SUPER_ADMIN') {
+      const scopeCheck = await dbQuery(
+        `SELECT company_id FROM daily_submissions WHERE id = ANY($1::uuid[])`,
+        [idsToDelete]
+      );
+      const foreign = scopeCheck.rows.filter(r => r.company_id !== user.companyId);
+      if (foreign.length > 0) {
+        throw new ForbiddenError('You can only delete submissions within your assigned company');
+      }
+
       const lockedCheck = await dbQuery(
         `SELECT COUNT(*) as count FROM daily_submissions WHERE id = ANY($1::uuid[]) AND (status = 'FINALIZED' OR is_locked = TRUE)`,
         [idsToDelete]

@@ -18,6 +18,9 @@ async function runMigrations() {
       '00005_menu_management.sql',
       '00006_stored_procedures.sql',
       '00007_auth_passwords.sql',
+      '00008_roles_management.sql',
+      '00009_company_wise_roles_and_scopes.sql',
+      '00010_true_multitenant_saas.sql',
     ];
 
     for (const mig of migrations) {

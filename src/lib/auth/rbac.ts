@@ -3,6 +3,7 @@ import { RoleType, UserProfile, UserScope } from '../types';
 
 export const ROLE_HIERARCHY: Record<RoleType, number> = {
   SUPER_ADMIN: 100,
+  COMPANY_ADMIN: 80,
   RSO: 50,
   TSO: 30,
   CSR: 10,
@@ -49,6 +50,24 @@ export const ROLE_PERMISSIONS: Record<RoleType, PermissionCode[]> = {
     'drive.upload',
     'audit.view',
   ],
+  COMPANY_ADMIN: [
+    'sales.create',
+    'sales.read',
+    'sales.update.draft',
+    'sales.submit',
+    'sales.approve.tso',
+    'sales.reject.tso',
+    'sales.approve.rso',
+    'sales.reject.rso',
+    'sales.finalize',
+    'master.org.manage',
+    'master.targets.manage',
+    'master.prices.manage',
+    'users.manage',
+    'reports.export',
+    'reports.import',
+    'audit.view',
+  ],
   RSO: [
     'sales.read',
     'sales.approve.rso',
@@ -84,7 +103,7 @@ export function hasPermission(role: RoleType, permission: PermissionCode): boole
  * Validates whether a user is authorized to view or mutate data for a specific territory.
  */
 export function canAccessTerritory(user: UserProfile, territoryId: string, regionId?: string): boolean {
-  if (user.role === 'SUPER_ADMIN') {
+  if (user.role === 'SUPER_ADMIN' || user.role === 'COMPANY_ADMIN') {
     return true;
   }
 

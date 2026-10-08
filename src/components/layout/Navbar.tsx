@@ -97,8 +97,8 @@ export function Navbar({
                   <Lock className="h-3 w-3 text-slate-400 shrink-0" />
                 </span>
               </div>
-              <span className="hidden md:inline text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700/40 shrink-0">
-                Company Scoped
+              <span className="hidden md:inline text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700/40 shrink-0">
+                {currentUser?.role === 'COMPANY_ADMIN' ? 'Tenant Administrator' : 'Company Scoped'}
               </span>
             </div>
           )}
@@ -118,6 +118,8 @@ export function Navbar({
                   className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider ${
                     (currentUser?.role || currentRole) === 'SUPER_ADMIN'
                       ? 'bg-rose-50 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                      : (currentUser?.role || currentRole) === 'COMPANY_ADMIN'
+                      ? 'bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
                       : (currentUser?.role || currentRole) === 'RSO'
                       ? 'bg-purple-50 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800'
                       : (currentUser?.role || currentRole) === 'TSO'

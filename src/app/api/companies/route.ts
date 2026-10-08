@@ -86,7 +86,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, code } = body;
+    const { 
+      name, 
+      code, 
+      status = 'ACTIVE', 
+      plan = 'PRO', 
+      contactEmail, 
+      contactPhone, 
+      address, 
+      currency = 'BDT', 
+      timezone = 'Asia/Dhaka' 
+    } = body;
 
     if (!name || name.trim().length === 0) {
       throw new ValidationError('Company name is required');
@@ -95,20 +105,30 @@ export async function POST(request: NextRequest) {
     const companyCode = (code || name.substring(0, 4)).toUpperCase().trim();
 
     const insertResult = await dbQuery(
-      `INSERT INTO companies (name, code)
-       VALUES ($1, $2)
-       RETURNING id, name, code, created_at`,
-      [name.trim(), companyCode]
+      `INSERT INTO companies (name, code, status, plan, contact_email, contact_phone, address, currency, timezone)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id, name, code, status, plan, contact_email, contact_phone, address, currency, timezone, created_at`,
+      [name.trim(), companyCode, status, plan, contactEmail || null, contactPhone || null, address || null, currency, timezone]
     );
 
     const newCompany = insertResult.rows[0];
 
+    // Initialize company_settings
+    try {
+      await dbQuery(
+        `INSERT INTO company_settings (company_id, currency, timezone, working_days)
+         VALUES ($1, $2, $3, 26)
+         ON CONFLICT (company_id) DO NOTHING`,
+        [newCompany.id, currency, timezone]
+      );
+    } catch {}
+
     // Audit log
     try {
       await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [user.id, AUDIT_ACTIONS.CREATE, 'companies', newCompany.id, JSON.stringify(newCompany)]
+        `INSERT INTO audit_logs (user_id, company_id, event_type, entity_name, entity_id, new_values)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [user.id, newCompany.id, AUDIT_ACTIONS.CREATE, 'companies', newCompany.id, JSON.stringify(newCompany)]
       );
     } catch {}
 
@@ -135,17 +155,48 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, name, code } = body;
+    const { 
+      id, 
+      name, 
+      code, 
+      status, 
+      plan, 
+      contactEmail, 
+      contactPhone, 
+      address, 
+      currency, 
+      timezone 
+    } = body;
 
     if (!id) throw new ValidationError('Company ID is required for update');
     if (!name || name.trim().length === 0) throw new ValidationError('Company name is required');
 
     const updateResult = await dbQuery(
       `UPDATE companies
-       SET name = $1, code = $2
-       WHERE id = $3
-       RETURNING id, name, code, created_at`,
-      [name.trim(), (code || '').toUpperCase().trim(), id]
+       SET name = $1,
+           code = $2,
+           status = COALESCE($3, status),
+           plan = COALESCE($4, plan),
+           contact_email = COALESCE($5, contact_email),
+           contact_phone = COALESCE($6, contact_phone),
+           address = COALESCE($7, address),
+           currency = COALESCE($8, currency),
+           timezone = COALESCE($9, timezone),
+           updated_at = NOW()
+       WHERE id = $10
+       RETURNING id, name, code, status, plan, contact_email, contact_phone, address, currency, timezone, created_at, updated_at`,
+      [
+        name.trim(), 
+        (code || '').toUpperCase().trim(), 
+        status || null, 
+        plan || null, 
+        contactEmail || null, 
+        contactPhone || null, 
+        address || null, 
+        currency || null, 
+        timezone || null, 
+        id
+      ]
     );
 
     if (updateResult.rows.length === 0) {
@@ -157,9 +208,9 @@ export async function PUT(request: NextRequest) {
     // Audit log
     try {
       await dbQuery(
-        `INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [user.id, AUDIT_ACTIONS.UPDATE, 'companies', updated.id, JSON.stringify(updated)]
+        `INSERT INTO audit_logs (user_id, company_id, event_type, entity_name, entity_id, new_values)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [user.id, updated.id, AUDIT_ACTIONS.UPDATE, 'companies', updated.id, JSON.stringify(updated)]
       );
     } catch {}
 
