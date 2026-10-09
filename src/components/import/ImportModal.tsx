@@ -365,6 +365,11 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
                         ⚠️ {conflict}
                       </p>
                     ))}
+                    {preview.dateVerification.warnings?.map((warn, i) => (
+                      <p key={`w-${i}`} className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                        ℹ️ {warn}
+                      </p>
+                    ))}
                   </div>
                 </div>
 

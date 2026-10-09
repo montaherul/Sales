@@ -52,6 +52,34 @@ async function runImportTests() {
   assert(conflictRes.conflicts.length >= 1);
   console.log('  ✅ PASS: Conflicting dates blocked with message:', conflictRes.conflicts[0]);
 
+  // Test 2b: MULTI-TAB CUMULATIVE WORKBOOK SCENARIO (the reported bug fix)
+  // User selects day 5. File is named "October 6 2026" (the cumulative export date).
+  // The matched Tab "5" header B5 reads "Date:05.10.2026" — exact match to selected date.
+  // Expected: VALID (not blocked). Filename day difference goes to warnings, not conflicts.
+  console.log('\n[Test 2b] Testing multi-tab cumulative workbook: filename day ≠ selected day, header confirms selected day...');
+  const multiTabRes = verifyImportDateSafety({
+    applicationDate: '2026-10-05',
+    fileName: 'Daily sales and Closing Stock Information October 6 2026.xlsx',
+    headerDateText: 'Date:05.10.2026',
+    sheetNumber: 5, // Sheet "5" whose B5 header says day 5
+  });
+  assert.strictEqual(multiTabRes.isValid, true, 'Import must NOT be blocked when header date confirms the selected date');
+  assert.strictEqual(multiTabRes.conflicts.length, 0, 'No fatal conflicts expected');
+  assert(multiTabRes.warnings.length >= 1, 'Should have at least one warning about filename day variance');
+  console.log('  ✅ PASS: Multi-tab workbook with filename day 6 + header day 5 accepted correctly. Warning:', multiTabRes.warnings[0]);
+
+  // Test 2c: Month mismatch from filename must STILL be fatal even if header date matches
+  console.log('\n[Test 2c] Testing month mismatch from filename is still fatal...');
+  const monthConflictRes = verifyImportDateSafety({
+    applicationDate: '2026-11-05',
+    fileName: 'Daily sales and Closing Stock Information October 5 2026.xlsx', // October ≠ November
+    headerDateText: 'Date:05.11.2026',
+    sheetNumber: 5,
+  });
+  assert.strictEqual(monthConflictRes.isValid, false, 'Month mismatch in filename must still block');
+  assert(monthConflictRes.conflicts.some((c) => c.includes('Month mismatch')), 'Should have month conflict');
+  console.log('  ✅ PASS: Month mismatch from filename correctly blocked:', monthConflictRes.conflicts[0]);
+
   // Test 3: Parse Authoritative Template excel/TEMPLATE.xlsx
   console.log('\n[Test 3] Parsing Authoritative Template excel/TEMPLATE.xlsx...');
   const templateBuffer = fs.readFileSync(path.join(process.cwd(), 'excel', 'TEMPLATE.xlsx'));
