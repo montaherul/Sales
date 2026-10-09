@@ -397,23 +397,22 @@ export class SubmissionRepository {
           'SELECT id FROM territories WHERE id::text = $1 OR name ILIKE $2 LIMIT 1;',
           [params.territoryId, params.territoryId]
         );
-        const terrId = terrRes.rows[0]?.id;
+        const terrId = terrRes.rows[0]?.id || params.territoryId;
+        const isFinalized = params.toStatus === 'FINALIZED';
 
-        if (terrId) {
-          const updateRes = await dbQuery(`
-            UPDATE daily_submissions 
-            SET status = $1, unlock_reason = COALESCE($2, unlock_reason), updated_at = NOW()
-            WHERE territory_id = $3 AND report_date = $4
-            RETURNING id, status;
-          `, [params.toStatus, params.unlockReason, terrId, params.reportDate]);
+        const updateRes = await dbQuery(`
+          UPDATE daily_submissions 
+          SET status = $1, is_locked = $2, unlock_reason = COALESCE($3, unlock_reason), updated_at = NOW()
+          WHERE (territory_id::text = $4 OR id::text = $4) AND (report_date = $5 OR $5 IS NULL)
+          RETURNING id, status;
+        `, [params.toStatus, isFinalized, params.unlockReason, terrId, params.reportDate || null]);
 
-          if (updateRes.rows.length > 0) {
-            const subId = updateRes.rows[0].id;
-            await dbQuery(`
-              INSERT INTO approval_history (submission_id, from_status, to_status, comments)
-              VALUES ($1, 'SUBMITTED', $2, $3);
-            `, [subId, params.toStatus, params.comments || 'Status transitioned']);
-          }
+        if (updateRes.rows.length > 0) {
+          const subId = updateRes.rows[0].id;
+          await dbQuery(`
+            INSERT INTO approval_history (submission_id, from_status, to_status, comments)
+            VALUES ($1, 'SUBMITTED', $2, $3);
+          `, [subId, params.toStatus, params.comments || 'Status transitioned']);
         }
       } catch (err) {
         console.warn('Database workflow transition failed, using local store:', err);

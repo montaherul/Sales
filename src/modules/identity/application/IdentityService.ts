@@ -55,12 +55,13 @@ export class IdentityService {
     options: UserFilterOptions,
     actor: UserAuthContext
   ): Promise<PaginatedResult<any>> {
-    let filterCompanyId = options.companyId && options.companyId !== 'ALL' ? options.companyId : null;
-
-    // Server-side tenant scope enforcement
-    if (actor.role !== ROLES.SUPER_ADMIN) {
-      filterCompanyId = actor.companyId || null;
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN && actor.role !== ROLES.TENANT_ADMIN) {
+      throw new ForbiddenError('Insufficient permissions to access User Directory');
     }
+
+    const filterCompanyId = actor.role === ROLES.SUPER_ADMIN
+      ? (options.companyId && options.companyId !== 'ALL' ? options.companyId : null)
+      : (actor.companyId || null);
 
     return await userRepository.getPaginatedUsers({
       ...options,
@@ -95,12 +96,12 @@ export class IdentityService {
    */
   public static async createUser(dto: CreateUserDTO, actor: UserAuthContext): Promise<string> {
     // 1. Role validation
-    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can create users');
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN && actor.role !== ROLES.TENANT_ADMIN) {
+      throw new ForbiddenError('Only Super Admin and Company Administrators can create users');
     }
 
-    if (actor.role === ROLES.COMPANY_ADMIN && dto.roleName === ROLES.SUPER_ADMIN) {
-      throw new ForbiddenError('Company Administrators cannot provision Super Admin accounts');
+    if (actor.role !== ROLES.SUPER_ADMIN && dto.roleName === ROLES.SUPER_ADMIN) {
+      throw new ForbiddenError('Company Administrators cannot create Super Admin accounts');
     }
 
     if (!dto.email || !dto.email.trim()) throw new ValidationError('Email is required');
@@ -205,7 +206,7 @@ export class IdentityService {
       throw new NotFoundError('User not found');
     }
 
-    // Tenant check
+    // Tenant boundary check
     if (actor.role !== ROLES.SUPER_ADMIN) {
       if (existing.company_id !== actor.companyId) {
         throw new ForbiddenError('You can only update users within your assigned company');
@@ -289,8 +290,8 @@ export class IdentityService {
    * Deletes users with tenant and system role protection.
    */
   public static async deleteUsers(ids: string[], actor: UserAuthContext): Promise<number> {
-    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can delete users');
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN && actor.role !== ROLES.TENANT_ADMIN) {
+      throw new ForbiddenError('Insufficient permissions to delete users');
     }
 
     if (ids.length === 0) {

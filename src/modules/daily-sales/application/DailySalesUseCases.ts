@@ -142,8 +142,8 @@ export class DailySalesService {
       }
 
       const locked = records.filter(r => r.status === 'FINALIZED' || r.is_locked);
-      if (locked.length > 0) {
-        throw new ForbiddenError('Cannot delete finalized or locked records without Super Admin unlock');
+      if (locked.length > 0 && actor.role !== ROLES.COMPANY_ADMIN) {
+        throw new ForbiddenError('Cannot delete finalized or locked records without Admin unlock');
       }
     }
 
@@ -180,9 +180,14 @@ export class DailySalesService {
       throw new ValidationError('territoryId, reportDate, and toStatus are required');
     }
 
-    // Enforce business rule: Unlock requires a mandatory reason
-    if (params.toStatus !== 'FINALIZED' && params.isUnlock && !params.unlockReason?.trim()) {
-      throw new ValidationError('A non-empty unlockReason is mandatory when unlocking finalized records');
+    // Enforce business rule: Unlock requires a mandatory reason, auto-filled for administrators
+    let effectiveUnlockReason = params.unlockReason;
+    if (params.toStatus !== 'FINALIZED' && params.isUnlock && !effectiveUnlockReason?.trim()) {
+      if (actor.role === ROLES.SUPER_ADMIN || actor.role === ROLES.COMPANY_ADMIN) {
+        effectiveUnlockReason = 'Administrative status override';
+      } else {
+        throw new ValidationError('A non-empty unlockReason is mandatory when unlocking finalized records');
+      }
     }
 
     // Company scope verification
@@ -199,7 +204,7 @@ export class DailySalesService {
       toStatus: params.toStatus,
       userId: actor.id,
       comments: params.comments,
-      unlockReason: params.unlockReason,
+      unlockReason: effectiveUnlockReason,
     });
   }
 

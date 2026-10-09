@@ -57,8 +57,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Partial<Record<RoleType, Permission[]>> =
   ],
   [ROLES.PLATFORM_SUPPORT]: [
     'reports.view',
-    'admin.manage_users',
-    'audit.view',
   ],
   [ROLES.COMPANY_ADMIN]: [
     'daily_entry.create',
@@ -74,7 +72,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Partial<Record<RoleType, Permission[]>> =
     'admin.manage_users',
     'admin.manage_roles',
     'admin.manage_hierarchy',
-    'admin.manage_menus',
     'audit.view',
   ],
   [ROLES.TENANT_ADMIN]: [
@@ -91,27 +88,23 @@ export const DEFAULT_ROLE_PERMISSIONS: Partial<Record<RoleType, Permission[]>> =
     'admin.manage_users',
     'admin.manage_roles',
     'admin.manage_hierarchy',
-    'admin.manage_menus',
     'audit.view',
   ],
   [ROLES.CEO]: [
     'daily_entry.view',
     'reports.view',
     'reports.export',
-    'audit.view',
   ],
   [ROLES.COMMERCIAL_DIRECTOR]: [
     'daily_entry.view',
     'reports.view',
     'reports.export',
-    'audit.view',
   ],
   [ROLES.HEAD_OF_SALES]: [
     'daily_entry.view',
     'daily_entry.approve_rso',
     'reports.view',
     'reports.export',
-    'admin.manage_hierarchy',
   ],
   [ROLES.RSO]: [
     'daily_entry.view',
@@ -119,7 +112,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Partial<Record<RoleType, Permission[]>> =
     'daily_entry.reject',
     'reports.view',
     'reports.export',
-    'audit.view',
   ],
   [ROLES.REGIONAL_MANAGER]: [
     'daily_entry.view',
@@ -127,7 +119,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Partial<Record<RoleType, Permission[]>> =
     'daily_entry.reject',
     'reports.view',
     'reports.export',
-    'audit.view',
   ],
   [ROLES.AREA_MANAGER]: [
     'daily_entry.view',
@@ -184,6 +175,14 @@ export const DEFAULT_ROLE_PERMISSIONS: Partial<Record<RoleType, Permission[]>> =
  */
 export function hasPermission(user: UserAuthContext, permission: Permission): boolean {
   if (user.role === ROLES.SUPER_ADMIN) return true;
+  // Strict Platform Security: Google Drive upload, record unlock, and global menu access are strictly SUPER_ADMIN only
+  if (
+    permission === 'drive.upload' ||
+    permission === 'daily_entry.unlock' ||
+    permission === 'admin.manage_menus'
+  ) {
+    return false;
+  }
   return user.permissions.includes(permission) || (DEFAULT_ROLE_PERMISSIONS[user.role] || []).includes(permission);
 }
 

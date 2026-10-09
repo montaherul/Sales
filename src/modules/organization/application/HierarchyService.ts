@@ -79,8 +79,8 @@ export class HierarchyService {
    * Creates a new territory within permitted company scope.
    */
   public static async createTerritory(dto: CreateTerritoryDTO, actor: UserAuthContext): Promise<any> {
-    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can create territories');
+    if (actor.role !== ROLES.SUPER_ADMIN) {
+      throw new ForbiddenError('Only SUPER_ADMIN can create territories');
     }
 
     if (!dto.name || !dto.name.trim()) throw new ValidationError('Territory name is required');
@@ -113,8 +113,8 @@ export class HierarchyService {
    * Updates an existing territory.
    */
   public static async updateTerritory(dto: UpdateTerritoryDTO, actor: UserAuthContext): Promise<any> {
-    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can update territories');
+    if (actor.role !== ROLES.SUPER_ADMIN) {
+      throw new ForbiddenError('Only SUPER_ADMIN can update territories');
     }
 
     if (!dto.id) throw new ValidationError('Territory ID is required');
@@ -149,8 +149,8 @@ export class HierarchyService {
    * Deletes territories with tenant boundary validation.
    */
   public static async deleteTerritories(ids: string[], actor: UserAuthContext): Promise<number> {
-    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can delete territories');
+    if (actor.role !== ROLES.SUPER_ADMIN) {
+      throw new ForbiddenError('Only SUPER_ADMIN can delete territories');
     }
 
     if (ids.length === 0) {

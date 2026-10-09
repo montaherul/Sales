@@ -36,8 +36,8 @@ export class PeriodService {
     data: { companyId?: string; year: number; status?: string; notes?: string; autoGenerate?: boolean },
     actor: UserAuthContext
   ): Promise<ReportingYear> {
-    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
-      throw new ForbiddenError('Only Super Admin or Company Admin can create reporting years');
+    if (actor.role !== ROLES.SUPER_ADMIN) {
+      throw new ForbiddenError('Only Super Admin can create reporting years');
     }
 
     const companyId = actor.role === ROLES.SUPER_ADMIN
@@ -90,8 +90,8 @@ export class PeriodService {
     updates: { status?: string; is_locked?: boolean; notes?: string },
     actor: UserAuthContext
   ): Promise<ReportingYear> {
-    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
-      throw new ForbiddenError('Only Super Admin or Company Admin can update reporting years');
+    if (actor.role !== ROLES.SUPER_ADMIN) {
+      throw new ForbiddenError('Only Super Admin can update reporting years');
     }
 
     const updated = await periodRepository.updateYear(id, updates);
@@ -158,8 +158,8 @@ export class PeriodService {
     updates: { working_days?: number; status?: string; is_locked?: boolean; notes?: string },
     actor: UserAuthContext
   ): Promise<MonthlyPeriod> {
-    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
-      throw new ForbiddenError('Only Super Admin or Company Admin can configure monthly periods');
+    if (actor.role !== ROLES.SUPER_ADMIN) {
+      throw new ForbiddenError('Only Super Admin can configure monthly periods');
     }
 
     const updated = await periodRepository.updateMonth(id, updates);
@@ -200,8 +200,8 @@ export class PeriodService {
     updates: { is_working_day?: boolean; is_locked?: boolean; status?: string; holiday_name?: string | null },
     actor: UserAuthContext
   ): Promise<DailyPeriodDate> {
-    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
-      throw new ForbiddenError('Only Super Admin or Company Admin can configure daily periods');
+    if (actor.role !== ROLES.SUPER_ADMIN) {
+      throw new ForbiddenError('Only Super Admin can configure daily periods');
     }
 
     const updated = await periodRepository.updateDate(identifier, updates);
@@ -230,8 +230,8 @@ export class PeriodService {
     defaultWorkingDays: number = 26,
     actor: UserAuthContext
   ): Promise<any> {
-    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
-      throw new ForbiddenError('Only Super Admin or Company Admin can auto-create reporting periods');
+    if (actor.role !== ROLES.SUPER_ADMIN) {
+      throw new ForbiddenError('Only Super Admin can auto-create reporting periods');
     }
 
     const companyId = actor.role === ROLES.SUPER_ADMIN

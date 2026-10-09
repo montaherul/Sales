@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { 
-  CloudUpload, 
-  CheckCircle2, 
-  FileSpreadsheet, 
-  X, 
+import {
+  CloudUpload,
+  CheckCircle2,
+  FileSpreadsheet,
+  X,
   ShieldAlert,
   Layers,
   ArrowRight,
@@ -17,17 +17,30 @@ import {
   ChevronDown,
   ChevronUp,
   Check,
-  Calendar
+  Calendar,
+  Files,
+  Plus,
+  Trash2
 } from 'lucide-react';
 import { ImportPreviewPayload } from '@/lib/excel/import';
 import { DatePicker } from '@/components/common/DatePicker';
-import { 
-  calculateCigaretteSalesTotal, 
-  calculateCigaretteStockTotal, 
-  calculateZardaSalesValuation, 
-  calculateZardaStockValuation 
+import {
+  calculateCigaretteSalesTotal,
+  calculateCigaretteStockTotal,
+  calculateZardaSalesValuation,
+  calculateZardaStockValuation
 } from '@/lib/calculations/engine';
 import { DailyOperationalRecord } from '@/lib/types';
+
+export interface UploadedFileStatus {
+  file: File;
+  status: 'SUCCESS' | 'ERROR';
+  matchedSheetName?: string;
+  territoryCount?: number;
+  totalSheetsFound?: number;
+  error?: string;
+  previewData?: ImportPreviewPayload;
+}
 
 interface ImportModalProps {
   isOpen: boolean;
@@ -45,80 +58,293 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
     const d = String(now.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   });
-  const [file, setFile] = useState<File | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFileStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<ImportPreviewPayload | null>(null);
   const [pristineRecords, setPristineRecords] = useState<DailyOperationalRecord[] | null>(null);
   const [importSuccess, setImportSuccess] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [activeSheetName, setActiveSheetName] = useState<string>('');
-  const [brandViewMode, setBrandViewMode] = useState<'totals' | 'sales' | 'stock' | 'both'>('totals');
+  const [brandViewMode, setBrandViewMode] = useState<'totals' | 'sales' | 'stock' | 'both' | 'zarda_sales' | 'zarda_stock'>('totals');
   const [isEditing, setIsEditing] = useState(false);
   const [expandedTerritoryId, setExpandedTerritoryId] = useState<string | null>(null);
   const [modifiedTerritories, setModifiedTerritories] = useState<Set<string>>(new Set());
 
   if (!isOpen) return null;
 
-  const parseFile = async (currentFile: File, dateStr: string, sheetOverride?: string) => {
+  const parseFilesParallel = async (filesToParse: File[], dateStr: string) => {
+    if (!filesToParse || filesToParse.length === 0) {
+      setUploadedFiles([]);
+      setPreview(null);
+      setPristineRecords(null);
+      return;
+    }
+
     setLoading(true);
     setImportSuccess(false);
     setModifiedTerritories(new Set());
 
     try {
-      const formData = new FormData();
-      formData.append('file', currentFile);
-      if (dateStr) {
-        formData.append('applicationDate', dateStr);
-      }
-      if (sheetOverride) {
-        formData.append('sheetName', sheetOverride);
-      }
-      if (companyId && companyId !== 'ALL') {
-        formData.append('companyId', companyId);
+      // 1. Execute parallel upload & validation for all files
+      const fileResults: UploadedFileStatus[] = await Promise.all(
+        filesToParse.map(async (f) => {
+          const formData = new FormData();
+          formData.append('file', f);
+          if (dateStr) {
+            formData.append('applicationDate', dateStr);
+          }
+          if (companyId && companyId !== 'ALL') {
+            formData.append('companyId', companyId);
+          }
+
+          try {
+            const res = await fetch('/api/imports/xlsx', {
+              method: 'POST',
+              body: formData,
+            });
+            const json = await res.json();
+            if (json.success && json.data) {
+              return {
+                file: f,
+                status: 'SUCCESS' as const,
+                matchedSheetName: json.data.matchedSheet?.name || 'N/A',
+                territoryCount: json.data.records?.length || 0,
+                totalSheetsFound: json.data.totalSheetsFound || 0,
+                previewData: json.data as ImportPreviewPayload,
+              };
+            } else {
+              return {
+                file: f,
+                status: 'ERROR' as const,
+                error: json.error || 'Failed to parse workbook',
+              };
+            }
+          } catch (err: any) {
+            return {
+              file: f,
+              status: 'ERROR' as const,
+              error: err.message || 'Network error processing file',
+            };
+          }
+        })
+      );
+
+      setUploadedFiles(fileResults);
+
+      const successfulFiles = fileResults.filter(
+        (r) => r.status === 'SUCCESS' && r.previewData
+      ) as Array<{
+        file: File;
+        status: 'SUCCESS';
+        matchedSheetName: string;
+        territoryCount: number;
+        totalSheetsFound: number;
+        previewData: ImportPreviewPayload;
+      }>;
+
+      if (successfulFiles.length === 0) {
+        setPreview(null);
+        setPristineRecords(null);
+        return;
       }
 
-      const res = await fetch('/api/imports/xlsx', {
-        method: 'POST',
-        body: formData,
-      });
+      // 2. Consolidate data across all files for the selected date
+      const territoryMap = new Map<string, {
+        record: DailyOperationalRecord & { sourceFiles?: string[] };
+        sources: string[];
+      }>();
 
-      const json = await res.json();
-      if (json.success) {
-        setPreview(json.data);
-        setPristineRecords(JSON.parse(JSON.stringify(json.data.records)));
-        setActiveSheetName(json.data.matchedSheet.name);
-        if (json.data.targetDate && json.data.targetDate !== selectedDate) {
-          setSelectedDate(json.data.targetDate);
+      for (const item of successfulFiles) {
+        const payload = item.previewData;
+        for (const rec of payload.records) {
+          const key = (rec.territoryId || rec.territoryName || '').trim();
+          if (!key) continue;
+
+          if (!territoryMap.has(key)) {
+            const copy: any = JSON.parse(JSON.stringify(rec));
+            copy.sourceFiles = [item.file.name];
+            territoryMap.set(key, {
+              record: copy,
+              sources: [item.file.name],
+            });
+          } else {
+            const entry = territoryMap.get(key)!;
+            if (!entry.sources.includes(item.file.name)) {
+              entry.sources.push(item.file.name);
+            }
+            const r = entry.record as any;
+            r.sourceFiles = entry.sources;
+
+            // Merge Cigarette Sales
+            for (const b of ['wilson', 'shahara', 'express', 'nexus', 'sb', 'sm'] as const) {
+              const val1 = Number(r.cigaretteSales?.[b]) || 0;
+              const val2 = Number(rec.cigaretteSales?.[b]) || 0;
+              r.cigaretteSales[b] = Number((val1 + val2).toFixed(4));
+            }
+            r.totalCigaretteSales = calculateCigaretteSalesTotal(r.cigaretteSales);
+
+            // Merge Cigarette Stock
+            for (const b of ['wilson', 'shahara', 'express', 'nexus', 'sb', 'sm'] as const) {
+              const val1 = Number(r.cigaretteStock?.[b]) || 0;
+              const val2 = Number(rec.cigaretteStock?.[b]) || 0;
+              r.cigaretteStock[b] = Number((val1 + val2).toFixed(4));
+            }
+            r.totalCigaretteStock = calculateCigaretteStockTotal(r.cigaretteStock);
+
+            // Merge Zarda Sales
+            for (const b of ['slb', 'qty_22_25', 'qty_99_14', 'qty_33_15'] as const) {
+              const val1 = Number(r.zardaSales?.[b]) || 0;
+              const val2 = Number(rec.zardaSales?.[b]) || 0;
+              r.zardaSales[b] = val1 + val2;
+            }
+            r.totalZardaSalesValue = calculateZardaSalesValuation(r.zardaSales);
+
+            // Merge Zarda Stock
+            for (const b of ['slb', 'qty_22_25', 'qty_99_14', 'qty_33_15'] as const) {
+              const val1 = Number(r.zardaStock?.[b]) || 0;
+              const val2 = Number(rec.zardaStock?.[b]) || 0;
+              r.zardaStock[b] = val1 + val2;
+            }
+            r.totalZardaStockValue = calculateZardaStockValuation(r.zardaStock);
+
+            // Merge Empty Packets
+            r.emptyPackets = (Number(r.emptyPackets) || 0) + (Number(rec.emptyPackets) || 0);
+
+            // Merge Remarks
+            if (rec.remarks && rec.remarks.trim()) {
+              if (r.remarks && r.remarks.trim()) {
+                r.remarks = `${r.remarks} | [${item.file.name}]: ${rec.remarks.trim()}`;
+              } else {
+                r.remarks = `[${item.file.name}]: ${rec.remarks.trim()}`;
+              }
+            }
+          }
         }
-      } else {
-        alert(json.error || 'Failed to parse workbook');
       }
+
+      const combinedRecords = Array.from(territoryMap.values()).map((v) => v.record);
+
+      // Recalculate combined totals
+      let totalCigaretteSales = 0;
+      let totalCigaretteStock = 0;
+      let totalZardaSalesValue = 0;
+      let totalZardaStockValue = 0;
+      let totalEmptyPackets = 0;
+
+      for (const r of combinedRecords) {
+        totalCigaretteSales += r.totalCigaretteSales;
+        totalCigaretteStock += r.totalCigaretteStock;
+        totalZardaSalesValue += r.totalZardaSalesValue;
+        totalZardaStockValue += r.totalZardaStockValue;
+        totalEmptyPackets += r.emptyPackets;
+      }
+
+      const allErrors = successfulFiles.flatMap((s) => s.previewData.errors || []);
+      const allWarnings = successfulFiles.flatMap((s) => s.previewData.warnings || []);
+      const totalSheetsSum = successfulFiles.reduce(
+        (acc, s) => acc + (s.previewData.totalSheetsFound || 0),
+        0
+      );
+
+      const combinedPreview: ImportPreviewPayload = {
+        isValid: allErrors.length === 0,
+        targetDate: dateStr,
+        matchedSheet: {
+          name:
+            successfulFiles.length === 1
+              ? successfulFiles[0].previewData.matchedSheet.name
+              : `${successfulFiles.length} Workbooks Combined`,
+          index: 0,
+          matchMethod: 'SEARCHED_TAB_MATCH',
+          headerDateText: dateStr,
+          resolvedDate: dateStr,
+        },
+        availableSheets: successfulFiles[0]?.previewData.availableSheets || [],
+        summary: {
+          totalRecords: combinedRecords.length,
+          newRecordsCount: combinedRecords.length,
+          revisionRecordsCount: 0,
+          totalCigaretteSales: Number(totalCigaretteSales.toFixed(2)),
+          totalCigaretteStock: Number(totalCigaretteStock.toFixed(2)),
+          totalZardaSalesValue,
+          totalZardaStockValue,
+          totalEmptyPackets,
+        },
+        dateVerification: {
+          isValid: true,
+          resolvedDate: dateStr,
+          conflicts: [],
+          warnings: allWarnings,
+        },
+        totalSheetsFound: totalSheetsSum,
+        totalValidRecords: combinedRecords.length,
+        duplicateTerritories: [],
+        records: combinedRecords,
+        errors: allErrors,
+        warnings: allWarnings,
+      };
+
+      setPreview(combinedPreview);
+      setPristineRecords(JSON.parse(JSON.stringify(combinedRecords)));
+      setActiveSheetName(combinedPreview.matchedSheet.name);
     } catch (err: any) {
-      console.error('Import upload error:', err);
-      alert(err.message || 'Error processing Excel file');
+      console.error('Parallel multi-file import error:', err);
+      alert(err.message || 'Error processing Excel files in parallel');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0];
-    if (!selected) return;
-    setFile(selected);
-    await parseFile(selected, selectedDate);
+  const handleFilesSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files;
+    if (!selected || selected.length === 0) return;
+    const incoming = Array.from(selected);
+
+    // Merge with existing files by name
+    const existingNames = new Set(uploadedFiles.map((u) => u.file.name));
+    const newFiles = incoming.filter((f) => !existingNames.has(f.name));
+    const combinedFileList = [...uploadedFiles.map((u) => u.file), ...newFiles];
+
+    await parseFilesParallel(combinedFileList, selectedDate);
+    e.target.value = '';
+  };
+
+  const handleRemoveFile = async (fileNameToRemove: string) => {
+    const remainingFiles = uploadedFiles
+      .map((u) => u.file)
+      .filter((f) => f.name !== fileNameToRemove);
+    await parseFilesParallel(remainingFiles, selectedDate);
   };
 
   const handleDateChange = async (newDate: string) => {
     setSelectedDate(newDate);
-    if (file) {
-      await parseFile(file, newDate);
+    if (uploadedFiles.length > 0) {
+      await parseFilesParallel(uploadedFiles.map((u) => u.file), newDate);
     }
   };
 
   const handleSheetSwitch = async (sheetName: string) => {
-    if (file && sheetName !== activeSheetName) {
+    if (uploadedFiles.length === 1 && sheetName !== activeSheetName) {
       setActiveSheetName(sheetName);
-      await parseFile(file, selectedDate, sheetName);
+      const currentFile = uploadedFiles[0].file;
+      setLoading(true);
+      try {
+        const formData = new FormData();
+        formData.append('file', currentFile);
+        formData.append('applicationDate', selectedDate);
+        formData.append('sheetName', sheetName);
+        if (companyId && companyId !== 'ALL') formData.append('companyId', companyId);
+        const res = await fetch('/api/imports/xlsx', { method: 'POST', body: formData });
+        const json = await res.json();
+        if (json.success && json.data) {
+          setPreview(json.data);
+          setPristineRecords(JSON.parse(JSON.stringify(json.data.records)));
+        }
+      } catch (err: any) {
+        console.error('Sheet switch error:', err);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -225,12 +451,13 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
     if (!preview || !preview.records.length) return;
     setCommitting(true);
     try {
+      const fileNames = uploadedFiles.map((u) => u.file.name).join(', ') || 'multi_import_consolidated.xlsx';
       const res = await fetch('/api/imports/xlsx/commit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           records: preview.records,
-          fileName: file?.name || 'imported_file.xlsx',
+          fileName: fileNames,
           companyId: companyId !== 'ALL' ? companyId : undefined,
         }),
       });
@@ -291,32 +518,106 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
           </div>
 
           <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3.5 bg-slate-50/50 dark:bg-slate-950/40 relative z-10">
-            <label className="text-xs font-semibold text-slate-900 dark:text-white flex items-center gap-1.5 mb-1.5">
-              <CloudUpload className="h-4 w-4 text-blue-500" />
-              2. Upload Reporting Workbook (.xlsx)
+            <label className="text-xs font-semibold text-slate-900 dark:text-white flex items-center justify-between gap-1.5 mb-1.5">
+              <span className="flex items-center gap-1.5">
+                <CloudUpload className="h-4 w-4 text-blue-500" />
+                2. Parallel Multi-File Upload (.xlsx)
+              </span>
+              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">
+                Multi-File Parallel
+              </span>
             </label>
-            <label className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 cursor-pointer hover:border-blue-500 transition-colors">
+            <label className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2.5 cursor-pointer hover:border-blue-500 transition-colors">
               <CloudUpload className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
               <span className="text-xs text-slate-700 dark:text-slate-300 truncate font-medium">
-                {file ? file.name : 'Select .xlsx file (1 tab, 4 tabs, or full 34 tabs)...'}
+                {uploadedFiles.length > 0
+                  ? `${uploadedFiles.length} file(s) loaded — Click to select or add more...`
+                  : 'Select 1, 4, 5+ .xlsx workbooks (with 34 tabs each)...'}
               </span>
               <input
                 type="file"
                 accept=".xlsx"
-                onChange={handleFileChange}
+                multiple
+                onChange={handleFilesSelect}
                 className="hidden"
               />
             </label>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
-              Supports single-day files or multi-tab workbooks (e.g. 4 sheets, 34 sheets).
+              Upload multiple workbooks simultaneously. All files are checked by date and merged into one unified preview.
             </p>
           </div>
         </div>
 
+        {/* Uploaded Workbooks List Tray */}
+        {uploadedFiles.length > 0 && (
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Files className="h-4 w-4 text-indigo-500" />
+                <span>Uploaded Workbooks ({uploadedFiles.length})</span>
+                <span className="text-[10px] font-mono font-normal text-slate-500">
+                  • Target Date: {selectedDate}
+                </span>
+              </span>
+              <label className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer flex items-center gap-1">
+                <Plus className="h-3 w-3" />
+                <span>Add More Files</span>
+                <input
+                  type="file"
+                  accept=".xlsx"
+                  multiple
+                  onChange={handleFilesSelect}
+                  className="hidden"
+                />
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {uploadedFiles.map((uf, idx) => (
+                <div
+                  key={uf.file.name + idx}
+                  className={`flex items-center justify-between p-2 rounded-lg border text-xs ${
+                    uf.status === 'SUCCESS'
+                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+                      : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0 pr-1">
+                    <FileSpreadsheet className={`h-4 w-4 shrink-0 ${uf.status === 'SUCCESS' ? 'text-emerald-500' : 'text-rose-500'}`} />
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold text-slate-800 dark:text-slate-200 truncate" title={uf.file.name}>
+                        {uf.file.name}
+                      </p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate">
+                        {(uf.file.size / 1024).toFixed(1)} KB •{' '}
+                        {uf.status === 'SUCCESS' ? (
+                          <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                            Tab &quot;{uf.matchedSheetName}&quot; ({uf.territoryCount} terr)
+                          </span>
+                        ) : (
+                          <span className="text-rose-600 dark:text-rose-400">{uf.error || 'Failed'}</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveFile(uf.file.name)}
+                    className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
+                    title="Remove this file from import"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {loading && (
           <div className="py-8 text-center text-xs text-slate-500 dark:text-slate-400 space-y-2">
             <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
-            <p>Inspecting 1st tab, matching reporting date across workbook, and re-evaluating calculations...</p>
+            <p>Scanning all workbook tabs in parallel, matching reporting date, and merging data into combined preview...</p>
           </div>
         )}
 
@@ -324,11 +625,10 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
         {preview && (
           <div className="space-y-4">
             {/* Matched Tab & Date Safety Card */}
-            <div className={`rounded-xl border p-4 ${
-              preview.dateVerification.isValid 
-                ? 'bg-emerald-50/60 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60' 
+            <div className={`rounded-xl border p-4 ${preview.dateVerification.isValid
+                ? 'bg-emerald-50/60 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60'
                 : 'bg-rose-50/60 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/60'
-            }`}>
+              }`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-start gap-3">
                   {preview.dateVerification.isValid ? (
@@ -339,16 +639,16 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                        {preview.dateVerification.isValid 
-                          ? 'Tab & Date Verification Passed' 
+                        {preview.dateVerification.isValid
+                          ? 'Tab & Date Verification Passed'
                           : 'IMPORT BLOCKED: Date Discrepancy Detected'}
                       </h4>
                       <span className="text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">
                         Tab: &quot;{preview.matchedSheet.name}&quot;
                       </span>
                       <span className="text-[10px] px-2 py-0.5 rounded-full font-sans font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                        {preview.matchedSheet.matchMethod === 'FIRST_TAB_MATCH' 
-                          ? '✓ Matched First Tab' 
+                        {preview.matchedSheet.matchMethod === 'FIRST_TAB_MATCH'
+                          ? '✓ Matched First Tab'
                           : '🔍 Found Tab Matching Date'}
                       </span>
                     </div>
@@ -363,11 +663,6 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
                     {preview.dateVerification.conflicts.map((conflict, i) => (
                       <p key={i} className="text-[11px] text-rose-600 dark:text-rose-300 mt-1 font-medium">
                         ⚠️ {conflict}
-                      </p>
-                    ))}
-                    {preview.dateVerification.warnings?.map((warn, i) => (
-                      <p key={`w-${i}`} className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
-                        ℹ️ {warn}
                       </p>
                     ))}
                   </div>
@@ -399,11 +694,10 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
                       <button
                         key={ws.name}
                         onClick={() => handleSheetSwitch(ws.name)}
-                        className={`text-[11px] px-2.5 py-1 rounded-lg font-mono transition-all shrink-0 cursor-pointer ${
-                          isSelected
+                        className={`text-[11px] px-2.5 py-1 rounded-lg font-mono transition-all shrink-0 cursor-pointer ${isSelected
                             ? 'bg-blue-600 text-white font-bold shadow-sm'
                             : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-blue-400'
-                        }`}
+                          }`}
                       >
                         Sheet {ws.name}
                         {ws.resolvedDate && (
@@ -557,57 +851,73 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
                       <button
                         type="button"
                         onClick={() => setBrandViewMode('totals')}
-                        className={`px-2 py-0.5 rounded-md font-medium transition-all ${
-                          brandViewMode === 'totals'
+                        className={`px-2 py-0.5 rounded-md font-medium transition-all ${brandViewMode === 'totals'
                             ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-semibold'
                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                        }`}
+                          }`}
                       >
                         Totals Overview
                       </button>
                       <button
                         type="button"
                         onClick={() => setBrandViewMode('stock')}
-                        className={`px-2 py-0.5 rounded-md font-medium transition-all ${
-                          brandViewMode === 'stock'
+                        className={`px-2 py-0.5 rounded-md font-medium transition-all ${brandViewMode === 'stock'
                             ? 'bg-emerald-600 text-white shadow-xs font-semibold'
                             : 'text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400'
-                        }`}
+                          }`}
                       >
                         Closing Stock (BITCL)
                       </button>
                       <button
                         type="button"
                         onClick={() => setBrandViewMode('sales')}
-                        className={`px-2 py-0.5 rounded-md font-medium transition-all ${
-                          brandViewMode === 'sales'
+                        className={`px-2 py-0.5 rounded-md font-medium transition-all ${brandViewMode === 'sales'
                             ? 'bg-blue-600 text-white shadow-xs font-semibold'
                             : 'text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400'
-                        }`}
+                          }`}
                       >
                         Sales (BITCL)
                       </button>
                       <button
                         type="button"
                         onClick={() => setBrandViewMode('both')}
-                        className={`px-2 py-0.5 rounded-md font-medium transition-all ${
-                          brandViewMode === 'both'
+                        className={`px-2 py-0.5 rounded-md font-medium transition-all ${brandViewMode === 'both'
                             ? 'bg-indigo-600 text-white shadow-xs font-semibold'
                             : 'text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                        }`}
+                          }`}
                       >
                         Both Brands & Stock
+                      </button>
+                      <div className="w-px h-4 bg-slate-300 dark:bg-slate-700 mx-1"></div>
+                      <button
+                        type="button"
+                        onClick={() => setBrandViewMode('zarda_sales')}
+                        className={`px-2 py-0.5 rounded-md font-medium transition-all ${brandViewMode === 'zarda_sales'
+                            ? 'bg-purple-600 text-white shadow-xs font-semibold'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400'
+                          }`}
+                      >
+                        Zarda Sales
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBrandViewMode('zarda_stock')}
+                        className={`px-2 py-0.5 rounded-md font-medium transition-all ${brandViewMode === 'zarda_stock'
+                            ? 'bg-indigo-600 text-white shadow-xs font-semibold'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                          }`}
+                      >
+                        Zarda Stock
                       </button>
                     </div>
 
                     <button
                       type="button"
                       onClick={() => setIsEditing(!isEditing)}
-                      className={`text-xs px-2.5 py-1 rounded-lg font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
-                        isEditing
+                      className={`text-xs px-2.5 py-1 rounded-lg font-medium flex items-center gap-1.5 transition-all cursor-pointer ${isEditing
                           ? 'bg-blue-600 text-white shadow-sm'
                           : 'bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-blue-500'
-                      }`}
+                        }`}
                     >
                       {isEditing ? (
                         <>
@@ -704,8 +1014,32 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
                           </>
                         )}
 
-                        <th className="py-2 px-3 text-right text-purple-600 dark:text-purple-400">Zarda Sales</th>
-                        <th className="py-2 px-3 text-right text-indigo-600 dark:text-indigo-400">Zarda Stock</th>
+                        {brandViewMode === 'zarda_sales' && (
+                          <>
+                            <th className="py-2 px-2 text-right text-purple-600 dark:text-purple-400">SLB (Sale)</th>
+                            <th className="py-2 px-2 text-right text-purple-600 dark:text-purple-400">22/25 (Sale)</th>
+                            <th className="py-2 px-2 text-right text-purple-600 dark:text-purple-400">99/14 (Sale)</th>
+                            <th className="py-2 px-2 text-right text-purple-600 dark:text-purple-400">33/15 (Sale)</th>
+                            <th className="py-2 px-2 text-right font-bold text-purple-700 dark:text-purple-300">Zarda Sales (৳)</th>
+                          </>
+                        )}
+
+                        {brandViewMode === 'zarda_stock' && (
+                          <>
+                            <th className="py-2 px-2 text-right text-indigo-600 dark:text-indigo-400">SLB (Stk)</th>
+                            <th className="py-2 px-2 text-right text-indigo-600 dark:text-indigo-400">22/25 (Stk)</th>
+                            <th className="py-2 px-2 text-right text-indigo-600 dark:text-indigo-400">99/14 (Stk)</th>
+                            <th className="py-2 px-2 text-right text-indigo-600 dark:text-indigo-400">33/15 (Stk)</th>
+                            <th className="py-2 px-2 text-right font-bold text-indigo-700 dark:text-indigo-300">Zarda Stock (৳)</th>
+                          </>
+                        )}
+
+                        {brandViewMode !== 'zarda_sales' && (
+                          <th className="py-2 px-3 text-right text-purple-600 dark:text-purple-400">Zarda Sales</th>
+                        )}
+                        {brandViewMode !== 'zarda_stock' && (
+                          <th className="py-2 px-3 text-right text-indigo-600 dark:text-indigo-400">Zarda Stock</th>
+                        )}
                         <th className="py-2 px-3 text-right">Empty Packets</th>
                         <th className="py-2 px-3">Remarks</th>
                         <th className="py-2 px-2 text-center">Detail</th>
@@ -729,7 +1063,21 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
                                 >
                                   {isExpanded ? <ChevronUp className="h-3.5 w-3.5 text-blue-500" /> : <ChevronDown className="h-3.5 w-3.5" />}
                                 </button>
-                                <span>{r.territoryName}</span>
+                                <div>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span>{r.territoryName}</span>
+                                    {(r as any).sourceFiles && (r as any).sourceFiles.length > 1 && (
+                                      <span className="text-[9px] px-1.5 py-0.2 rounded font-mono font-semibold bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                        {(r as any).sourceFiles.length} files merged
+                                      </span>
+                                    )}
+                                  </div>
+                                  {(r as any).sourceFiles && (
+                                    <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono block truncate max-w-[200px]" title={(r as any).sourceFiles.join(', ')}>
+                                      {(r as any).sourceFiles.join(', ')}
+                                    </span>
+                                  )}
+                                </div>
                               </td>
 
                               <td className="py-2 px-2 text-center whitespace-nowrap">
@@ -861,13 +1209,67 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
                                 </>
                               )}
 
-                              <td className="py-2 px-3 text-right text-purple-600 dark:text-purple-400 font-semibold">
-                                ৳ {r.totalZardaSalesValue.toLocaleString()}
-                              </td>
+                              {/* Zarda Sales Mode */}
+                              {brandViewMode === 'zarda_sales' && (
+                                <>
+                                  {(['slb', 'qty_22_25', 'qty_99_14', 'qty_33_15'] as const).map((b) => (
+                                    <td key={`zsale-${b}`} className="py-2 px-2 text-right">
+                                      {isEditing ? (
+                                        <input
+                                          type="number"
+                                          step={b === 'slb' ? '0.01' : '1'}
+                                          min="0"
+                                          value={r.zardaSales[b]}
+                                          onChange={(e) => handleRecordChange(idx, 'zardaSales', b, e.target.value)}
+                                          className="w-16 px-1.5 py-0.5 text-right font-mono text-xs rounded border border-purple-300 dark:border-purple-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-purple-500 text-slate-900 dark:text-white"
+                                        />
+                                      ) : (
+                                        <span className="text-slate-900 dark:text-white">{r.zardaSales[b]}</span>
+                                      )}
+                                    </td>
+                                  ))}
+                                  <td className="py-2 px-2 text-right font-semibold text-purple-600 dark:text-purple-400">
+                                    ৳ {r.totalZardaSalesValue.toLocaleString()}
+                                  </td>
+                                </>
+                              )}
 
-                              <td className="py-2 px-3 text-right text-indigo-600 dark:text-indigo-400 font-semibold">
-                                ৳ {r.totalZardaStockValue.toLocaleString()}
-                              </td>
+                              {/* Zarda Stock Mode */}
+                              {brandViewMode === 'zarda_stock' && (
+                                <>
+                                  {(['slb', 'qty_22_25', 'qty_99_14', 'qty_33_15'] as const).map((b) => (
+                                    <td key={`zstock-${b}`} className="py-2 px-2 text-right">
+                                      {isEditing ? (
+                                        <input
+                                          type="number"
+                                          step={b === 'slb' ? '0.01' : '1'}
+                                          min="0"
+                                          value={r.zardaStock[b]}
+                                          onChange={(e) => handleRecordChange(idx, 'zardaStock', b, e.target.value)}
+                                          className="w-16 px-1.5 py-0.5 text-right font-mono text-xs rounded border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white"
+                                        />
+                                      ) : (
+                                        <span className="text-slate-900 dark:text-white">{r.zardaStock[b]}</span>
+                                      )}
+                                    </td>
+                                  ))}
+                                  <td className="py-2 px-2 text-right font-semibold text-indigo-600 dark:text-indigo-400">
+                                    ৳ {r.totalZardaStockValue.toLocaleString()}
+                                  </td>
+                                </>
+                              )}
+
+                              {brandViewMode !== 'zarda_sales' && (
+                                <td className="py-2 px-3 text-right text-purple-600 dark:text-purple-400 font-semibold">
+                                  ৳ {r.totalZardaSalesValue.toLocaleString()}
+                                </td>
+                              )}
+
+                              {brandViewMode !== 'zarda_stock' && (
+                                <td className="py-2 px-3 text-right text-indigo-600 dark:text-indigo-400 font-semibold">
+                                  ৳ {r.totalZardaStockValue.toLocaleString()}
+                                </td>
+                              )}
 
                               <td className="py-2 px-3 text-right">
                                 {isEditing ? (

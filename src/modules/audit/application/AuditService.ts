@@ -32,13 +32,13 @@ export class AuditService {
     options: Omit<AuditFilterOptions, 'companyId'> & { companyIdParam?: string | null },
     actor: UserAuthContext
   ): Promise<PaginatedResult<any>> {
-    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can view audit logs');
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN && actor.role !== ROLES.TENANT_ADMIN) {
+      throw new ForbiddenError('Insufficient permissions to view audit logs');
     }
 
     const targetCompanyId = actor.role === ROLES.SUPER_ADMIN
       ? (options.companyIdParam && options.companyIdParam !== 'ALL' ? options.companyIdParam : null)
-      : actor.companyId;
+      : (actor.companyId || null);
 
     return await auditLogRepository.getPaginatedLogs({
       page: options.page,

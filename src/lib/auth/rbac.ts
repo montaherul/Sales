@@ -95,6 +95,11 @@ export const ROLE_PERMISSIONS: Record<RoleType, PermissionCode[]> = {
  * Checks whether a given role holds a specific permission code.
  */
 export function hasPermission(role: RoleType, permission: PermissionCode): boolean {
+  if (role === 'SUPER_ADMIN') return true;
+  // Final Drive upload and record unlock are strictly SUPER_ADMIN only
+  if (permission === 'sales.unlock' || permission === 'drive.upload') {
+    return false;
+  }
   const permissions = ROLE_PERMISSIONS[role] || [];
   return permissions.includes(permission);
 }

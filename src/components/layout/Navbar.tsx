@@ -98,7 +98,7 @@ export function Navbar({
                 </span>
               </div>
               <span className="hidden md:inline text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700/40 shrink-0">
-                {currentUser?.role === 'COMPANY_ADMIN' ? 'Tenant Administrator' : 'Company Scoped'}
+                {currentUser?.role === 'COMPANY_ADMIN' ? 'Company Administrator' : 'Company Scoped'}
               </span>
             </div>
           )}

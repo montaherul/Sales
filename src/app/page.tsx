@@ -137,6 +137,19 @@ export default function Home() {
   const isSuperAdmin = (currentUser?.role || currentRole) === 'SUPER_ADMIN';
   const effectiveCompanyId = isSuperAdmin ? selectedCompanyId : (currentUser?.companyId || 'ALL');
 
+  // Safety guard: Restrict platform management strictly to SUPER_ADMIN, and company admin modules to COMPANY_ADMIN/SUPER_ADMIN
+  useEffect(() => {
+    const superAdminOnlyTabs = ['companies', 'menu_management'];
+    const companyAdminTabs = ['users', 'periods', 'master_hierarchy', 'audit'];
+
+    if (!isSuperAdmin && superAdminOnlyTabs.includes(activeTab)) {
+      setActiveTab('dashboard');
+    }
+    if (!isSuperAdmin && currentRole !== 'COMPANY_ADMIN' && companyAdminTabs.includes(activeTab)) {
+      setActiveTab('dashboard');
+    }
+  }, [isSuperAdmin, currentRole, activeTab]);
+
   const handleExport = () => {
     // Opens dynamic Excel report configuration modal
     setExportOpen(true);
@@ -194,16 +207,32 @@ export default function Home() {
         <main className="flex-1 p-3 sm:p-5 lg:p-8 pb-24 lg:pb-8 max-w-7xl w-full mx-auto">
           {/* Operational Modules */}
           {activeTab === 'dashboard' && <ExecutiveDashboard companyId={effectiveCompanyId} />}
-          {activeTab === 'entry' && <DailySalesGrid companyId={effectiveCompanyId} />}
+          {activeTab === 'entry' && (
+            <DailySalesGrid
+              companyId={effectiveCompanyId}
+              currentRole={currentRole}
+              currentUser={currentUser}
+            />
+          )}
           {activeTab === 'approvals' && <ApprovalHub currentRole={currentRole} companyId={effectiveCompanyId} />}
 
           {/* Platform & Tenant Administrative Modules */}
           {activeTab === 'companies' && currentRole === 'SUPER_ADMIN' && <CompanyManagement />}
-          {activeTab === 'users' && (currentRole === 'SUPER_ADMIN' || currentRole === 'COMPANY_ADMIN') && <UserRoleManagement companyId={effectiveCompanyId} />}
-          {activeTab === 'periods' && (currentRole === 'SUPER_ADMIN' || currentRole === 'COMPANY_ADMIN') && <PeriodManagement companyId={effectiveCompanyId} />}
-          {activeTab === 'menu_management' && currentRole === 'SUPER_ADMIN' && <MenuManagement companyId={effectiveCompanyId} />}
-          {activeTab === 'master_hierarchy' && (currentRole === 'SUPER_ADMIN' || currentRole === 'COMPANY_ADMIN') && <MasterHierarchyManagement companyId={effectiveCompanyId} />}
-          {activeTab === 'audit' && <AuditLogViewer companyId={effectiveCompanyId} />}
+          {activeTab === 'users' && (currentRole === 'SUPER_ADMIN' || currentRole === 'COMPANY_ADMIN') && (
+            <UserRoleManagement companyId={effectiveCompanyId} />
+          )}
+          {activeTab === 'periods' && (currentRole === 'SUPER_ADMIN' || currentRole === 'COMPANY_ADMIN') && (
+            <PeriodManagement companyId={effectiveCompanyId} />
+          )}
+          {activeTab === 'menu_management' && currentRole === 'SUPER_ADMIN' && (
+            <MenuManagement companyId={effectiveCompanyId} />
+          )}
+          {activeTab === 'master_hierarchy' && (currentRole === 'SUPER_ADMIN' || currentRole === 'COMPANY_ADMIN') && (
+            <MasterHierarchyManagement companyId={effectiveCompanyId} />
+          )}
+          {activeTab === 'audit' && (currentRole === 'SUPER_ADMIN' || currentRole === 'COMPANY_ADMIN') && (
+            <AuditLogViewer companyId={effectiveCompanyId} />
+          )}
         </main>
 
         {/* Footer */}

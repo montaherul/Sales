@@ -33,6 +33,10 @@ export class RoleService {
     options: RoleFilterOptions,
     actor: UserAuthContext
   ): Promise<PaginatedResult<any>> {
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN && actor.role !== ROLES.TENANT_ADMIN) {
+      throw new ForbiddenError('Insufficient permissions to view Role Catalog');
+    }
+
     const targetCompanyId = actor.role === ROLES.SUPER_ADMIN
       ? (options.companyId && options.companyId !== 'ALL' ? options.companyId : null)
       : (actor.companyId || null);
@@ -71,8 +75,8 @@ export class RoleService {
    * Creates a new custom role with permissions.
    */
   public static async createRole(dto: CreateRoleDTO, actor: UserAuthContext): Promise<any> {
-    if (actor.role !== ROLES.SUPER_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN can create roles');
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN && actor.role !== ROLES.TENANT_ADMIN) {
+      throw new ForbiddenError('Insufficient permissions to create roles');
     }
 
     if (!dto.name || !dto.name.trim()) throw new ValidationError('Role name is required');
@@ -88,7 +92,10 @@ export class RoleService {
       throw new ValidationError(`Role "${formattedName}" already exists`);
     }
 
-    const finalCompanyId = dto.companyId && dto.companyId !== 'ALL' ? dto.companyId : null;
+    const finalCompanyId = actor.role === ROLES.SUPER_ADMIN
+      ? (dto.companyId && dto.companyId !== 'ALL' ? dto.companyId : null)
+      : (actor.companyId || null);
+
     const newRole = await roleRepository.createRole(formattedName, dto.description, finalCompanyId);
 
     // Assign permissions
@@ -113,8 +120,8 @@ export class RoleService {
    * Updates an existing custom role.
    */
   public static async updateRole(dto: UpdateRoleDTO, actor: UserAuthContext): Promise<any> {
-    if (actor.role !== ROLES.SUPER_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN can modify roles');
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN && actor.role !== ROLES.TENANT_ADMIN) {
+      throw new ForbiddenError('Insufficient permissions to modify roles');
     }
 
     const existing = await roleRepository.getRoleById(dto.id);
@@ -126,7 +133,14 @@ export class RoleService {
       throw new ForbiddenError(`System role "${existing.name}" is protected and cannot be modified`);
     }
 
-    const finalCompanyId = dto.companyId && dto.companyId !== 'ALL' ? dto.companyId : null;
+    if (actor.role !== ROLES.SUPER_ADMIN && existing.company_id !== actor.companyId) {
+      throw new ForbiddenError('You can only modify custom roles belonging to your company');
+    }
+
+    const finalCompanyId = actor.role === ROLES.SUPER_ADMIN
+      ? (dto.companyId && dto.companyId !== 'ALL' ? dto.companyId : null)
+      : (actor.companyId || null);
+
     const updated = await roleRepository.updateRole(dto.id, dto.description, finalCompanyId);
 
     if (Array.isArray(dto.permissions)) {
@@ -150,8 +164,8 @@ export class RoleService {
    * Deletes custom roles.
    */
   public static async deleteRoles(ids: string[], actor: UserAuthContext): Promise<number> {
-    if (actor.role !== ROLES.SUPER_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN can delete roles');
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN && actor.role !== ROLES.TENANT_ADMIN) {
+      throw new ForbiddenError('Insufficient permissions to delete roles');
     }
 
     if (ids.length === 0) {

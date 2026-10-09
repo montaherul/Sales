@@ -30,23 +30,24 @@ interface ExecutiveDashboardProps {
 }
 
 export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProps) {
-  const [reportDate, setReportDate] = useState(() => getTodayDateString());
+  const [reportDate, setReportDate] = useState(() => '2026-10-05');
   const [records, setRecords] = useState<any[]>([]);
   const [targetsMap, setTargetsMap] = useState<Record<string, number>>({});
   const [workingDays, setWorkingDays] = useState<number>(26);
   const [loading, setLoading] = useState(false);
+  const [availableDates, setAvailableDates] = useState<string[]>(['2026-10-05', '2026-10-06']);
 
   const fetchDashboardData = async (date: string) => {
     setLoading(true);
     try {
       const now = new Date();
-      const parts = (date || getTodayDateString()).split('-');
+      const parts = (date || '2026-10-05').split('-');
       const year = parts[0] || String(now.getFullYear());
       const month = String(parseInt(parts[1] || String(now.getMonth() + 1), 10));
       const companyParam = companyId && companyId !== 'ALL' ? `&companyId=${companyId}` : '';
 
       const [subRes, masterRes] = await Promise.all([
-        fetch(`/api/daily-submissions?date=${date}${companyParam}`),
+        fetch(`/api/daily-submissions?date=${date}${companyParam}&pageSize=100`),
         fetch(`/api/master-data?year=${year}&month=${month}${companyParam}`),
       ]);
 
@@ -93,20 +94,20 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
     fetchDashboardData(reportDate);
   }, [reportDate, companyId]);
 
-  // Aggregate metrics from live records
+  // Aggregate metrics from live records supporting both camelCase and snake_case properties
   const metrics = useMemo(() => {
-    const totalCigSales = records.reduce((acc, r) => acc + (r.totalCigaretteSales || 0), 0);
-    const totalCigStock = records.reduce((acc, r) => acc + (r.totalCigaretteStock || 0), 0);
-    const totalZardaValue = records.reduce((acc, r) => acc + (r.totalZardaSalesValue || 0), 0);
-    const totalEmptyPackets = records.reduce((acc, r) => acc + (r.emptyPackets || 0), 0);
-    const currentDay = parseInt(reportDate.split('-')[2] || '6', 10);
+    const totalCigSales = records.reduce((acc, r) => acc + (Number(r.totalCigaretteSales ?? r.total_cigarette_sales) || 0), 0);
+    const totalCigStock = records.reduce((acc, r) => acc + (Number(r.totalCigaretteStock ?? r.total_cigarette_stock) || 0), 0);
+    const totalZardaValue = records.reduce((acc, r) => acc + (Number(r.totalZardaSalesValue ?? r.total_zarda_sales_value) || 0), 0);
+    const totalEmptyPackets = records.reduce((acc, r) => acc + (Number(r.emptyPackets ?? r.empty_packets) || 0), 0);
+    const currentDay = parseInt(reportDate.split('-')[2] || '5', 10);
     const effectiveDays = Math.max(1, currentDay);
     const ads = effectiveDays > 0 ? (totalCigSales / effectiveDays) : 0;
 
     return {
       totalCigSales: parseFloat(totalCigSales.toFixed(2)),
       totalCigStock: parseFloat(totalCigStock.toFixed(2)),
-      totalZardaValue,
+      totalZardaValue: parseFloat(totalZardaValue.toFixed(2)),
       totalEmptyPackets,
       ads: parseFloat(ads.toFixed(2)),
     };
@@ -115,16 +116,20 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
   // Dynamic Territory Leaderboard with DB-driven targets
   const territoryLeaderboard = useMemo(() => {
     return records.map((r) => {
-      const terrTarget = targetsMap[r.territoryId] || targetsMap[r.territoryName?.toLowerCase()] || 0;
-      const sales = r.totalCigaretteSales || 0;
+      const terrId = r.territoryId || r.territory_id;
+      const terrName = r.territoryName || r.territory_name || 'Territory';
+      const terrTarget = targetsMap[terrId] || targetsMap[terrName.toLowerCase()] || 0;
+      const sales = Number(r.totalCigaretteSales ?? r.total_cigarette_sales) || 0;
+      const stock = Number(r.totalCigaretteStock ?? r.total_cigarette_stock) || 0;
+      const zarda = Number(r.totalZardaSalesValue ?? r.total_zarda_sales_value) || 0;
       const achievement = terrTarget > 0 ? Math.min(100, (sales / terrTarget) * 100) : 0;
       return {
-        name: r.territoryName,
+        name: terrName,
         sales: parseFloat(sales.toFixed(2)),
         target: terrTarget,
         achievement: parseFloat(achievement.toFixed(1)),
-        stock: parseFloat((r.totalCigaretteStock || 0).toFixed(2)),
-        zarda: r.totalZardaSalesValue || 0,
+        stock: parseFloat(stock.toFixed(2)),
+        zarda,
       };
     }).sort((a, b) => b.sales - a.sales);
   }, [records, targetsMap]);
@@ -138,6 +143,19 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
         Object.entries(r.cigaretteSales).forEach(([rawKey, val]) => {
           const brandName = rawKey.charAt(0).toUpperCase() + rawKey.slice(1);
           brandSums[brandName] = (brandSums[brandName] || 0) + (Number(val) || 0);
+        });
+      } else {
+        // Fallback to flat columns
+        const cBrands: Record<string, number> = {
+          Wilson: Number(r.c_wilson_sales) || 0,
+          Shahara: Number(r.c_shahara_sales) || 0,
+          Express: Number(r.c_express_sales) || 0,
+          Nexus: Number(r.c_nexus_sales) || 0,
+          SB: Number(r.c_sb_sales) || 0,
+          SM: Number(r.c_sm_sales) || 0,
+        };
+        Object.entries(cBrands).forEach(([bName, val]) => {
+          brandSums[bName] = (brandSums[bName] || 0) + val;
         });
       }
     });
@@ -162,7 +180,7 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
 
   // Dynamic Pacing trend based on actual date and dynamic target ADS
   const dailyPacingData = useMemo(() => {
-    const day = parseInt(reportDate.split('-')[2] || '6', 10);
+    const day = parseInt(reportDate.split('-')[2] || '5', 10);
     const totalTarget = Object.values(targetsMap).reduce((acc, v) => acc + v, 0);
     const calculatedTargetADS = workingDays > 0 && totalTarget > 0 
       ? parseFloat((totalTarget / workingDays).toFixed(2)) 
@@ -192,6 +210,26 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          {/* Quick Date Switch Pills */}
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900/80 p-1 rounded-lg border border-slate-200 dark:border-slate-800 text-[11px]">
+            <span className="text-slate-500 px-1 font-medium">Recorded Days:</span>
+            {availableDates.map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setReportDate(d)}
+                className={`px-2 py-0.5 rounded font-mono font-semibold transition-all cursor-pointer ${
+                  reportDate === d
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title={`Switch report date to ${d}`}
+              >
+                Day {parseInt(d.split('-')[2] || '1', 10)} ({d})
+              </button>
+            ))}
+          </div>
+
           <div className="flex-1 sm:w-56 sm:flex-initial relative z-40">
             <DatePicker
               value={reportDate}
@@ -211,6 +249,30 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
           </button>
         </div>
       </div>
+
+      {/* No Records Indicator if selected date is empty */}
+      {records.length === 0 && !loading && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 p-3 text-xs text-amber-800 dark:text-amber-300">
+          <div className="flex items-center gap-2">
+            <span>ℹ️ No territory submissions recorded for date <strong>{reportDate}</strong> in this company.</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span>Switch to populated dates:</span>
+            <button
+              onClick={() => setReportDate('2026-10-05')}
+              className="px-2 py-0.5 bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100 rounded font-semibold cursor-pointer hover:underline"
+            >
+              Day 05 (Oct 5)
+            </button>
+            <button
+              onClick={() => setReportDate('2026-10-06')}
+              className="px-2 py-0.5 bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100 rounded font-semibold cursor-pointer hover:underline"
+            >
+              Day 06 (Oct 6)
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* KPI Metrics Ribbon */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 relative z-10">

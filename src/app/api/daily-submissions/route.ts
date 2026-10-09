@@ -11,10 +11,13 @@ export async function GET(request: NextRequest) {
   try {
     const actor = await getAuthenticatedUser(request);
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
-    const search = searchParams.get('search') || '';
+    const pageParam = searchParams.get('page');
+    const pageSizeParam = searchParams.get('pageSize');
     const date = searchParams.get('date') || searchParams.get('reportingDate');
+    const page = parseInt(pageParam || '1', 10);
+    // If date is provided without explicit pagination, return all records (-1) for dynamic dashboard calculations
+    const pageSize = pageSizeParam ? parseInt(pageSizeParam, 10) : (date && !pageParam ? -1 : 10);
+    const search = searchParams.get('search') || '';
     const territoryId = searchParams.get('territoryId');
     const status = searchParams.get('status');
     const companyId = searchParams.get('companyId');
@@ -23,7 +26,7 @@ export async function GET(request: NextRequest) {
     const isExport = searchParams.get('export') === 'csv';
 
     // Direct single date/territory lookup
-    if (date && territoryId && !searchParams.get('page') && !searchParams.get('pageSize')) {
+    if (date && territoryId && !pageParam && !pageSizeParam) {
       const records = await DailySalesService.getSubmissionsByDateAndTerritory(date, territoryId);
       return NextResponse.json({ success: true, data: records });
     }
@@ -71,9 +74,59 @@ export async function GET(request: NextRequest) {
       actor
     );
 
+    const mappedItems = (result.data || []).map((r: any) => ({
+      ...r,
+      id: r.id || r.submission_id,
+      submissionId: r.id || r.submission_id,
+      territoryId: r.territory_id || r.territoryId,
+      territoryName: r.territory_name || r.territoryName,
+      regionName: r.region_name || r.regionName,
+      companyName: r.company_name || r.companyName,
+      reportDate: r.reporting_date || r.reportDate,
+      reportingDate: r.reporting_date || r.reportDate,
+      dayNumber: r.day_number ?? r.dayNumber,
+      status: r.status,
+      isLocked: r.is_locked ?? r.isLocked ?? false,
+      remarks: r.remarks || '',
+      emptyPackets: parseInt(r.empty_packets ?? r.emptyPackets ?? 0, 10),
+      totalCigaretteSales: parseFloat(r.total_cigarette_sales ?? r.totalCigaretteSales ?? 0),
+      totalCigaretteStock: parseFloat(r.total_cigarette_stock ?? r.totalCigaretteStock ?? 0),
+      totalZardaSalesValue: parseFloat(r.total_zarda_sales_value ?? r.totalZardaSalesValue ?? 0),
+      totalZardaStockValue: parseFloat(r.total_zarda_stock_value ?? r.totalZardaStockValue ?? 0),
+      cigaretteSales: r.cigaretteSales || {
+        wilson: parseFloat(r.c_wilson_sales ?? 0),
+        shahara: parseFloat(r.c_shahara_sales ?? 0),
+        express: parseFloat(r.c_express_sales ?? 0),
+        nexus: parseFloat(r.c_nexus_sales ?? 0),
+        sb: parseFloat(r.c_sb_sales ?? 0),
+        sm: parseFloat(r.c_sm_sales ?? 0),
+      },
+      cigaretteStock: r.cigaretteStock || {
+        wilson: parseFloat(r.c_wilson_stock ?? 0),
+        shahara: parseFloat(r.c_shahara_stock ?? 0),
+        express: parseFloat(r.c_express_stock ?? 0),
+        nexus: parseFloat(r.c_nexus_stock ?? 0),
+        sb: parseFloat(r.c_sb_stock ?? 0),
+        sm: parseFloat(r.c_sm_stock ?? 0),
+      },
+      zardaSales: r.zardaSales || {
+        slb: parseFloat(r.z_slb_sales ?? 0),
+        qty_22_25: parseInt(r.z_22_25_sales ?? 0, 10),
+        qty_99_14: parseInt(r.z_99_14_sales ?? 0, 10),
+        qty_33_15: parseInt(r.z_33_15_sales ?? 0, 10),
+      },
+      zardaStock: r.zardaStock || {
+        slb: parseFloat(r.z_slb_stock ?? 0),
+        qty_22_25: parseInt(r.z_22_25_stock ?? 0, 10),
+        qty_99_14: parseInt(r.z_99_14_stock ?? 0, 10),
+        qty_33_15: parseInt(r.z_33_15_stock ?? 0, 10),
+      },
+    }));
+
     return NextResponse.json({
       success: true,
       ...result,
+      data: mappedItems,
     });
   } catch (error: any) {
     logger.error('Failed to query daily submissions', error, 'DailySubmissionsController.GET');

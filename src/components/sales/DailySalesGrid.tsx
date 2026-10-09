@@ -6,8 +6,10 @@ import {
   CigaretteBrandStock, 
   ZardaSalesQty, 
   ZardaStockQty,
-  SubmissionStatus
+  SubmissionStatus,
+  RoleType
 } from '@/lib/types';
+import { SessionUser } from '@/lib/auth/session';
 import { 
   calculateCigaretteSalesTotal, 
   calculateCigaretteStockTotal, 
@@ -21,6 +23,7 @@ import {
   Calculator, 
   Info,
   Lock,
+  Unlock,
   RefreshCw,
   AlertCircle,
   List,
@@ -33,7 +36,8 @@ import {
   Trash2,
   Filter,
   Download,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Sparkles
 } from 'lucide-react';
 import { ServerDataTable, ColumnDef } from '@/components/common/ServerDataTable';
 import { Select2, Select2Option } from '@/components/common/Select2';
@@ -49,11 +53,22 @@ interface TerritoryItem {
 
 interface DailySalesGridProps {
   companyId?: string;
+  currentRole?: RoleType;
+  currentUser?: SessionUser | null;
   onSaveDraft?: (record: any) => void;
   onSubmitForReview?: (record: any) => void;
 }
 
-export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForReview }: DailySalesGridProps) {
+export function DailySalesGrid({ 
+  companyId = 'ALL', 
+  currentRole, 
+  currentUser, 
+  onSaveDraft, 
+  onSubmitForReview 
+}: DailySalesGridProps) {
+  const effectiveRole = currentUser?.role || currentRole || 'COMPANY_ADMIN';
+  const isAdmin = effectiveRole === 'SUPER_ADMIN' || effectiveRole === 'COMPANY_ADMIN';
+
   // Mode Controller: 'listing' | 'form'
   const [viewMode, setViewMode] = useState<'listing' | 'form'>('listing');
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
@@ -69,6 +84,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
   // Operational State
   const [submittedStatus, setSubmittedStatus] = useState<string | null>(null);
   const [currentStatus, setCurrentStatus] = useState<SubmissionStatus | 'NEW'>('NEW');
+  const [adminSelectedStatus, setAdminSelectedStatus] = useState<SubmissionStatus>('DRAFT');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [tableRefreshKey, setTableRefreshKey] = useState(0);
@@ -179,7 +195,8 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
   const totalZardaSales = useMemo(() => calculateZardaSalesValuation(zardaSales), [zardaSales]);
   const totalZardaStock = useMemo(() => calculateZardaStockValuation(zardaStock), [zardaStock]);
 
-  const isReadOnly = currentStatus === 'FINALIZED' || isPeriodLocked;
+  // Administrators have complete CRUD authority and are never restricted by finalized or period locks
+  const isReadOnly = !isAdmin && (currentStatus === 'FINALIZED' || isPeriodLocked);
 
   // 2. Load submission into form state
   const loadSubmissionData = (record: any, mode: 'create' | 'edit') => {
@@ -188,7 +205,9 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
     setSelectedTerritoryId(record.territory_id || record.territoryId || (territories[0]?.id || ''));
     setSelectedTerritoryName(record.territory_name || record.territoryName || (territories[0]?.name || ''));
     setReportDate(record.reporting_date || record.reportDate || getTodayDateString());
-    setCurrentStatus(record.status || (mode === 'create' ? 'NEW' : 'DRAFT'));
+    const initialStatus = record.status || (mode === 'create' ? 'NEW' : 'DRAFT');
+    setCurrentStatus(initialStatus);
+    setAdminSelectedStatus(record.status || 'DRAFT');
     setSubmittedStatus(null);
 
     if (mode === 'create') {
@@ -284,7 +303,11 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
       const res = await fetch('/api/daily-submissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ record, userId: 'csr.keranihat@afaztobacco.com' }),
+        body: JSON.stringify({ 
+          record, 
+          userId: currentUser?.email || 'admin.atc@afaztobacco.com',
+          changeReason: 'Daily Sales Draft Saved'
+        }),
       });
 
       const json = await res.json();
@@ -302,7 +325,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
     }
   };
 
-  // 4. Submit for Review Handler
+  // 4. Submit for Review Handler (Standard CSR -> TSO Workflow)
   const handleSubmit = async () => {
     if (isPeriodLocked) {
       alert(`Cannot submit record: ${periodLockReason || 'Reporting period is closed or locked.'}`);
@@ -312,6 +335,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
     try {
       const selectedTerr = territories.find(t => t.id === selectedTerritoryId);
       const currentRegionName = selectedTerr?.region_name || 'Satkania';
+      const actorEmail = currentUser?.email || 'csr.keranihat@afaztobacco.com';
 
       const record = {
         territoryId: selectedTerritoryId,
@@ -336,7 +360,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
       const res = await fetch('/api/daily-submissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ record, userId: 'csr.keranihat@afaztobacco.com' }),
+        body: JSON.stringify({ record, userId: actorEmail }),
       });
 
       const json = await res.json();
@@ -349,7 +373,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
             territoryId: selectedTerritoryId,
             reportDate,
             toStatus: 'SUBMITTED',
-            userId: 'csr.keranihat@afaztobacco.com',
+            userId: actorEmail,
             comments: 'Submitted by Field CSR for TSO Review',
           }),
         });
@@ -362,6 +386,141 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
       }
     } catch (err: any) {
       alert(err.message || 'Error submitting daily record');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 5. Direct Admin Save Handler (Company Admin & Super Admin Direct CRUD - No submission required)
+  const handleDirectAdminSave = async (explicitStatus?: SubmissionStatus) => {
+    setIsSaving(true);
+    try {
+      const selectedTerr = territories.find(t => t.id === selectedTerritoryId);
+      const currentRegionName = selectedTerr?.region_name || 'Satkania';
+      const targetStatus = explicitStatus || adminSelectedStatus || (currentStatus !== 'NEW' ? currentStatus : 'FINALIZED');
+
+      const record = {
+        territoryId: selectedTerritoryId,
+        territoryName: selectedTerritoryName,
+        regionName: currentRegionName,
+        reportDate,
+        dayNumber: parseInt(reportDate.split('-')[2] || String(new Date().getDate()), 10),
+        status: targetStatus,
+        companyId: companyId !== 'ALL' ? companyId : undefined,
+        cigaretteSales: sales,
+        cigaretteStock: stock,
+        zardaSales,
+        zardaStock,
+        emptyPackets,
+        remarks,
+        totalCigaretteSales: totalSales,
+        totalCigaretteStock: totalStock,
+        totalZardaSalesValue: totalZardaSales,
+        totalZardaStockValue: totalZardaStock,
+      };
+
+      const res = await fetch('/api/daily-submissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          record,
+          userId: currentUser?.email || 'admin.atc@afaztobacco.com',
+          changeReason: `Direct operational save with status: ${targetStatus} by ${effectiveRole}`,
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setCurrentStatus(targetStatus);
+        setAdminSelectedStatus(targetStatus);
+        setSubmittedStatus(`Record directly saved to database with status: ${targetStatus}.`);
+        setTableRefreshKey(k => k + 1);
+      } else {
+        alert(json.error || 'Failed to directly save record');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error directly saving record');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 6. Direct Admin Status Inverter (Instant 1-Click Toggle: FINALIZED <-> DRAFT / SUBMITTED)
+  const handleInvertStatus = async (rowItem?: any) => {
+    const targetTerritoryId = rowItem ? (rowItem.territory_id || rowItem.id) : selectedTerritoryId;
+    const targetReportDate = rowItem ? (rowItem.reporting_date || rowItem.reportDate) : reportDate;
+    const currentSt = rowItem ? rowItem.status : currentStatus;
+
+    // Inverter logic: FINALIZED -> DRAFT (instant unlock), else -> FINALIZED (instant lock)
+    const nextStatus: SubmissionStatus = currentSt === 'FINALIZED' ? 'DRAFT' : 'FINALIZED';
+
+    try {
+      setIsSaving(true);
+      const res = await fetch('/api/daily-submissions/workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          territoryId: targetTerritoryId,
+          reportDate: targetReportDate,
+          toStatus: nextStatus,
+          comments: `Admin status inverted from ${currentSt} to ${nextStatus}`,
+          isUnlock: currentSt === 'FINALIZED',
+          unlockReason: `Direct Admin status inversion by ${currentUser?.email || 'admin'}`,
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        if (!rowItem) {
+          setCurrentStatus(nextStatus);
+          setAdminSelectedStatus(nextStatus);
+          setSubmittedStatus(`Status inverted to ${nextStatus}.`);
+        }
+        setTableRefreshKey(k => k + 1);
+      } else {
+        alert(json.error || 'Failed to invert status');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error inverting status');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 7. Direct Admin Status Switcher to Any Target Status
+  const handleAdminDirectStatusChange = async (newStatus: SubmissionStatus, rowItem?: any) => {
+    const targetTerritoryId = rowItem ? (rowItem.territory_id || rowItem.id) : selectedTerritoryId;
+    const targetReportDate = rowItem ? (rowItem.reporting_date || rowItem.reportDate) : reportDate;
+    const currentSt = rowItem ? rowItem.status : currentStatus;
+
+    try {
+      setIsSaving(true);
+      const res = await fetch('/api/daily-submissions/workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          territoryId: targetTerritoryId,
+          reportDate: targetReportDate,
+          toStatus: newStatus,
+          comments: `Admin direct transition from ${currentSt} to ${newStatus}`,
+          isUnlock: currentSt === 'FINALIZED',
+          unlockReason: `Direct Admin transition by ${currentUser?.email || 'admin'}`,
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        if (!rowItem) {
+          setCurrentStatus(newStatus);
+          setAdminSelectedStatus(newStatus);
+          setSubmittedStatus(`Status updated to ${newStatus}.`);
+        }
+        setTableRefreshKey(k => k + 1);
+      } else {
+        alert(json.error || 'Failed to update status');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error updating status');
     } finally {
       setIsSaving(false);
     }
@@ -442,6 +601,36 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
       align: 'right',
       render: (row) => (
         <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          {isAdmin && (
+            <div className="flex items-center gap-1">
+              <select
+                value={row.status}
+                onChange={(e) => handleAdminDirectStatusChange(e.target.value as SubmissionStatus, row)}
+                className="text-[11px] font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-slate-800 dark:text-slate-200 cursor-pointer hover:border-blue-500 shadow-xs focus:outline-none"
+                title="Direct Admin Status Switcher"
+              >
+                <option value="DRAFT">Draft</option>
+                <option value="SUBMITTED">TSO Pending</option>
+                <option value="TSO_APPROVED">TSO Approved</option>
+                <option value="RSO_APPROVED">RSO Verified</option>
+                <option value="FINALIZED">Finalized (Lock)</option>
+                <option value="REJECTED">Rejected</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => handleInvertStatus(row)}
+                className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer shadow-xs ${
+                  row.status === 'FINALIZED'
+                    ? 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 hover:bg-amber-100'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-300 hover:bg-emerald-100'
+                }`}
+                title={row.status === 'FINALIZED' ? '⚡ Click to Invert: Unlock to Draft' : '⚡ Click to Invert: Lock to Finalized'}
+              >
+                {row.status === 'FINALIZED' ? 'Unlock' : 'Lock'}
+              </button>
+            </div>
+          )}
+
           <button
             onClick={() => loadSubmissionData(row, 'edit')}
             className="rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/60 dark:border-blue-800/40 px-2.5 py-1 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
@@ -450,7 +639,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
             <FileEdit className="h-3 w-3" />
             <span>Open / Edit</span>
           </button>
-          {row.status === 'FINALIZED' ? (
+          {!isAdmin && row.status === 'FINALIZED' ? (
             <span
               className="rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 px-2 py-1 text-xs font-medium flex items-center gap-1 cursor-not-allowed"
               title="Finalized records are locked. Super Admin must unlock before deleting."
@@ -725,6 +914,59 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
             </div>
           )}
 
+          {/* Admin Direct Status Controller & Inverter Strip */}
+          {isAdmin && (
+            <div className="rounded-xl border border-blue-300 dark:border-blue-800 bg-blue-50/80 dark:bg-blue-950/40 p-4 space-y-3 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-blue-200 dark:border-blue-900 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                    {effectiveRole === 'COMPANY_ADMIN' ? 'Company Admin Direct Operations' : 'Super Admin Direct Operations'}
+                  </span>
+                  <span className="text-[10px] bg-blue-200/70 dark:bg-blue-900/80 text-blue-800 dark:text-blue-200 font-semibold px-2 py-0.5 rounded-full">
+                    Direct CRUD & Inverter Mode
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleInvertStatus()}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs ${
+                    currentStatus === 'FINALIZED'
+                      ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/80 dark:text-amber-200 hover:bg-amber-200'
+                      : 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
+                  }`}
+                  title="Invert status directly (Finalized <-> Draft)"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  <span>
+                    {currentStatus === 'FINALIZED' ? '⚡ Invert Status: Unlock to Draft' : '⚡ Invert Status: Lock to Finalized'}
+                  </span>
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-slate-700 dark:text-slate-300 font-medium">Select Target Status:</span>
+                {(['DRAFT', 'SUBMITTED', 'TSO_APPROVED', 'RSO_APPROVED', 'FINALIZED', 'REJECTED'] as SubmissionStatus[]).map((st) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => {
+                      setAdminSelectedStatus(st);
+                      handleAdminDirectStatusChange(st);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                      currentStatus === st
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-2 ring-blue-500/30'
+                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {st === 'SUBMITTED' ? 'TSO Pending' : st === 'TSO_APPROVED' ? 'TSO Approved' : st === 'RSO_APPROVED' ? 'RSO Verified' : st === 'FINALIZED' ? 'Finalized & Locked' : st}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Operational Scope Strip */}
           <div className="relative z-30 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm grid grid-cols-1 sm:grid-cols-3 gap-4 shadow-sm dark:shadow-none transition-colors duration-200">
             <div className="relative z-40">
@@ -732,7 +974,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
               <Select2
                 value={selectedTerritoryId}
                 onChange={handleTerritoryChange}
-                disabled={currentStatus === 'FINALIZED'}
+                disabled={!isAdmin && currentStatus === 'FINALIZED'}
                 options={territories.map((t) => ({
                   value: t.id,
                   label: t.name,
@@ -746,7 +988,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
               <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1">Reporting Date</label>
               <DatePicker
                 value={reportDate}
-                disabled={currentStatus === 'FINALIZED'}
+                disabled={!isAdmin && currentStatus === 'FINALIZED'}
                 onChange={(d) => setReportDate(d)}
               />
             </div>
@@ -996,22 +1238,39 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
               <button
+                type="button"
                 onClick={handleSaveDraft}
-                disabled={isReadOnly || isSaving || isLoading}
+                disabled={(!isAdmin && isReadOnly) || isSaving || isLoading}
                 className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 sm:py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-40 cursor-pointer shadow-xs"
               >
                 <Save className="h-4 w-4" />
-                <span>{isSaving ? 'Saving...' : 'Save Draft'}</span>
+                <span>Save as Draft</span>
               </button>
 
-              <button
-                onClick={handleSubmit}
-                disabled={isReadOnly || isSaving || isLoading}
-                className="flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-5 py-2.5 sm:py-2 text-xs font-semibold text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-40 cursor-pointer"
-              >
-                <Send className="h-4 w-4" />
-                <span>Submit for TSO Review</span>
-              </button>
+              {isAdmin ? (
+                <button
+                  type="button"
+                  onClick={() => handleDirectAdminSave(adminSelectedStatus)}
+                  disabled={isSaving || isLoading}
+                  className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 sm:py-2 text-xs font-bold text-white hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-600/20 cursor-pointer"
+                  title="Direct Admin CRUD Save - Overwrite & Persist Record Directly"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>
+                    {isSaving ? 'Saving Directly...' : `Direct Admin Save (${adminSelectedStatus || currentStatus})`}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={isReadOnly || isSaving || isLoading}
+                  className="flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-5 py-2.5 sm:py-2 text-xs font-semibold text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-40 cursor-pointer"
+                >
+                  <Send className="h-4 w-4" />
+                  <span>Submit for TSO Review</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

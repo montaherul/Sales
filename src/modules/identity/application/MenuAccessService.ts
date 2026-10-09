@@ -13,13 +13,11 @@ export class MenuAccessService {
    * Retrieves the full menu permissions matrix with company scoping.
    */
   public static async getMatrix(actor: UserAuthContext, reqCompanyId?: string | null): Promise<MenuAccessMatrixData> {
-    let filterCompanyId: string | null = null;
     if (actor.role !== ROLES.SUPER_ADMIN) {
-      filterCompanyId = actor.companyId || null;
-    } else if (reqCompanyId && reqCompanyId !== 'ALL') {
-      filterCompanyId = reqCompanyId;
+      throw new ForbiddenError('Only SUPER_ADMIN can view menu access configuration');
     }
 
+    const filterCompanyId = reqCompanyId && reqCompanyId !== 'ALL' ? reqCompanyId : null;
     return await menuAccessRepository.getMatrixData(filterCompanyId);
   }
 

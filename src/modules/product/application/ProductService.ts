@@ -74,8 +74,8 @@ export class ProductService {
    * Creates a new brand and initial price.
    */
   public static async createBrand(dto: CreateBrandDTO, actor: UserAuthContext): Promise<any> {
-    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can create brands');
+    if (actor.role !== ROLES.SUPER_ADMIN) {
+      throw new ForbiddenError('Only SUPER_ADMIN can create brands');
     }
 
     if (!dto.name || !dto.name.trim()) throw new ValidationError('Brand Name is required');
@@ -115,8 +115,8 @@ export class ProductService {
    * Updates an existing brand and price.
    */
   public static async updateBrand(dto: UpdateBrandDTO, actor: UserAuthContext): Promise<any> {
-    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can update brands');
+    if (actor.role !== ROLES.SUPER_ADMIN) {
+      throw new ForbiddenError('Only SUPER_ADMIN can update brands');
     }
 
     const existing = await productRepository.getBrandById(dto.id);
@@ -163,8 +163,8 @@ export class ProductService {
    * Deletes brands with tenant scoping.
    */
   public static async deleteBrands(ids: string[], actor: UserAuthContext): Promise<number> {
-    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can delete brands');
+    if (actor.role !== ROLES.SUPER_ADMIN) {
+      throw new ForbiddenError('Only SUPER_ADMIN can delete brands');
     }
 
     if (ids.length === 0) {

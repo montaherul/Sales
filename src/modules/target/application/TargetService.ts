@@ -71,8 +71,8 @@ export class TargetService {
    * Upserts territory target quota.
    */
   public static async upsertTarget(dto: UpsertTargetDTO, actor: UserAuthContext): Promise<any> {
-    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can configure targets');
+    if (actor.role !== ROLES.SUPER_ADMIN) {
+      throw new ForbiddenError('Only SUPER_ADMIN can configure targets');
     }
 
     if (!dto.territoryId || !dto.brandId) {
@@ -114,8 +114,8 @@ export class TargetService {
    * Deletes targets with tenant authorization check.
    */
   public static async deleteTargets(ids: string[], actor: UserAuthContext): Promise<number> {
-    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
-      throw new ForbiddenError('Only SUPER_ADMIN or COMPANY_ADMIN can delete targets');
+    if (actor.role !== ROLES.SUPER_ADMIN) {
+      throw new ForbiddenError('Only SUPER_ADMIN can delete targets');
     }
 
     if (!ids || ids.length === 0) {
