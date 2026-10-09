@@ -1,12 +1,12 @@
 // Shared Utilities
 // Afaz Tobacco Sales & Stock Intelligence Platform
 
-import crypto from 'crypto';
-
 /**
  * Calculates SHA-256 checksum for a buffer or string.
  */
 export function calculateSha256(content: Buffer | string): string {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const crypto = require('crypto');
   const hash = crypto.createHash('sha256');
   hash.update(content);
   return hash.digest('hex');
@@ -54,10 +54,38 @@ export function formatDateString(date: Date | string): string {
 }
 
 /**
- * Generates standard filename for exports.
+ * Returns real-time today date string formatted as YYYY-MM-DD for reporting scope.
  */
-export function generateExportFilename(year: number, month: number, day: number): string {
-  const dateObj = new Date(year, month - 1, day);
+export function getTodayDateString(): string {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/**
+ * Generates dynamic standard filename for exports based on report period type.
+ */
+export function generateExportFilename(
+  year: number,
+  month?: number,
+  day?: number,
+  reportType: 'daily' | 'monthly' | 'yearly' | 'blank_month' = 'daily'
+): string {
+  const m = month || 10;
+  const d = day || 1;
+  const dateObj = new Date(year, m - 1, d);
   const monthName = dateObj.toLocaleString('en-US', { month: 'long' });
-  return `Daily sales and Closing Stock Information ${monthName} ${day} ${year}.xlsx`;
+
+  if (reportType === 'yearly') {
+    return `Yearly sales and Closing Stock Information ${year}.xlsx`;
+  }
+  if (reportType === 'blank_month') {
+    return `Daily sales and Closing Stock Information ${monthName} ${year} (Blank Template).xlsx`;
+  }
+  if (reportType === 'monthly') {
+    return `Monthly sales and Closing Stock Information ${monthName} ${year}.xlsx`;
+  }
+  return `Daily sales and Closing Stock Information ${monthName} ${d} ${year}.xlsx`;
 }

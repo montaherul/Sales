@@ -6,17 +6,11 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const applicationDate = (formData.get('applicationDate') as string) || '';
+    const sheetName = (formData.get('sheetName') as string) || '';
 
     if (!file) {
       return NextResponse.json(
         { success: false, error: 'No XLSX file provided' },
-        { status: 400 }
-      );
-    }
-
-    if (!applicationDate) {
-      return NextResponse.json(
-        { success: false, error: 'applicationDate parameter is required (YYYY-MM-DD)' },
         { status: 400 }
       );
     }
@@ -27,7 +21,8 @@ export async function POST(request: NextRequest) {
     const preview = await parseAndValidateXLSX({
       buffer,
       fileName: file.name,
-      applicationDate,
+      applicationDate: applicationDate || undefined,
+      sheetName: sheetName || undefined,
     });
 
     return NextResponse.json({

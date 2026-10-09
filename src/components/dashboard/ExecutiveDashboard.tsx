@@ -23,13 +23,14 @@ import {
   Cell 
 } from 'recharts';
 import { DatePicker } from '@/components/common/DatePicker';
+import { getTodayDateString } from '@/shared/utils';
 
 interface ExecutiveDashboardProps {
   companyId?: string;
 }
 
 export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProps) {
-  const [reportDate, setReportDate] = useState('2026-10-06');
+  const [reportDate, setReportDate] = useState(() => getTodayDateString());
   const [records, setRecords] = useState<any[]>([]);
   const [targetsMap, setTargetsMap] = useState<Record<string, number>>({});
   const [workingDays, setWorkingDays] = useState<number>(26);
@@ -38,9 +39,10 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
   const fetchDashboardData = async (date: string) => {
     setLoading(true);
     try {
-      const parts = date.split('-');
-      const year = parts[0] || '2026';
-      const month = String(parseInt(parts[1] || '10', 10));
+      const now = new Date();
+      const parts = (date || getTodayDateString()).split('-');
+      const year = parts[0] || String(now.getFullYear());
+      const month = String(parseInt(parts[1] || String(now.getMonth() + 1), 10));
       const companyParam = companyId && companyId !== 'ALL' ? `&companyId=${companyId}` : '';
 
       const [subRes, masterRes] = await Promise.all([
@@ -215,7 +217,7 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
         {/* Metric 1 */}
         <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-3.5 sm:p-4 backdrop-blur-sm shadow-sm dark:shadow-none">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Cigarette Sales</span>
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Brand Wise Sales (BITCL)</span>
             <div className="rounded-lg bg-blue-50 dark:bg-blue-950/60 p-2 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/40">
               <TrendingUp className="h-4 w-4" />
             </div>
@@ -232,7 +234,7 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
         {/* Metric 2 */}
         <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-3.5 sm:p-4 backdrop-blur-sm shadow-sm dark:shadow-none">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Cigarette Closing Stock</span>
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Brand Wise Closing Stock (BITCL)</span>
             <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/60 p-2 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">
               <Layers className="h-4 w-4" />
             </div>

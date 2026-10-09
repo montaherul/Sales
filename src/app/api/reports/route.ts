@@ -8,8 +8,9 @@ import { AppError } from '@/shared/errors';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const year = parseInt(searchParams.get('year') || '2026', 10);
-    const month = parseInt(searchParams.get('month') || '10', 10);
+    const now = new Date();
+    const year = parseInt(searchParams.get('year') || String(now.getFullYear()), 10);
+    const month = parseInt(searchParams.get('month') || String(now.getMonth() + 1), 10);
     const companyIdParam = searchParams.get('companyId');
 
     const { getAuthenticatedUser } = await import('@/shared/auth');

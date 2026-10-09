@@ -12,8 +12,9 @@ export async function GET(request: NextRequest) {
     const actor = await getAuthenticatedUser(request);
     const { searchParams } = new URL(request.url);
     const reqCompanyId = searchParams.get('companyId');
-    const reqYear = parseInt(searchParams.get('year') || '2026', 10);
-    const reqMonth = parseInt(searchParams.get('month') || '10', 10);
+    const now = new Date();
+    const reqYear = parseInt(searchParams.get('year') || String(now.getFullYear()), 10);
+    const reqMonth = parseInt(searchParams.get('month') || String(now.getMonth() + 1), 10);
 
     const data = await MasterDataService.getMasterData(actor, reqCompanyId, reqYear, reqMonth);
 

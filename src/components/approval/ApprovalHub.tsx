@@ -19,6 +19,7 @@ import {
 import { ServerDataTable, ColumnDef } from '@/components/common/ServerDataTable';
 import { Select2 } from '@/components/common/Select2';
 import { DatePicker } from '@/components/common/DatePicker';
+import { getTodayDateString } from '@/shared/utils';
 
 interface ApprovalHubProps {
   currentRole: RoleType;
@@ -26,7 +27,7 @@ interface ApprovalHubProps {
 }
 
 export function ApprovalHub({ currentRole, companyId = 'ALL' }: ApprovalHubProps) {
-  const [reportDate, setReportDate] = useState('2026-10-06');
+  const [reportDate, setReportDate] = useState(() => getTodayDateString());
   const [filterDate, setFilterDate] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [tableRefreshKey, setTableRefreshKey] = useState(0);

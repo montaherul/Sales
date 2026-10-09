@@ -51,13 +51,14 @@ export interface BuildWorkbookOptions {
   divisionName?: string;
   wingName?: string;
   territories?: TerritoryExportConfig[];
+  reportType?: 'daily' | 'monthly' | 'yearly' | 'blank_month';
   isDailyReportOnly?: boolean;
   targetRecords?: Record<string, any>;
 }
 
 export class WorkbookBuilder {
   /**
-   * Builds the dynamic Excel workbook (34-sheet monthly report or single-day daily report)
+   * Builds the dynamic Excel workbook (34-sheet monthly report, single-day daily report, or yearly consolidation report)
    * Populates live database values and resets non-submitted days with clean 0s.
    */
   public async buildWorkbook(
@@ -79,6 +80,7 @@ export class WorkbookBuilder {
 
     const year = options?.year || 2026;
     const month = options?.month || 10;
+    const reportType = options?.reportType || (options?.isDailyReportOnly ? 'daily' : 'monthly');
     const dateObj = new Date(year, month - 1, 1);
     const monthName = dateObj.toLocaleString('en-US', { month: 'long' });
     const companyDisplayName = options?.companyName || 'Afaz Tobacco Company';
@@ -94,15 +96,143 @@ export class WorkbookBuilder {
     const endRow = territoryConfigs[territoryConfigs.length - 1]?.rowNumber || 12;
     const totalRow = endRow + 1;
 
-    // 2. Populate and format daily sheets '1' to '31'
+    // 2. YEARLY REPORT MODE: Consolidate entire year's data
+    if (reportType === 'yearly') {
+      const yearlySummarySheet = workbook.getWorksheet('1');
+      if (yearlySummarySheet) {
+        yearlySummarySheet.name = `Yearly Summary - ${year}`;
+        yearlySummarySheet.getCell('A1').value = `${companyDisplayName} .`;
+        yearlySummarySheet.getCell('A3').value = `Year:${year}`;
+        yearlySummarySheet.getCell('B5').value = `Period: 01.01.${year} - 31.12.${year}`;
+        yearlySummarySheet.getCell('G5').value = `                                          Division: ${divisionDisplayName}`;
+        yearlySummarySheet.getCell('U5').value = `Wing: ${wingDisplayName}`;
+
+        territoryConfigs.forEach(({ rowNumber, territoryName, regionName, slNo }) => {
+          yearlySummarySheet.getCell(`A${rowNumber}`).value = slNo;
+          yearlySummarySheet.getCell(`B${rowNumber}`).value = regionName;
+          yearlySummarySheet.getCell(`C${rowNumber}`).value = territoryName;
+
+          let wilson = 0, shahara = 0, express = 0, nexus = 0, sb = 0, sm = 0;
+          let zSlb = 0, z22 = 0, z99 = 0, z33 = 0;
+          let emptyPackets = 0;
+          let latestStock: DailyExportRecord | null = null;
+
+          Object.values(dailyDataBySheet).forEach((dayRecords) => {
+            const rec = dayRecords.find((r) => r.territoryName.toLowerCase() === territoryName.toLowerCase());
+            if (rec) {
+              wilson += rec.wilsonSales || 0;
+              shahara += rec.shaharaSales || 0;
+              express += rec.expressSales || 0;
+              nexus += rec.nexusSales || 0;
+              sb += rec.sbSales || 0;
+              sm += rec.smSales || 0;
+              zSlb += rec.zardaSlbSales || 0;
+              z22 += rec.zarda22_25Sales || 0;
+              z99 += rec.zarda99_14Sales || 0;
+              z33 += rec.zarda33_15Sales || 0;
+              emptyPackets += rec.emptyPackets || 0;
+              latestStock = rec;
+            }
+          });
+
+          // Cigarette Sales
+          yearlySummarySheet.getCell(`D${rowNumber}`).value = Number(wilson.toFixed(2));
+          yearlySummarySheet.getCell(`E${rowNumber}`).value = Number(shahara.toFixed(2));
+          yearlySummarySheet.getCell(`F${rowNumber}`).value = Number(express.toFixed(2));
+          yearlySummarySheet.getCell(`G${rowNumber}`).value = Number(nexus.toFixed(2));
+          yearlySummarySheet.getCell(`H${rowNumber}`).value = Number(sb.toFixed(2));
+          yearlySummarySheet.getCell(`I${rowNumber}`).value = Number(sm.toFixed(2));
+
+          const finalStock = latestStock as DailyExportRecord | null;
+
+          // Closing Stock (from latest record)
+          yearlySummarySheet.getCell(`K${rowNumber}`).value = finalStock?.wilsonStock || 0;
+          yearlySummarySheet.getCell(`L${rowNumber}`).value = finalStock?.shaharaStock || 0;
+          yearlySummarySheet.getCell(`M${rowNumber}`).value = finalStock?.expressStock || 0;
+          yearlySummarySheet.getCell(`N${rowNumber}`).value = finalStock?.nexusStock || 0;
+          yearlySummarySheet.getCell(`O${rowNumber}`).value = finalStock?.sbStock || 0;
+          yearlySummarySheet.getCell(`P${rowNumber}`).value = finalStock?.smStock || 0;
+
+          // Zarda Sales
+          yearlySummarySheet.getCell(`R${rowNumber}`).value = zSlb;
+          yearlySummarySheet.getCell(`S${rowNumber}`).value = z22;
+          yearlySummarySheet.getCell(`T${rowNumber}`).value = z99;
+          yearlySummarySheet.getCell(`U${rowNumber}`).value = z33;
+
+          // Zarda Stock
+          yearlySummarySheet.getCell(`X${rowNumber}`).value = finalStock?.zardaSlbStock || 0;
+          yearlySummarySheet.getCell(`Y${rowNumber}`).value = finalStock?.zarda22_25Stock || 0;
+          yearlySummarySheet.getCell(`Z${rowNumber}`).value = finalStock?.zarda99_14Stock || 0;
+          yearlySummarySheet.getCell(`AA${rowNumber}`).value = finalStock?.zarda33_15Stock || 0;
+
+          yearlySummarySheet.getCell(`AD${rowNumber}`).value = emptyPackets;
+          yearlySummarySheet.getCell(`AE${rowNumber}`).value = `Yearly Consolidated ${year}`;
+
+          FormulaWriter.writeRowFormulas(yearlySummarySheet, rowNumber);
+        });
+
+        FormulaWriter.writeTotalRowFormulas(yearlySummarySheet, totalRow, startRow, endRow);
+        yearlySummarySheet.getCell(`A${totalRow}`).value = `${territoryConfigs[0]?.regionName || 'Satkania'} Region Yearly Total`;
+      }
+
+      // Keep Yearly Summary, Target, and Analysis; remove individual day sheets
+      const targetSheet = workbook.getWorksheet('Target.');
+      if (targetSheet) {
+        targetSheet.getCell('A1').value = `${companyDisplayName} .`;
+        targetSheet.getCell('A2').value = 'Marketing Department';
+        targetSheet.getCell('A3').value = `Year:${year}`;
+        targetSheet.getCell('A4').value = 'Daily Sales & Closing Stock Information.';
+      }
+
+      const analysisSheet = workbook.getWorksheet('Analysis');
+      if (analysisSheet) {
+        analysisSheet.getCell('A1').value = `${companyDisplayName} .`;
+        analysisSheet.getCell('A2').value = 'Marketing Department';
+        analysisSheet.getCell('A3').value = `Year:${year}`;
+        analysisSheet.getCell('A4').value = 'Daily Sales & Closing Stock Information.';
+        analysisSheet.getCell('AD1').value = `${companyDisplayName} .`;
+        analysisSheet.getCell('AD2').value = 'Marketing Department';
+        analysisSheet.getCell('AD3').value = `Year:${year}`;
+        analysisSheet.getCell('AD4').value = 'Daily Sales & Closing Stock Information.';
+      }
+
+      const sheetsToKeep = new Set([yearlySummarySheet?.id, targetSheet?.id, analysisSheet?.id]);
+      const toRemove = workbook.worksheets.filter((ws) => !sheetsToKeep.has(ws.id));
+      toRemove.forEach((ws) => workbook.removeWorksheet(ws.id));
+
+      // Sanitize formulas referencing removed sheets
+      [yearlySummarySheet, targetSheet, analysisSheet].forEach((ws) => {
+        if (!ws) return;
+        ws.eachRow((row) => {
+          row.eachCell((cell) => {
+            if (cell.formula && (cell.formula.includes('!') || cell.formula.includes('#REF'))) {
+              const match = cell.formula.match(/'?([^'!]+)'?!/);
+              const refSheetName = match ? match[1] : '';
+              if (!workbook.getWorksheet(refSheetName)) {
+                const res = typeof cell.value === 'object' && cell.value !== null && 'result' in cell.value
+                  ? (cell.value as any).result
+                  : (cell.text || 0);
+                cell.value = res;
+              }
+            }
+          });
+        });
+      });
+
+      return await excelTemplateAdapter.writeToBuffer(workbook);
+    }
+
+    // 3. Populate and format daily sheets '1' to '31'
     for (let day = 1; day <= 31; day++) {
       const sheetName = String(day);
       const worksheet = workbook.getWorksheet(sheetName);
       if (!worksheet) continue;
 
-      // Dynamic Header Binding
+      // Dynamic Header Binding - Bind all 4 header rows cleanly to eliminate ='1'!A2 and ='1'!A4 formula errors
       worksheet.getCell('A1').value = `${companyDisplayName} .`;
+      worksheet.getCell('A2').value = 'Marketing Department';
       worksheet.getCell('A3').value = `Month:${monthName}-${year}`;
+      worksheet.getCell('A4').value = 'Daily Sales & Closing Stock Information.';
       
       const dayFormatted = String(day).padStart(2, '0');
       const monthFormatted = String(month).padStart(2, '0');
@@ -182,8 +312,8 @@ export class WorkbookBuilder {
       worksheet.getCell(`A${totalRow}`).value = `${territoryConfigs[0]?.regionName || 'Satkania'} Region Total`;
     }
 
-    // 3. DAILY REPORT MODE: Extract only the requested single day
-    if (options?.isDailyReportOnly) {
+    // 4. DAILY REPORT MODE: Extract only the requested single day
+    if (reportType === 'daily' || options?.isDailyReportOnly) {
       const selectedDaySheetName = String(reportingDay);
       const targetSheet = workbook.getWorksheet(selectedDaySheetName) || workbook.getWorksheet('1');
 
@@ -194,6 +324,24 @@ export class WorkbookBuilder {
 
         // Rename the daily sheet
         targetSheet.name = `Daily Report - Day ${reportingDay}`;
+
+        // Ensure title headers are pure static values without external sheet formulas (eliminates ='1'!A2, ='1'!A4)
+        targetSheet.getCell('A1').value = `${companyDisplayName} .`;
+        targetSheet.getCell('A2').value = 'Marketing Department';
+        targetSheet.getCell('A3').value = `Month:${monthName}-${year}`;
+        targetSheet.getCell('A4').value = 'Daily Sales & Closing Stock Information.';
+
+        // Clean any leftover external formula references
+        targetSheet.eachRow((row) => {
+          row.eachCell((cell) => {
+            if (cell.formula && (cell.formula.includes('!') || cell.formula.includes('#REF'))) {
+              const res = typeof cell.value === 'object' && cell.value !== null && 'result' in cell.value
+                ? (cell.value as any).result
+                : (cell.text || '');
+              cell.value = res;
+            }
+          });
+        });
       }
 
       return await excelTemplateAdapter.writeToBuffer(workbook);
@@ -264,7 +412,9 @@ export class WorkbookBuilder {
     const targetSheet = workbook.getWorksheet('Target.');
     if (targetSheet) {
       targetSheet.getCell('A1').value = `${companyDisplayName} .`;
+      targetSheet.getCell('A2').value = 'Marketing Department';
       targetSheet.getCell('A3').value = `Month:${monthName}-${year}`;
+      targetSheet.getCell('A4').value = 'Daily Sales & Closing Stock Information.';
       targetSheet.getCell('G5').value = `                                          Division: ${divisionDisplayName}`;
       targetSheet.getCell('U5').value = `Wing: ${wingDisplayName}`;
 
@@ -273,7 +423,7 @@ export class WorkbookBuilder {
         targetSheet.getCell(`B${rowNumber}`).value = regionName;
         targetSheet.getCell(`C${rowNumber}`).value = territoryName;
 
-        // If target records provided, populate
+        // If target records provided, populate, otherwise clean 0s (for new month templates)
         const tRecord = options?.targetRecords?.[territoryName.toLowerCase()];
         if (tRecord) {
           targetSheet.getCell(`D${rowNumber}`).value = tRecord.wilson || 0;
@@ -282,6 +432,13 @@ export class WorkbookBuilder {
           targetSheet.getCell(`G${rowNumber}`).value = tRecord.nexus || 0;
           targetSheet.getCell(`H${rowNumber}`).value = tRecord.sb || 0;
           targetSheet.getCell(`I${rowNumber}`).value = tRecord.sm || 0;
+        } else {
+          targetSheet.getCell(`D${rowNumber}`).value = 0;
+          targetSheet.getCell(`E${rowNumber}`).value = 0;
+          targetSheet.getCell(`F${rowNumber}`).value = 0;
+          targetSheet.getCell(`G${rowNumber}`).value = 0;
+          targetSheet.getCell(`H${rowNumber}`).value = 0;
+          targetSheet.getCell(`I${rowNumber}`).value = 0;
         }
 
         // Formulas
@@ -295,8 +452,14 @@ export class WorkbookBuilder {
     // 4.3 Analysis Sheet
     const analysisSheet = workbook.getWorksheet('Analysis');
     if (analysisSheet) {
-      analysisSheet.getCell('A1').value = { formula: "'1'!A1" };
-      analysisSheet.getCell('A3').value = { formula: "'1'!A3" };
+      analysisSheet.getCell('A1').value = `${companyDisplayName} .`;
+      analysisSheet.getCell('A2').value = 'Marketing Department';
+      analysisSheet.getCell('A3').value = `Month:${monthName}-${year}`;
+      analysisSheet.getCell('A4').value = 'Daily Sales & Closing Stock Information.';
+      analysisSheet.getCell('AD1').value = `${companyDisplayName} .`;
+      analysisSheet.getCell('AD2').value = 'Marketing Department';
+      analysisSheet.getCell('AD3').value = `Month:${monthName}-${year}`;
+      analysisSheet.getCell('AD4').value = 'Daily Sales & Closing Stock Information.';
     }
 
     // 5. Return serialized buffer

@@ -1,5 +1,5 @@
 // Secure XLSX Import Engine for Afaz Tobacco Platform
-// Implements strict pre-flight validation and raw extraction from docs/07-IMPORT-SPEC.md
+// Implements strict pre-flight validation, multi-tab date matching, and raw extraction from docs/07-IMPORT-SPEC.md
 
 import ExcelJS from 'exceljs';
 import { 
@@ -17,13 +17,43 @@ import {
 } from '../calculations/engine';
 import { 
   verifyImportDateSafety, 
-  DateVerificationResult 
+  DateVerificationResult,
+  parseHeaderCellDate,
+  extractDateFromFilename
 } from './date-safety';
 import { 
   WORKBOOK_SHEETS, 
   EXPECTED_SHEET_COUNT, 
   SATKANIA_TERRITORIES 
 } from './template-mapping';
+import { SubmissionRepository } from '../repositories/submission.repository';
+
+export interface AvailableSheetInfo {
+  name: string;
+  index: number;
+  headerDate?: string;
+  resolvedDate?: string;
+  hasData: boolean;
+}
+
+export interface ImportSummary {
+  totalRecords: number;
+  newRecordsCount: number;
+  revisionRecordsCount: number;
+  totalCigaretteSales: number;
+  totalCigaretteStock: number;
+  totalZardaSalesValue: number;
+  totalZardaStockValue: number;
+  totalEmptyPackets: number;
+}
+
+export interface MatchedSheetInfo {
+  name: string;
+  index: number;
+  matchMethod: 'FIRST_TAB_MATCH' | 'SEARCHED_TAB_MATCH';
+  headerDateText: string;
+  resolvedDate: string;
+}
 
 export interface ImportErrorDetail {
   sheet: string;
@@ -37,140 +67,454 @@ export interface ImportErrorDetail {
 
 export interface ImportPreviewPayload {
   isValid: boolean;
+  targetDate: string;
+  matchedSheet: MatchedSheetInfo;
+  availableSheets: AvailableSheetInfo[];
+  summary: ImportSummary;
   dateVerification: DateVerificationResult;
   totalSheetsFound: number;
   totalValidRecords: number;
+  duplicateTerritories: string[];
   records: DailyOperationalRecord[];
   errors: ImportErrorDetail[];
   warnings: string[];
 }
 
 /**
- * Validates and extracts records from an uploaded workbook buffer.
+ * Safely extracts string text from an ExcelJS cell without throwing on merged cells or formula cells.
+ */
+export function safeGetCellString(cell: ExcelJS.Cell | null | undefined): string {
+  if (!cell) return '';
+  try {
+    const val = cell.value;
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'string') return val.trim();
+    if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+    if (val instanceof Date) return val.toISOString();
+    if (typeof val === 'object') {
+      if ('result' in val && val.result != null) return String(val.result).trim();
+      if ('richText' in val && Array.isArray((val as any).richText)) {
+        return (val as any).richText.map((rt: any) => rt.text || '').join('').trim();
+      }
+      if ('text' in val && typeof (val as any).text === 'string') {
+        return (val as any).text.trim();
+      }
+    }
+    return (cell.text || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Safely extracts a numeric value from an ExcelJS cell, validating against negative numbers or unparseable formats.
+ */
+export function safeGetCellNumber(
+  cell: ExcelJS.Cell | null | undefined,
+  meta: { sheet: string; row: number; column: string; field: string }
+): { value: number; error?: ImportErrorDetail } {
+  if (!cell) return { value: 0 };
+  try {
+    const val = cell.value;
+    if (val === null || val === undefined) return { value: 0 };
+
+    if (typeof val === 'number') {
+      if (val < 0) {
+        return {
+          value: 0,
+          error: {
+            sheet: meta.sheet,
+            row: meta.row,
+            column: meta.column,
+            field: meta.field,
+            invalidValue: val,
+            expectedValue: 'Non-negative number (>= 0)',
+            reason: `Negative value ${val} is not permitted for sales or stock.`,
+          },
+        };
+      }
+      return { value: isNaN(val) ? 0 : val };
+    }
+
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (!trimmed) return { value: 0 };
+      const parsed = parseFloat(trimmed);
+      if (isNaN(parsed)) {
+        return {
+          value: 0,
+          error: {
+            sheet: meta.sheet,
+            row: meta.row,
+            column: meta.column,
+            field: meta.field,
+            invalidValue: val,
+            expectedValue: 'Numeric value',
+            reason: `Cannot parse non-numeric text "${val}" as a number.`,
+          },
+        };
+      }
+      if (parsed < 0) {
+        return {
+          value: 0,
+          error: {
+            sheet: meta.sheet,
+            row: meta.row,
+            column: meta.column,
+            field: meta.field,
+            invalidValue: parsed,
+            expectedValue: 'Non-negative number (>= 0)',
+            reason: `Negative value ${parsed} is not permitted for sales or stock.`,
+          },
+        };
+      }
+      return { value: parsed };
+    }
+
+    if (typeof val === 'object') {
+      if ('result' in val) {
+        const res = val.result;
+        if (typeof res === 'number') {
+          if (res < 0) {
+            return {
+              value: 0,
+              error: {
+                sheet: meta.sheet,
+                row: meta.row,
+                column: meta.column,
+                field: meta.field,
+                invalidValue: res,
+                expectedValue: 'Non-negative number (>= 0)',
+                reason: `Formula result is negative: ${res}.`,
+              },
+            };
+          }
+          return { value: isNaN(res) ? 0 : res };
+        }
+        if (typeof res === 'string') {
+          const parsed = parseFloat(res.trim());
+          if (isNaN(parsed)) {
+            return {
+              value: 0,
+              error: {
+                sheet: meta.sheet,
+                row: meta.row,
+                column: meta.column,
+                field: meta.field,
+                invalidValue: res,
+                expectedValue: 'Numeric formula result',
+                reason: `Formula evaluated to non-numeric: "${res}".`,
+              },
+            };
+          }
+          return { value: parsed };
+        }
+      }
+    }
+
+    const txt = (cell.text || '').trim();
+    if (!txt) return { value: 0 };
+    const parsed = parseFloat(txt);
+    if (isNaN(parsed)) {
+      return {
+        value: 0,
+        error: {
+          sheet: meta.sheet,
+          row: meta.row,
+          column: meta.column,
+          field: meta.field,
+          invalidValue: txt,
+          expectedValue: 'Numeric value',
+          reason: `Cannot parse cell text "${txt}" as a number.`,
+        },
+      };
+    }
+    return { value: parsed < 0 ? 0 : parsed };
+  } catch (err: any) {
+    return {
+      value: 0,
+      error: {
+        sheet: meta.sheet,
+        row: meta.row,
+        column: meta.column,
+        field: meta.field,
+        invalidValue: null,
+        expectedValue: 'Numeric value',
+        reason: `Failed to read cell: ${err.message}`,
+      },
+    };
+  }
+}
+
+/**
+ * Validates, finds matching tab, extracts records, and prepares interactive review preview.
  */
 export async function parseAndValidateXLSX(params: {
   buffer: Buffer;
   fileName: string;
-  applicationDate: string; // YYYY-MM-DD
+  applicationDate?: string; // YYYY-MM-DD
+  sheetName?: string;
 }): Promise<ImportPreviewPayload> {
   const errors: ImportErrorDetail[] = [];
   const warnings: string[] = [];
   const records: DailyOperationalRecord[] = [];
+  const duplicateTerritories: string[] = [];
 
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(params.buffer as any);
 
-  // 1. Validate Sheet Count & Order
-  if (workbook.worksheets.length !== EXPECTED_SHEET_COUNT) {
+  // 1. Inspect all sheets in workbook to index available tabs & detect dates
+  const availableSheets: AvailableSheetInfo[] = [];
+  for (let i = 0; i < workbook.worksheets.length; i++) {
+    const ws = workbook.worksheets[i];
+    const b5Text = safeGetCellString(ws.getCell('B5'));
+    const parsedB5 = parseHeaderCellDate(b5Text);
+    const resolvedD = parsedB5 && parsedB5.year && parsedB5.month && parsedB5.day
+      ? `${parsedB5.year}-${String(parsedB5.month).padStart(2, '0')}-${String(parsedB5.day).padStart(2, '0')}`
+      : undefined;
+
+    // Check if rows 8 to 12 have data
+    let hasData = false;
+    for (let r = 8; r <= 12; r++) {
+      if (ws.getCell(`D${r}`).value !== null || ws.getCell(`K${r}`).value !== null) {
+        hasData = true;
+        break;
+      }
+    }
+
+    availableSheets.push({
+      name: ws.name,
+      index: i,
+      headerDate: b5Text,
+      resolvedDate: resolvedD,
+      hasData,
+    });
+  }
+
+  // 2. Resolve targetDate
+  let targetDate = (params.applicationDate || '').trim();
+  if (!targetDate) {
+    // Auto-detect from filename first
+    const fromFilename = extractDateFromFilename(params.fileName);
+    if (fromFilename?.year && fromFilename?.month && fromFilename?.day) {
+      targetDate = `${fromFilename.year}-${String(fromFilename.month).padStart(2, '0')}-${String(fromFilename.day).padStart(2, '0')}`;
+    } else {
+      // Or auto-detect from first sheet's B5
+      const firstSheetResolved = availableSheets[0]?.resolvedDate;
+      if (firstSheetResolved) {
+        targetDate = firstSheetResolved;
+      }
+    }
+  }
+
+  if (!targetDate) {
     errors.push({
       sheet: 'Root',
       row: 0,
       column: 'N/A',
-      field: 'sheetCount',
-      invalidValue: workbook.worksheets.length,
-      expectedValue: String(EXPECTED_SHEET_COUNT),
-      reason: `Workbook has ${workbook.worksheets.length} sheets; expected exactly ${EXPECTED_SHEET_COUNT}.`,
+      field: 'date',
+      invalidValue: null,
+      expectedValue: 'YYYY-MM-DD',
+      reason: 'No reporting date provided and could not auto-detect date from filename or workbook header.',
     });
+    targetDate = new Date().toISOString().split('T')[0];
   }
 
-  // 2. Determine target day from applicationDate
-  const appDateParts = params.applicationDate.split('-').map(Number);
+  const appDateParts = targetDate.split('-').map(Number);
+  const targetYear = appDateParts[0];
+  const targetMonth = appDateParts[1];
   const targetDay = appDateParts[2] || 1;
-  const targetSheetName = String(targetDay);
-  const targetSheet = workbook.getWorksheet(targetSheetName);
+
+  // 3. Tab Finding Workflow:
+  // "find first tab and match date if not.. find tab that date and aslo check that date"
+  let targetSheet: ExcelJS.Worksheet | null = null;
+  let matchMethod: 'FIRST_TAB_MATCH' | 'SEARCHED_TAB_MATCH' = 'FIRST_TAB_MATCH';
+
+  // If user explicitly requested a specific sheet by name
+  if (params.sheetName) {
+    targetSheet = workbook.getWorksheet(params.sheetName) || null;
+    matchMethod = 'SEARCHED_TAB_MATCH';
+  }
+
+  const firstSheet = workbook.worksheets[0];
+  const firstSheetDate = availableSheets[0]?.resolvedDate;
+  const firstSheetB5 = parseHeaderCellDate(availableSheets[0]?.headerDate || '');
+
+  if (!targetSheet && firstSheet) {
+    // Check if first tab matches targetDate
+    const firstMatches = 
+      (firstSheetDate && firstSheetDate === targetDate) ||
+      (firstSheetB5 && firstSheetB5.day === targetDay && (!firstSheetB5.month || firstSheetB5.month === targetMonth)) ||
+      (firstSheet.name === String(targetDay));
+
+    if (firstMatches) {
+      targetSheet = firstSheet;
+      matchMethod = 'FIRST_TAB_MATCH';
+    }
+  }
+
+  // If first tab does NOT match, find the tab that matches targetDate!
+  if (!targetSheet) {
+    matchMethod = 'SEARCHED_TAB_MATCH';
+    // a) Search for sheet whose B5 header date matches targetDate
+    for (let i = 0; i < workbook.worksheets.length; i++) {
+      const ws = workbook.worksheets[i];
+      const parsed = parseHeaderCellDate(safeGetCellString(ws.getCell('B5')));
+      if (parsed && parsed.day === targetDay && (!parsed.month || parsed.month === targetMonth) && (!parsed.year || parsed.year === targetYear)) {
+        targetSheet = ws;
+        break;
+      }
+    }
+
+    // b) If still not found, search by sheet name = dayNumber (e.g. '6')
+    if (!targetSheet) {
+      targetSheet = workbook.getWorksheet(String(targetDay)) || null;
+    }
+
+    // c) If still not found, search by sheet name containing dayNumber or date
+    if (!targetSheet) {
+      for (const ws of workbook.worksheets) {
+        const cleanName = ws.name.toLowerCase();
+        if (cleanName.includes(`day ${targetDay}`) || cleanName.includes(`day-${targetDay}`) || cleanName.includes(targetDate)) {
+          targetSheet = ws;
+          break;
+        }
+      }
+    }
+  }
 
   if (!targetSheet) {
     errors.push({
-      sheet: targetSheetName,
+      sheet: 'Unknown',
       row: 0,
-      column: 'N/A',
-      field: 'worksheet',
-      invalidValue: null,
-      expectedValue: targetSheetName,
-      reason: `Target daily sheet '${targetSheetName}' not found in workbook.`,
+      column: 'B5',
+      field: 'sheetSelection',
+      invalidValue: availableSheets[0]?.name || 'N/A',
+      expectedValue: `Sheet for ${targetDate} (Day ${targetDay})`,
+      reason: `Could not find a worksheet matching date ${targetDate}. Checked first sheet '${firstSheet?.name}' and all ${workbook.worksheets.length} sheets.`,
     });
   }
 
-  // 3. Date Safety Check
-  const headerDateCell = targetSheet?.getCell('B5')?.text || '';
+  // 4. "and aslo check that date"
+  // Run Date Safety check against the matched worksheet!
+  const matchedSheetHeaderDate = targetSheet ? safeGetCellString(targetSheet.getCell('B5')) : '';
   const dateCheck = verifyImportDateSafety({
-    applicationDate: params.applicationDate,
+    applicationDate: targetDate,
     fileName: params.fileName,
-    headerDateText: headerDateCell,
-    sheetNumber: targetDay,
+    headerDateText: matchedSheetHeaderDate,
+    sheetNumber: !isNaN(Number(targetSheet?.name)) ? Number(targetSheet?.name) : targetDay,
   });
 
   if (!dateCheck.isValid) {
     for (const conflict of dateCheck.conflicts) {
       errors.push({
-        sheet: targetSheetName,
+        sheet: targetSheet?.name || 'Active',
         row: 5,
         column: 'B',
         field: 'dateValidation',
-        invalidValue: headerDateCell,
-        expectedValue: params.applicationDate,
+        invalidValue: matchedSheetHeaderDate,
+        expectedValue: targetDate,
         reason: conflict,
       });
     }
   }
 
-  // 4. Extract Raw Data Rows if targetSheet is valid
+  // 5. Structure validation (check 34 sheets if full monthly workbook, or check daily sheet structure)
+  if (workbook.worksheets.length === EXPECTED_SHEET_COUNT) {
+    for (let idx = 0; idx < WORKBOOK_SHEETS.length; idx++) {
+      const expectedName = WORKBOOK_SHEETS[idx];
+      const actualSheet = workbook.worksheets[idx];
+      if (actualSheet && actualSheet.name !== expectedName) {
+        warnings.push(`Workbook sheet #${idx + 1} is named '${actualSheet.name}'; expected '${expectedName}'.`);
+      }
+    }
+  }
+
+  // 6. Duplicate Record Detection (Rule 16)
+  const existingSubmissions = await SubmissionRepository.getSubmissions({
+    date: targetDate,
+  });
+  const existingTerritoryIds = new Set(existingSubmissions.map((s) => s.territoryId));
+
+  // 7. Extract Raw Data Rows from targetSheet
   if (targetSheet && dateCheck.isValid) {
     for (const terr of SATKANIA_TERRITORIES) {
       const row = terr.row;
 
-      const getNum = (col: string): number => {
-        const cell = targetSheet.getCell(`${col}${row}`);
-        const val = typeof cell.value === 'number' ? cell.value : Number(cell.text || 0);
-        return isNaN(val) ? 0 : val;
+      // Validate Territory name in Column C
+      const cellTerritoryName = safeGetCellString(targetSheet.getCell(`C${row}`));
+      if (cellTerritoryName && cellTerritoryName.toLowerCase() !== terr.name.toLowerCase()) {
+        warnings.push(
+          `Row ${row}: Column C contains '${cellTerritoryName}', expected '${terr.name}'.`
+        );
+      }
+
+      // Safe number extractor helper
+      const extractNum = (col: string, field: string): number => {
+        const res = safeGetCellNumber(targetSheet.getCell(`${col}${row}`), {
+          sheet: targetSheet.name,
+          row,
+          column: col,
+          field,
+        });
+        if (res.error) {
+          errors.push(res.error);
+        }
+        return res.value;
       };
 
       const cigaretteSales: CigaretteBrandSales = {
-        wilson: getNum('D'),
-        shahara: getNum('E'),
-        express: getNum('F'),
-        nexus: getNum('G'),
-        sb: getNum('H'),
-        sm: getNum('I'),
+        wilson: extractNum('D', 'cigaretteSales.wilson'),
+        shahara: extractNum('E', 'cigaretteSales.shahara'),
+        express: extractNum('F', 'cigaretteSales.express'),
+        nexus: extractNum('G', 'cigaretteSales.nexus'),
+        sb: extractNum('H', 'cigaretteSales.sb'),
+        sm: extractNum('I', 'cigaretteSales.sm'),
       };
 
       const cigaretteStock: CigaretteBrandStock = {
-        wilson: getNum('K'),
-        shahara: getNum('L'),
-        express: getNum('M'),
-        nexus: getNum('N'),
-        sb: getNum('O'),
-        sm: getNum('P'),
+        wilson: extractNum('K', 'cigaretteStock.wilson'),
+        shahara: extractNum('L', 'cigaretteStock.shahara'),
+        express: extractNum('M', 'cigaretteStock.express'),
+        nexus: extractNum('N', 'cigaretteStock.nexus'),
+        sb: extractNum('O', 'cigaretteStock.sb'),
+        sm: extractNum('P', 'cigaretteStock.sm'),
       };
 
       const zardaSales: ZardaSalesQty = {
-        slb: getNum('R'),
-        qty_22_25: Math.round(getNum('S')),
-        qty_99_14: Math.round(getNum('T')),
-        qty_33_15: Math.round(getNum('U')),
+        slb: extractNum('R', 'zardaSales.slb'),
+        qty_22_25: Math.round(extractNum('S', 'zardaSales.qty_22_25')),
+        qty_99_14: Math.round(extractNum('T', 'zardaSales.qty_99_14')),
+        qty_33_15: Math.round(extractNum('U', 'zardaSales.qty_33_15')),
       };
 
       const zardaStock: ZardaStockQty = {
-        slb: getNum('X'),
-        qty_22_25: Math.round(getNum('Y')),
-        qty_99_14: Math.round(getNum('Z')),
-        qty_33_15: Math.round(getNum('AA')),
+        slb: extractNum('X', 'zardaStock.slb'),
+        qty_22_25: Math.round(extractNum('Y', 'zardaStock.qty_22_25')),
+        qty_99_14: Math.round(extractNum('Z', 'zardaStock.qty_99_14')),
+        qty_33_15: Math.round(extractNum('AA', 'zardaStock.qty_33_15')),
       };
 
-      const emptyPackets = Math.round(getNum('AD'));
-      const remarks = targetSheet.getCell(`AE${row}`).text || '';
+      const emptyPackets = Math.round(extractNum('AD', 'emptyPackets'));
+      const remarks = safeGetCellString(targetSheet.getCell(`AE${row}`));
 
-      // Recompute totals via centralized Calculation Engine (Do NOT trust Excel cached formulas)
+      // Recompute totals via centralized Calculation Engine (Do NOT trust Excel cached formulas - Rule 15)
       const totalSales = calculateCigaretteSalesTotal(cigaretteSales);
       const totalStock = calculateCigaretteStockTotal(cigaretteStock);
       const totalZardaSales = calculateZardaSalesValuation(zardaSales);
       const totalZardaStock = calculateZardaStockValuation(zardaStock);
 
+      const territoryId = `satkania-${terr.sl}`;
+      const isDuplicate = existingTerritoryIds.has(territoryId);
+      if (isDuplicate) {
+        duplicateTerritories.push(territoryId);
+      }
+
       records.push({
-        territoryId: `satkania-${terr.sl}`,
+        territoryId,
         territoryName: terr.name,
         regionName: 'Satkania',
-        reportDate: params.applicationDate,
+        reportDate: targetDate,
         dayNumber: targetDay,
         status: 'DRAFT',
         cigaretteSales,
@@ -187,11 +531,54 @@ export async function parseAndValidateXLSX(params: {
     }
   }
 
+  // 8. Calculate executive summary for review
+  let totalCigaretteSales = 0;
+  let totalCigaretteStock = 0;
+  let totalZardaSalesValue = 0;
+  let totalZardaStockValue = 0;
+  let totalEmptyPackets = 0;
+  let revisionRecordsCount = 0;
+
+  for (const r of records) {
+    totalCigaretteSales += r.totalCigaretteSales;
+    totalCigaretteStock += r.totalCigaretteStock;
+    totalZardaSalesValue += r.totalZardaSalesValue;
+    totalZardaStockValue += r.totalZardaStockValue;
+    totalEmptyPackets += r.emptyPackets;
+    if (existingTerritoryIds.has(r.territoryId)) {
+      revisionRecordsCount++;
+    }
+  }
+
+  const summary: ImportSummary = {
+    totalRecords: records.length,
+    newRecordsCount: records.length - revisionRecordsCount,
+    revisionRecordsCount,
+    totalCigaretteSales: Number(totalCigaretteSales.toFixed(2)),
+    totalCigaretteStock: Number(totalCigaretteStock.toFixed(2)),
+    totalZardaSalesValue,
+    totalZardaStockValue,
+    totalEmptyPackets,
+  };
+
+  const matchedSheet: MatchedSheetInfo = {
+    name: targetSheet?.name || 'N/A',
+    index: targetSheet ? availableSheets.findIndex((s) => s.name === targetSheet?.name) : -1,
+    matchMethod,
+    headerDateText: matchedSheetHeaderDate,
+    resolvedDate: targetDate,
+  };
+
   return {
     isValid: errors.length === 0,
+    targetDate,
+    matchedSheet,
+    availableSheets: availableSheets.filter((s) => s.hasData || s.resolvedDate || !isNaN(Number(s.name))),
+    summary,
     dateVerification: dateCheck,
     totalSheetsFound: workbook.worksheets.length,
     totalValidRecords: records.length,
+    duplicateTerritories,
     records,
     errors,
     warnings,

@@ -15,8 +15,9 @@ export async function GET(request: NextRequest) {
     const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
     const search = searchParams.get('search') || '';
     const territoryId = searchParams.get('territoryId');
-    const year = parseInt(searchParams.get('year') || '2026', 10);
-    const month = parseInt(searchParams.get('month') || '10', 10);
+    const now = new Date();
+    const year = parseInt(searchParams.get('year') || String(now.getFullYear()), 10);
+    const month = parseInt(searchParams.get('month') || String(now.getMonth() + 1), 10);
     const sortBy = searchParams.get('sortBy') || 'tg.target_quantity';
     const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc';
     const isExport = searchParams.get('export') === 'csv';

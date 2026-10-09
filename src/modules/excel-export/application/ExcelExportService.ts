@@ -11,9 +11,10 @@ import { AuditService } from '@/modules/audit';
 
 export interface GenerateReportOptions {
   year: number;
-  month: number;
+  month?: number;
   day?: number;
-  reportType?: 'monthly' | 'daily';
+  reportType?: 'daily' | 'monthly' | 'yearly' | 'blank_month';
+  isBlankTemplate?: boolean;
   companyId?: string;
   regionId?: string;
   userId?: string;
@@ -21,27 +22,24 @@ export interface GenerateReportOptions {
 
 export class ExcelExportService {
   /**
-   * Universal report generation method supporting both 34-sheet Monthly reports
-   * and single-sheet Daily reports, dynamically scoped by Company and Region.
+   * Universal report generation method supporting 34-sheet Monthly reports,
+   * single-sheet Daily reports, Yearly consolidated reports, and Clean New Month Blank Templates (34 tabs, 0 data, all formulas).
    */
   public static async generateReport(
     options: GenerateReportOptions
   ): Promise<{ filename: string; buffer: Buffer }> {
-    const year = options.year || 2026;
-    const month = options.month || 10;
-    const day = options.day || 1;
-    const reportType = options.reportType || 'monthly';
+    const now = new Date();
+    const year = options.year || now.getFullYear();
+    const month = options.month || (now.getMonth() + 1);
+    const day = options.day || now.getDate();
+    const isBlankTemplate = Boolean(options.isBlankTemplate || options.reportType === 'blank_month');
+    const reportType = isBlankTemplate ? 'blank_month' : (options.reportType || 'monthly');
     const userId = options.userId || 'system';
     const companyId = options.companyId && options.companyId !== 'ALL' ? options.companyId : undefined;
     const regionId = options.regionId && options.regionId !== 'ALL' ? options.regionId : undefined;
 
-    const dateObj = new Date(year, month - 1, day);
-    const monthName = dateObj.toLocaleString('en-US', { month: 'long' });
-
-    // Standard filename according to AGENTS.md Rule 17
-    const filename = reportType === 'daily'
-      ? `Daily sales and Closing Stock Information ${monthName} ${day} ${year} (Daily).xlsx`
-      : generateExportFilename(year, month, day);
+    // Dynamic filename based on period type (Daily, Monthly, Yearly, Blank Month)
+    const filename = generateExportFilename(year, month, day, reportType);
 
     // 1. Resolve Dynamic Company, Division, and Wing Names
     let companyName = 'Afaz Tobacco Company';
@@ -115,114 +113,133 @@ export class ExcelExportService {
       logger.warn('Failed to query dynamic territories from DB', 'ExcelExportService', { terrErr });
     }
 
-    // 3. Resolve Dynamic Target Records for Target. sheet
+    // 3. Resolve Dynamic Target Records for Target. sheet (Reset to 0 if blank template)
     const targetRecords: Record<string, any> = {};
-    try {
-      const targetRes = await dbQuery(
-        `SELECT t.name as territory_name, b.name as brand_name, tg.target_quantity
-         FROM targets tg
-         JOIN territories t ON tg.territory_id = t.id
-         JOIN brands b ON tg.brand_id = b.id
-         WHERE tg.year = $1 AND tg.month = $2`,
-        [year, month]
-      );
+    if (!isBlankTemplate) {
+      try {
+        const targetRes = await dbQuery(
+          `SELECT t.name as territory_name, b.name as brand_name, tg.target_quantity
+           FROM targets tg
+           JOIN territories t ON tg.territory_id = t.id
+           JOIN brands b ON tg.brand_id = b.id
+           WHERE tg.year = $1 AND tg.month = $2`,
+          [year, month]
+        );
 
-      targetRes.rows.forEach((r: any) => {
-        const tKey = (r.territory_name || '').toLowerCase();
-        if (!targetRecords[tKey]) targetRecords[tKey] = {};
-        const bName = (r.brand_name || '').toLowerCase();
-        const val = parseFloat(r.target_quantity || 0);
+        targetRes.rows.forEach((r: any) => {
+          const tKey = (r.territory_name || '').toLowerCase();
+          if (!targetRecords[tKey]) targetRecords[tKey] = {};
+          const bName = (r.brand_name || '').toLowerCase();
+          const val = parseFloat(r.target_quantity || 0);
 
-        if (bName.includes('wilson')) targetRecords[tKey].wilson = val;
-        else if (bName.includes('shahara')) targetRecords[tKey].shahara = val;
-        else if (bName.includes('express')) targetRecords[tKey].express = val;
-        else if (bName.includes('nexus')) targetRecords[tKey].nexus = val;
-        else if (bName.includes('sb')) targetRecords[tKey].sb = val;
-        else if (bName.includes('sm')) targetRecords[tKey].sm = val;
-      });
-    } catch (tgErr) {
-      logger.warn('Failed to query targets for export', 'ExcelExportService', { tgErr });
+          if (bName.includes('wilson')) targetRecords[tKey].wilson = val;
+          else if (bName.includes('shahara')) targetRecords[tKey].shahara = val;
+          else if (bName.includes('express')) targetRecords[tKey].express = val;
+          else if (bName.includes('nexus')) targetRecords[tKey].nexus = val;
+          else if (bName.includes('sb')) targetRecords[tKey].sb = val;
+          else if (bName.includes('sm')) targetRecords[tKey].sm = val;
+        });
+      } catch (tgErr) {
+        logger.warn('Failed to query targets for export', 'ExcelExportService', { tgErr });
+      }
     }
 
-    // 4. Fetch Submissions from PostgreSQL
-    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-    const endDate = `${year}-${String(month).padStart(2, '0')}-31`;
+    // 4. Fetch Submissions from PostgreSQL scoped precisely to period
+    let startDate: string;
+    let endDate: string;
+
+    if (reportType === 'daily') {
+      const dStr = String(day).padStart(2, '0');
+      const mStr = String(month).padStart(2, '0');
+      startDate = `${year}-${mStr}-${dStr}`;
+      endDate = startDate;
+    } else if (reportType === 'yearly') {
+      startDate = `${year}-01-01`;
+      endDate = `${year}-12-31`;
+    } else {
+      const mStr = String(month).padStart(2, '0');
+      startDate = `${year}-${mStr}-01`;
+      endDate = `${year}-${mStr}-31`;
+    }
+
     const dailyDataBySheet: Record<string, DailyExportRecord[]> = {};
 
-    try {
-      const res = await dbQuery(
-        `SELECT s.id, s.report_date, s.remarks, t.name as territory_name,
-                EXTRACT(DAY FROM s.report_date) as day_num,
-                COALESCE(MAX(CASE WHEN b.name ILIKE '%wilson%' THEN ds.quantity END), 0) as c_wilson_sales,
-                COALESCE(MAX(CASE WHEN b.name ILIKE '%shahara%' THEN ds.quantity END), 0) as c_shahara_sales,
-                COALESCE(MAX(CASE WHEN b.name ILIKE '%express%' THEN ds.quantity END), 0) as c_express_sales,
-                COALESCE(MAX(CASE WHEN b.name ILIKE '%nexus%' THEN ds.quantity END), 0) as c_nexus_sales,
-                COALESCE(MAX(CASE WHEN b.name ILIKE '%sb%' THEN ds.quantity END), 0) as c_sb_sales,
-                COALESCE(MAX(CASE WHEN b.name ILIKE '%sm%' THEN ds.quantity END), 0) as c_sm_sales,
-                COALESCE(MAX(CASE WHEN b.name ILIKE '%wilson%' THEN dst.closing_stock END), 0) as c_wilson_stock,
-                COALESCE(MAX(CASE WHEN b.name ILIKE '%shahara%' THEN dst.closing_stock END), 0) as c_shahara_stock,
-                COALESCE(MAX(CASE WHEN b.name ILIKE '%express%' THEN dst.closing_stock END), 0) as c_express_stock,
-                COALESCE(MAX(CASE WHEN b.name ILIKE '%nexus%' THEN dst.closing_stock END), 0) as c_nexus_stock,
-                COALESCE(MAX(CASE WHEN b.name ILIKE '%sb%' THEN dst.closing_stock END), 0) as c_sb_stock,
-                COALESCE(MAX(CASE WHEN b.name ILIKE '%sm%' THEN dst.closing_stock END), 0) as c_sm_stock,
-                COALESCE((SELECT SUM(zs.quantity) FROM zarda_sales zs JOIN brands zb ON zs.brand_id = zb.id WHERE zs.submission_id = s.id AND zb.name ILIKE '%slb%'), 0) as z_slb_sales,
-                COALESCE((SELECT SUM(zs.quantity) FROM zarda_sales zs JOIN brands zb ON zs.brand_id = zb.id WHERE zs.submission_id = s.id AND zb.name ILIKE '%22%'), 0) as z_22_25_sales,
-                COALESCE((SELECT SUM(zs.quantity) FROM zarda_sales zs JOIN brands zb ON zs.brand_id = zb.id WHERE zs.submission_id = s.id AND zb.name ILIKE '%99%'), 0) as z_99_14_sales,
-                COALESCE((SELECT SUM(zs.quantity) FROM zarda_sales zs JOIN brands zb ON zs.brand_id = zb.id WHERE zs.submission_id = s.id AND zb.name ILIKE '%33%'), 0) as z_33_15_sales,
-                COALESCE((SELECT SUM(zst.closing_stock) FROM zarda_stock zst JOIN brands zb ON zst.brand_id = zb.id WHERE zst.submission_id = s.id AND zb.name ILIKE '%slb%'), 0) as z_slb_stock,
-                COALESCE((SELECT SUM(zst.closing_stock) FROM zarda_stock zst JOIN brands zb ON zst.brand_id = zb.id WHERE zst.submission_id = s.id AND zb.name ILIKE '%22%'), 0) as z_22_25_stock,
-                COALESCE((SELECT SUM(zst.closing_stock) FROM zarda_stock zst JOIN brands zb ON zst.brand_id = zb.id WHERE zst.submission_id = s.id AND zb.name ILIKE '%99%'), 0) as z_99_14_stock,
-                COALESCE((SELECT SUM(zst.closing_stock) FROM zarda_stock zst JOIN brands zb ON zst.brand_id = zb.id WHERE zst.submission_id = s.id AND zb.name ILIKE '%33%'), 0) as z_33_15_stock,
-                COALESCE((SELECT SUM(ep.quantity) FROM empty_packets ep WHERE ep.submission_id = s.id), 0) as empty_packets
-         FROM daily_submissions s
-         JOIN territories t ON s.territory_id = t.id
-         JOIN regions r ON t.region_id = r.id
-         JOIN wings w ON r.wing_id = w.id
-         JOIN divisions d ON w.division_id = d.id
-         LEFT JOIN daily_sales ds ON s.id = ds.submission_id
-         LEFT JOIN daily_stock dst ON s.id = dst.submission_id
-         LEFT JOIN brands b ON (ds.brand_id = b.id OR dst.brand_id = b.id)
-         WHERE s.report_date >= $1 AND s.report_date <= $2
-           AND ($3::uuid IS NULL OR d.company_id = $3 OR s.company_id = $3)
-           AND ($4::uuid IS NULL OR r.id = $4)
-         GROUP BY s.id, s.report_date, s.remarks, t.name`,
-        [startDate, endDate, companyId || null, regionId || null]
-      );
+    if (!isBlankTemplate) {
+      try {
+        const res = await dbQuery(
+          `SELECT s.id, s.report_date, s.remarks, t.name as territory_name,
+                  EXTRACT(DAY FROM s.report_date) as day_num,
+                  COALESCE(MAX(CASE WHEN b.name ILIKE '%wilson%' THEN ds.quantity END), 0) as c_wilson_sales,
+                  COALESCE(MAX(CASE WHEN b.name ILIKE '%shahara%' THEN ds.quantity END), 0) as c_shahara_sales,
+                  COALESCE(MAX(CASE WHEN b.name ILIKE '%express%' THEN ds.quantity END), 0) as c_express_sales,
+                  COALESCE(MAX(CASE WHEN b.name ILIKE '%nexus%' THEN ds.quantity END), 0) as c_nexus_sales,
+                  COALESCE(MAX(CASE WHEN b.name ILIKE '%sb%' THEN ds.quantity END), 0) as c_sb_sales,
+                  COALESCE(MAX(CASE WHEN b.name ILIKE '%sm%' THEN ds.quantity END), 0) as c_sm_sales,
+                  COALESCE(MAX(CASE WHEN b.name ILIKE '%wilson%' THEN dst.closing_stock END), 0) as c_wilson_stock,
+                  COALESCE(MAX(CASE WHEN b.name ILIKE '%shahara%' THEN dst.closing_stock END), 0) as c_shahara_stock,
+                  COALESCE(MAX(CASE WHEN b.name ILIKE '%express%' THEN dst.closing_stock END), 0) as c_express_stock,
+                  COALESCE(MAX(CASE WHEN b.name ILIKE '%nexus%' THEN dst.closing_stock END), 0) as c_nexus_stock,
+                  COALESCE(MAX(CASE WHEN b.name ILIKE '%sb%' THEN dst.closing_stock END), 0) as c_sb_stock,
+                  COALESCE(MAX(CASE WHEN b.name ILIKE '%sm%' THEN dst.closing_stock END), 0) as c_sm_stock,
+                  COALESCE((SELECT SUM(zs.quantity) FROM zarda_sales zs JOIN brands zb ON zs.brand_id = zb.id WHERE zs.submission_id = s.id AND zb.name ILIKE '%slb%'), 0) as z_slb_sales,
+                  COALESCE((SELECT SUM(zs.quantity) FROM zarda_sales zs JOIN brands zb ON zs.brand_id = zb.id WHERE zs.submission_id = s.id AND zb.name ILIKE '%22%'), 0) as z_22_25_sales,
+                  COALESCE((SELECT SUM(zs.quantity) FROM zarda_sales zs JOIN brands zb ON zs.brand_id = zb.id WHERE zs.submission_id = s.id AND zb.name ILIKE '%99%'), 0) as z_99_14_sales,
+                  COALESCE((SELECT SUM(zs.quantity) FROM zarda_sales zs JOIN brands zb ON zs.brand_id = zb.id WHERE zs.submission_id = s.id AND zb.name ILIKE '%33%'), 0) as z_33_15_sales,
+                  COALESCE((SELECT SUM(zst.closing_stock) FROM zarda_stock zst JOIN brands zb ON zst.brand_id = zb.id WHERE zst.submission_id = s.id AND zb.name ILIKE '%slb%'), 0) as z_slb_stock,
+                  COALESCE((SELECT SUM(zst.closing_stock) FROM zarda_stock zst JOIN brands zb ON zst.brand_id = zb.id WHERE zst.submission_id = s.id AND zb.name ILIKE '%22%'), 0) as z_22_25_stock,
+                  COALESCE((SELECT SUM(zst.closing_stock) FROM zarda_stock zst JOIN brands zb ON zst.brand_id = zb.id WHERE zst.submission_id = s.id AND zb.name ILIKE '%99%'), 0) as z_99_14_stock,
+                  COALESCE((SELECT SUM(zst.closing_stock) FROM zarda_stock zst JOIN brands zb ON zst.brand_id = zb.id WHERE zst.submission_id = s.id AND zb.name ILIKE '%33%'), 0) as z_33_15_stock,
+                  COALESCE((SELECT SUM(ep.quantity) FROM empty_packets ep WHERE ep.submission_id = s.id), 0) as empty_packets
+           FROM daily_submissions s
+           JOIN territories t ON s.territory_id = t.id
+           JOIN regions r ON t.region_id = r.id
+           JOIN wings w ON r.wing_id = w.id
+           JOIN divisions d ON w.division_id = d.id
+           LEFT JOIN daily_sales ds ON s.id = ds.submission_id
+           LEFT JOIN daily_stock dst ON s.id = dst.submission_id
+           LEFT JOIN brands b ON (ds.brand_id = b.id OR dst.brand_id = b.id)
+           WHERE s.report_date >= $1 AND s.report_date <= $2
+             AND ($3::uuid IS NULL OR d.company_id = $3 OR s.company_id = $3)
+             AND ($4::uuid IS NULL OR r.id = $4)
+           GROUP BY s.id, s.report_date, s.remarks, t.name`,
+          [startDate, endDate, companyId || null, regionId || null]
+        );
 
-      res.rows.forEach((row: any) => {
-        const sheetName = String(row.day_num);
-        if (!dailyDataBySheet[sheetName]) {
-          dailyDataBySheet[sheetName] = [];
-        }
+        res.rows.forEach((row: any) => {
+          const sheetName = String(row.day_num);
+          if (!dailyDataBySheet[sheetName]) {
+            dailyDataBySheet[sheetName] = [];
+          }
 
-        dailyDataBySheet[sheetName].push({
-          territoryName: row.territory_name,
-          wilsonSales: parseFloat(row.c_wilson_sales || 0),
-          shaharaSales: parseFloat(row.c_shahara_sales || 0),
-          expressSales: parseFloat(row.c_express_sales || 0),
-          nexusSales: parseFloat(row.c_nexus_sales || 0),
-          sbSales: parseFloat(row.c_sb_sales || 0),
-          smSales: parseFloat(row.c_sm_sales || 0),
-          wilsonStock: parseFloat(row.c_wilson_stock || 0),
-          shaharaStock: parseFloat(row.c_shahara_stock || 0),
-          expressStock: parseFloat(row.c_express_stock || 0),
-          nexusStock: parseFloat(row.c_nexus_stock || 0),
-          sbStock: parseFloat(row.c_sb_stock || 0),
-          smStock: parseFloat(row.c_sm_stock || 0),
-          zardaSlbSales: parseFloat(row.z_slb_sales || 0),
-          zarda22_25Sales: parseFloat(row.z_22_25_sales || 0),
-          zarda99_14Sales: parseFloat(row.z_99_14_sales || 0),
-          zarda33_15Sales: parseFloat(row.z_33_15_sales || 0),
-          zardaSlbStock: parseFloat(row.z_slb_stock || 0),
-          zarda22_25Stock: parseFloat(row.z_22_25_stock || 0),
-          zarda99_14Stock: parseFloat(row.z_99_14_stock || 0),
-          zarda33_15Stock: parseFloat(row.z_33_15_stock || 0),
-          emptyPackets: parseInt(row.empty_packets || 0, 10),
-          remarks: row.remarks || '',
+          dailyDataBySheet[sheetName].push({
+            territoryName: row.territory_name,
+            wilsonSales: parseFloat(row.c_wilson_sales || 0),
+            shaharaSales: parseFloat(row.c_shahara_sales || 0),
+            expressSales: parseFloat(row.c_express_sales || 0),
+            nexusSales: parseFloat(row.c_nexus_sales || 0),
+            sbSales: parseFloat(row.c_sb_sales || 0),
+            smSales: parseFloat(row.c_sm_sales || 0),
+            wilsonStock: parseFloat(row.c_wilson_stock || 0),
+            shaharaStock: parseFloat(row.c_shahara_stock || 0),
+            expressStock: parseFloat(row.c_express_stock || 0),
+            nexusStock: parseFloat(row.c_nexus_stock || 0),
+            sbStock: parseFloat(row.c_sb_stock || 0),
+            smStock: parseFloat(row.c_sm_stock || 0),
+            zardaSlbSales: parseFloat(row.z_slb_sales || 0),
+            zarda22_25Sales: parseFloat(row.z_22_25_sales || 0),
+            zarda99_14Sales: parseFloat(row.z_99_14_sales || 0),
+            zarda33_15Sales: parseFloat(row.z_33_15_sales || 0),
+            zardaSlbStock: parseFloat(row.z_slb_stock || 0),
+            zarda22_25Stock: parseFloat(row.z_22_25_stock || 0),
+            zarda99_14Stock: parseFloat(row.z_99_14_stock || 0),
+            zarda33_15Stock: parseFloat(row.z_33_15_stock || 0),
+            emptyPackets: parseInt(row.empty_packets || 0, 10),
+            remarks: row.remarks || '',
+          });
         });
-      });
-    } catch (err) {
-      logger.warn('Failed to query daily_submissions from DB for export, using empty sheet fallback', 'ExcelExportService', { err });
+      } catch (err) {
+        logger.warn('Failed to query daily_submissions from DB for export, using empty sheet fallback', 'ExcelExportService', { err });
+      }
     }
 
     // 5. Build dynamic workbook using template adapter
@@ -233,9 +250,10 @@ export class ExcelExportService {
       year,
       month,
       reportingDay: day,
+      reportType: isBlankTemplate ? 'monthly' : (reportType as any),
       isDailyReportOnly: reportType === 'daily',
       territories: territoryConfigs.length > 0 ? territoryConfigs : undefined,
-      targetRecords,
+      targetRecords: isBlankTemplate ? {} : targetRecords,
     });
 
     // 6. Centralized Audit Log

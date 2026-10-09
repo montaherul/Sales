@@ -10,13 +10,16 @@ import {
   MapPin, 
   Layers, 
   CheckCircle2, 
-  Sparkles,
-  Calculator,
-  ShieldCheck,
-  Loader2
+  Sparkles, 
+  Calculator, 
+  ShieldCheck, 
+  Loader2,
+  TrendingUp,
+  LayoutTemplate
 } from 'lucide-react';
 import { MONTH_NAMES } from '@/shared/constants';
 import { DatePicker } from '@/components/common/DatePicker';
+import { generateExportFilename } from '@/shared/utils';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -31,16 +34,17 @@ export function ExportModal({
   onClose,
   currentCompanyId = 'ALL',
   isSuperAdmin = false,
-  defaultDate = '2026-10-06',
+  defaultDate,
 }: ExportModalProps) {
-  // Parse initial date
-  const parsedDate = new Date(defaultDate || '2026-10-06');
-  const initialYear = !isNaN(parsedDate.getFullYear()) ? parsedDate.getFullYear() : 2026;
-  const initialMonth = !isNaN(parsedDate.getMonth()) ? parsedDate.getMonth() + 1 : 10;
-  const initialDay = !isNaN(parsedDate.getDate()) ? parsedDate.getDate() : 6;
+  // Dynamic current date initialization
+  const now = new Date();
+  const parsedDate = defaultDate ? new Date(defaultDate) : now;
+  const initialYear = !isNaN(parsedDate.getFullYear()) ? parsedDate.getFullYear() : now.getFullYear();
+  const initialMonth = !isNaN(parsedDate.getMonth()) ? parsedDate.getMonth() + 1 : now.getMonth() + 1;
+  const initialDay = !isNaN(parsedDate.getDate()) ? parsedDate.getDate() : now.getDate();
 
-  // Form State
-  const [reportType, setReportType] = useState<'monthly' | 'daily'>('monthly');
+  // Form State: 4 CRUD period modes: daily, monthly, yearly, blank_month
+  const [reportType, setReportType] = useState<'daily' | 'monthly' | 'yearly' | 'blank_month'>('monthly');
   const [year, setYear] = useState<number>(initialYear);
   const [month, setMonth] = useState<number>(initialMonth);
   const [day, setDay] = useState<number>(initialDay);
@@ -94,10 +98,8 @@ export function ExportModal({
   // Month name calculation
   const monthName = MONTH_NAMES[month - 1] || 'October';
 
-  // Live filename preview according to AGENTS.md Rule 17
-  const previewFilename = reportType === 'daily'
-    ? `Daily sales and Closing Stock Information ${monthName} ${day} ${year} (Daily).xlsx`
-    : `Daily sales and Closing Stock Information ${monthName} ${day} ${year}.xlsx`;
+  // Dynamic filename calculation matching AGENTS.md Rules 2, 3, 17
+  const previewFilename = generateExportFilename(year, month, day, reportType);
 
   // Filtered regions based on selected company
   const availableRegions = regions.filter((r) => {
@@ -136,7 +138,7 @@ export function ExportModal({
       setExportComplete(true);
       setTimeout(() => {
         setIsExporting(false);
-      }, 1200);
+      }, 1500);
     } catch (err) {
       console.error('Export download error:', err);
       alert('Failed to generate Excel report. Please check server logs.');
@@ -144,10 +146,23 @@ export function ExportModal({
     }
   };
 
+  const getDownloadButtonLabel = () => {
+    if (reportType === 'daily') {
+      return `Download Daily Report (${day} ${monthName} ${year})`;
+    }
+    if (reportType === 'yearly') {
+      return `Download Yearly Report (${year})`;
+    }
+    if (reportType === 'blank_month') {
+      return `Download Blank Template (${monthName} ${year} • 34 Sheets • 0 Data)`;
+    }
+    return `Download Monthly 34-Sheet Report (${monthName} ${year})`;
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn">
       <div 
-        className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
         role="dialog"
         aria-modal="true"
       >
@@ -161,7 +176,7 @@ export function ExportModal({
               <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 Excel Report Generator
                 <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                  Authoritative XLSX
+                  Dynamic XLSX
                 </span>
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -179,91 +194,230 @@ export function ExportModal({
 
         {/* Body */}
         <div className="p-6 overflow-y-auto space-y-6">
-          {/* 1. Report Type Selector */}
+          {/* 1. Report Type Selector: 4 Format Options */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2.5">
-              Select Export Format
+              Select Export Period & Format
             </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setReportType('monthly')}
-                className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                  reportType === 'monthly'
-                    ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20'
-                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900'
-                }`}
-              >
-                <div className="flex items-center justify-between w-full mb-2">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
-                    <Layers className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                    Full Monthly Workbook
-                  </div>
-                  {reportType === 'monthly' && (
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  )}
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Complete 34-sheet workbook (Days 1–31, STD & ADS, Target., Analysis) with 3D formula linkages.
-                </p>
-              </button>
-
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              {/* Daily Format */}
               <button
                 type="button"
                 onClick={() => setReportType('daily')}
-                className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
                   reportType === 'daily'
                     ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 ring-2 ring-blue-500/20'
                     : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900'
                 }`}
               >
-                <div className="flex items-center justify-between w-full mb-2">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
-                    <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                    Single Day Report
+                <div className="flex items-center justify-between w-full mb-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
+                    <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                    <span>Daily Report</span>
                   </div>
                   {reportType === 'daily' && (
-                    <span className="h-2 w-2 rounded-full bg-blue-500" />
+                    <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />
                   )}
                 </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Focused 1-sheet report matching exact 32-column template layout, row formulas & regional totals.
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Single day export with only that day&apos;s data, row formulas &amp; regional totals.
+                </p>
+              </button>
+
+              {/* Monthly Format */}
+              <button
+                type="button"
+                onClick={() => setReportType('monthly')}
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                  reportType === 'monthly'
+                    ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20'
+                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full mb-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
+                    <Layers className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span>Monthly 34-Sheet</span>
+                  </div>
+                  {reportType === 'monthly' && (
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Populated 34 sheets (1–31, STD &amp; ADS, Target, Analysis) with live data.
+                </p>
+              </button>
+
+              {/* Blank New Month Template */}
+              <button
+                type="button"
+                onClick={() => setReportType('blank_month')}
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                  reportType === 'blank_month'
+                    ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/20 ring-2 ring-amber-500/20'
+                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full mb-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
+                    <LayoutTemplate className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>New Month (0 Data)</span>
+                  </div>
+                  {reportType === 'blank_month' && (
+                    <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Clean 34-sheet template. Formats all 31 dates to chosen month with 0 data &amp; full formulas.
+                </p>
+              </button>
+
+              {/* Yearly Format */}
+              <button
+                type="button"
+                onClick={() => setReportType('yearly')}
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                  reportType === 'yearly'
+                    ? 'border-purple-500 bg-purple-50/50 dark:bg-purple-950/20 ring-2 ring-purple-500/20'
+                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full mb-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
+                    <TrendingUp className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                    <span>Yearly Summary</span>
+                  </div>
+                  {reportType === 'yearly' && (
+                    <span className="h-2 w-2 rounded-full bg-purple-500 shrink-0" />
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Consolidated annual report with cumulative sales, latest stock, Target &amp; Analysis.
                 </p>
               </button>
             </div>
           </div>
 
-          {/* 2. Date Scope: Interactive Calendar UI */}
+          {/* 2. Date Scope: Dynamically adapts to Daily, Monthly, Blank Month, or Yearly */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                {reportType === 'daily' ? 'Reporting Date (Interactive Calendar)' : 'Period & Active Day (Interactive Calendar)'}
+                {reportType === 'daily'
+                  ? 'Reporting Day (Interactive Calendar)'
+                  : reportType === 'blank_month'
+                  ? 'Select New Month & Year (Initializes 34 Tabs with 0 Data)'
+                  : reportType === 'monthly'
+                  ? 'Selected Month & Year'
+                  : 'Selected Year'}
               </label>
-              <button
-                type="button"
-                onClick={() => {
-                  setYear(2026);
-                  setMonth(10);
-                  setDay(6);
-                }}
-                className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
-              >
-                <Sparkles className="h-3 w-3" />
-                Reset to Oct 6, 2026 (Template Default)
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date();
+                    setYear(today.getFullYear());
+                    setMonth(today.getMonth() + 1);
+                    setDay(today.getDate());
+                  }}
+                  className="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer font-medium"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  Current Date
+                </button>
+                <span className="text-slate-300 dark:text-slate-700">|</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = new Date();
+                    next.setMonth(next.getMonth() + 1);
+                    setYear(next.getFullYear());
+                    setMonth(next.getMonth() + 1);
+                    setDay(1);
+                  }}
+                  className="text-[11px] text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer font-medium"
+                >
+                  Next Month
+                </button>
+              </div>
             </div>
 
-            <div>
-              <DatePicker
-                value={`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`}
-                onChange={(dateStr) => {
-                  const [y, m, d] = dateStr.split('-').map(Number);
-                  setYear(y);
-                  setMonth(m);
-                  setDay(d);
-                }}
-              />
-            </div>
+            {reportType === 'daily' && (
+              <div>
+                <DatePicker
+                  value={`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`}
+                  onChange={(dateStr) => {
+                    const [y, m, d] = dateStr.split('-').map(Number);
+                    if (y) setYear(y);
+                    if (m) setMonth(m);
+                    if (d) setDay(d);
+                  }}
+                />
+              </div>
+            )}
+
+            {(reportType === 'monthly' || reportType === 'blank_month') && (
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">
+                      Month
+                    </label>
+                    <select
+                      value={month}
+                      onChange={(e) => setMonth(Number(e.target.value))}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-medium"
+                    >
+                      {MONTH_NAMES.map((name, idx) => (
+                        <option key={name} value={idx + 1}>
+                          {idx + 1} - {name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">
+                      Year
+                    </label>
+                    <select
+                      value={year}
+                      onChange={(e) => setYear(Number(e.target.value))}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-medium"
+                    >
+                      {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map((y) => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {reportType === 'blank_month' && (
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-2">
+                    <Sparkles className="h-4 w-4 shrink-0 mt-0.5 text-amber-500" />
+                    <span>
+                      <strong>Clean New Month Template:</strong> All 31 daily tab dates are dynamically formatted to{' '}
+                      <span className="font-bold underline">{monthName} {year}</span>. Every input cell (Cigarettes, Stock, Zarda, Packets) is initialized to <strong className="font-mono">0</strong> with 100% of native formulas preserved across all 34 sheets!
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {reportType === 'yearly' && (
+              <div>
+                <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">
+                  Year
+                </label>
+                <select
+                  value={year}
+                  onChange={(e) => setYear(Number(e.target.value))}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 font-medium"
+                >
+                  {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* 3. Organizational Scope: Company & Region */}
@@ -314,12 +468,18 @@ export function ExportModal({
             </div>
           </div>
 
-          {/* 4. Live Export Preview Box */}
+          {/* 4. Live Dynamic File Destination Box */}
           <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 space-y-2.5">
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
               <span className="font-semibold text-slate-700 dark:text-slate-300">Generated File Destination</span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                Rule 17 Compliant
+                {reportType === 'daily'
+                  ? 'Daily Scoped • 1 Sheet'
+                  : reportType === 'yearly'
+                  ? 'Yearly Scoped • Consolidated'
+                  : reportType === 'blank_month'
+                  ? 'Blank New Month Template • 34 Sheets (0 Data)'
+                  : 'Monthly Scoped • 34 Sheets'}
               </span>
             </div>
             <div className="font-mono text-xs text-slate-900 dark:text-slate-100 font-semibold break-all bg-white dark:bg-slate-900 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center gap-2">
@@ -339,7 +499,7 @@ export function ExportModal({
               </div>
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
-                <span>PostgreSQL Live</span>
+                <span>Zero Formula Errors</span>
               </div>
             </div>
           </div>
@@ -364,7 +524,7 @@ export function ExportModal({
             {isExporting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Building XLSX...
+                Building Dynamic XLSX...
               </>
             ) : exportComplete ? (
               <>
@@ -374,7 +534,7 @@ export function ExportModal({
             ) : (
               <>
                 <Download className="h-4 w-4" />
-                Download {reportType === 'daily' ? 'Daily Report' : '34-Sheet Report'}
+                {getDownloadButtonLabel()}
               </>
             )}
           </button>

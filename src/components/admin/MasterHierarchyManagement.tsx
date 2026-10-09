@@ -1217,10 +1217,10 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
           endpoint="/api/targets"
           columns={targetColumns}
           idField="id"
-          title="October 2026 Monthly Targets"
+          title={`${new Date().toLocaleString('en-US', { month: 'long' })} ${new Date().getFullYear()} Monthly Targets`}
           searchPlaceholder="Search targets by territory or brand..."
-          additionalParams={{ year: 2026, month: 10, companyId: selectedCompanyId }}
-          exportFilenamePrefix="October_2026_Targets"
+          additionalParams={{ year: new Date().getFullYear(), month: new Date().getMonth() + 1, companyId: selectedCompanyId }}
+          exportFilenamePrefix={`${new Date().toLocaleString('en-US', { month: 'long' })}_${new Date().getFullYear()}_Targets`}
           onBatchDelete={async (ids) => {
             await fetch('/api/targets', {
               method: 'DELETE',

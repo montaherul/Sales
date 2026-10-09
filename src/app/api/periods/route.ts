@@ -13,8 +13,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'years';
     const companyId = searchParams.get('companyId');
-    const year = parseInt(searchParams.get('year') || '2026', 10);
-    const month = parseInt(searchParams.get('month') || '10', 10);
+    const now = new Date();
+    const year = parseInt(searchParams.get('year') || String(now.getFullYear()), 10);
+    const month = parseInt(searchParams.get('month') || String(now.getMonth() + 1), 10);
     const date = searchParams.get('date');
 
     if (type === 'check' && date) {

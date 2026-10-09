@@ -28,54 +28,89 @@ const MONTH_NAMES = [
  */
 export function extractDateFromFilename(filename: string): { day?: number; month?: number; year?: number } | null {
   const clean = filename.toLowerCase();
-  
-  // Try pattern: {MonthName} {Day} {Year} or {Day} {MonthName} {Year}
-  let foundMonth: number | undefined;
-  for (let m = 0; m < MONTH_NAMES.length; m++) {
-    if (clean.includes(MONTH_NAMES[m])) {
-      foundMonth = m + 1;
-      break;
-    }
+
+  // 1. ISO format: YYYY-MM-DD
+  const isoMatch = clean.match(/\b(202[4-9]|203[0-9])[-_](0[1-9]|1[0-2])[-_](0[1-9]|[12][0-9]|3[01])\b/);
+  if (isoMatch) {
+    return {
+      year: parseInt(isoMatch[1], 10),
+      month: parseInt(isoMatch[2], 10),
+      day: parseInt(isoMatch[3], 10),
+    };
   }
 
-  // Look for year 2024..2030 or 26
-  let foundYear: number | undefined;
-  const yearMatch = clean.match(/\b(202[4-9]|203[0-9])\b/);
-  if (yearMatch) {
-    foundYear = parseInt(yearMatch[1], 10);
-  } else {
-    // check for -26 or 26
-    const shortYearMatch = clean.match(/[-_\s](2[4-9])\b/);
-    if (shortYearMatch) {
-      foundYear = 2000 + parseInt(shortYearMatch[1], 10);
-    }
+  // 2. DD.MM.YYYY or DD-MM-YYYY format
+  const dmyMatch = clean.match(/\b(0[1-9]|[12][0-9]|3[01])[.-](0[1-9]|1[0-2])[.-](202[4-9]|203[0-9])\b/);
+  if (dmyMatch) {
+    return {
+      day: parseInt(dmyMatch[1], 10),
+      month: parseInt(dmyMatch[2], 10),
+      year: parseInt(dmyMatch[3], 10),
+    };
   }
 
-  // Look for day 1..31
-  let foundDay: number | undefined;
-  const dayMatch = clean.match(/\b([1-9]|[12][0-9]|3[01])\b/);
-  if (dayMatch) {
-    foundDay = parseInt(dayMatch[1], 10);
+  // 3. Month Name + Day + Year: "October 6 2026", "October-6-2026", "October 06, 2026"
+  const mdyRegex = new RegExp(
+    `\\b(${MONTH_NAMES.join('|')})\\s*[-_,]?\\s*([1-9]|[12][0-9]|3[01])(?:st|nd|rd|th)?\\s*[-_,]?\\s*(202[4-9]|203[0-9])?\\b`,
+    'i'
+  );
+  const mdyMatch = clean.match(mdyRegex);
+  if (mdyMatch) {
+    const month = MONTH_NAMES.indexOf(mdyMatch[1].toLowerCase()) + 1;
+    const day = parseInt(mdyMatch[2], 10);
+    const year = mdyMatch[3] ? parseInt(mdyMatch[3], 10) : undefined;
+    return { day, month, year };
   }
 
-  if (foundMonth || foundYear || foundDay) {
-    return { day: foundDay, month: foundMonth, year: foundYear };
+  // 4. Day + Month Name + Year: "6 October 2026", "06-October-2026"
+  const dmyTextRegex = new RegExp(
+    `\\b([1-9]|[12][0-9]|3[01])(?:st|nd|rd|th)?\\s*[-_,]?\\s*(${MONTH_NAMES.join('|')})\\s*[-_,]?\\s*(202[4-9]|203[0-9])?\\b`,
+    'i'
+  );
+  const dmyTextMatch = clean.match(dmyTextRegex);
+  if (dmyTextMatch) {
+    const day = parseInt(dmyTextMatch[1], 10);
+    const month = MONTH_NAMES.indexOf(dmyTextMatch[2].toLowerCase()) + 1;
+    const year = dmyTextMatch[3] ? parseInt(dmyTextMatch[3], 10) : undefined;
+    return { day, month, year };
   }
+
   return null;
 }
 
 /**
- * Parses header cell date: "Date:06.10.2026" or "Date: 06-10-2026"
+ * Parses header cell date: "Date:06.10.2026", "Date: 06-10-2026", "2026-10-06", or "06 October 2026"
  */
 export function parseHeaderCellDate(headerText: string): { day?: number; month?: number; year?: number } | null {
-  const match = headerText.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
-  if (match) {
+  if (!headerText) return null;
+  const clean = headerText.trim();
+
+  // 1. DD.MM.YYYY or DD/MM/YYYY or DD-MM-YYYY
+  const dmyMatch = clean.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
+  if (dmyMatch) {
     return {
-      day: parseInt(match[1], 10),
-      month: parseInt(match[2], 10),
-      year: parseInt(match[3], 10),
+      day: parseInt(dmyMatch[1], 10),
+      month: parseInt(dmyMatch[2], 10),
+      year: parseInt(dmyMatch[3], 10),
     };
   }
+
+  // 2. YYYY-MM-DD or YYYY/MM/DD (ISO)
+  const isoMatch = clean.match(/(\d{4})[./-](\d{1,2})[./-](\d{1,2})/);
+  if (isoMatch) {
+    return {
+      year: parseInt(isoMatch[1], 10),
+      month: parseInt(isoMatch[2], 10),
+      day: parseInt(isoMatch[3], 10),
+    };
+  }
+
+  // 3. Month Name formatted date: "06 October 2026" or "October 6 2026"
+  const namedMatch = extractDateFromFilename(clean);
+  if (namedMatch) {
+    return namedMatch;
+  }
+
   return null;
 }
 
@@ -124,6 +159,9 @@ export function verifyImportDateSafety(input: DateVerificationInput): DateVerifi
       }
       if (appMonth !== undefined && fromHeader.month !== undefined && appMonth !== fromHeader.month) {
         conflicts.push(`Header mismatch: Application selected month ${appMonth}, but workbook header indicates month ${fromHeader.month}.`);
+      }
+      if (appYear !== undefined && fromHeader.year !== undefined && appYear !== fromHeader.year) {
+        conflicts.push(`Header mismatch: Application selected year ${appYear}, but workbook header indicates year ${fromHeader.year}.`);
       }
     }
   }

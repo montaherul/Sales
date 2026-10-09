@@ -59,8 +59,8 @@ export function DatePicker({
   }, [value]);
 
   // Calendar View State (which month/year is currently being viewed)
-  const [viewYear, setViewYear] = useState<number>(() => parsedValue?.year || 2026);
-  const [viewMonth, setViewMonth] = useState<number>(() => parsedValue?.month ?? 9); // 9 = October
+  const [viewYear, setViewYear] = useState<number>(() => parsedValue?.year || new Date().getFullYear());
+  const [viewMonth, setViewMonth] = useState<number>(() => parsedValue?.month ?? new Date().getMonth());
   const [yearSelectorOpen, setYearSelectorOpen] = useState(false);
 
   // Synchronize view when selected value changes
@@ -394,11 +394,17 @@ export function DatePicker({
 
               <button
                 type="button"
-                onClick={() => handleSelectDate('2026-10-06')}
-                className="text-blue-600 dark:text-blue-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                onClick={() => {
+                  const yest = new Date();
+                  yest.setDate(yest.getDate() - 1);
+                  const y = yest.getFullYear();
+                  const m = String(yest.getMonth() + 1).padStart(2, '0');
+                  const d = String(yest.getDate()).padStart(2, '0');
+                  handleSelectDate(`${y}-${m}-${d}`);
+                }}
+                className="text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 font-semibold cursor-pointer"
               >
-                <Sparkles className="h-3 w-3" />
-                Oct 06, 2026
+                Yesterday
               </button>
 
               <button

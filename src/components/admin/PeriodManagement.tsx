@@ -35,8 +35,8 @@ export function PeriodManagement({ companyId = 'ALL' }: PeriodManagementProps) {
 
   // Navigation Drilldown State: 'YEARS' -> 'MONTHS' -> 'DATES'
   const [drillTier, setDrillTier] = useState<'YEARS' | 'MONTHS' | 'DATES'>('YEARS');
-  const [selectedYear, setSelectedYear] = useState<number>(2026);
-  const [selectedMonth, setSelectedMonth] = useState<number>(10);
+  const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<number>(() => new Date().getMonth() + 1);
 
   // Data States
   const [years, setYears] = useState<any[]>([]);
@@ -47,7 +47,7 @@ export function PeriodManagement({ companyId = 'ALL' }: PeriodManagementProps) {
 
   // Auto-Generate Modal State
   const [autoGenModalOpen, setAutoGenModalOpen] = useState(false);
-  const [autoGenYear, setAutoGenYear] = useState<number>(2027);
+  const [autoGenYear, setAutoGenYear] = useState<number>(() => new Date().getFullYear() + 1);
   const [autoGenWorkingDays, setAutoGenWorkingDays] = useState<number>(26);
 
   // Create Year Modal State

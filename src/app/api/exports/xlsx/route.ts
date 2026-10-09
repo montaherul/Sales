@@ -9,10 +9,14 @@ import { getAuthenticatedUser } from '@/shared/auth';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const year = parseInt(searchParams.get('year') || '2026', 10);
-    const month = parseInt(searchParams.get('month') || '10', 10);
-    const day = parseInt(searchParams.get('day') || '6', 10);
-    const reportType = (searchParams.get('type') || 'monthly').toLowerCase() === 'daily' ? 'daily' : 'monthly';
+    const now = new Date();
+    const year = parseInt(searchParams.get('year') || String(now.getFullYear()), 10);
+    const month = parseInt(searchParams.get('month') || String(now.getMonth() + 1), 10);
+    const day = parseInt(searchParams.get('day') || String(now.getDate()), 10);
+    const rawType = (searchParams.get('type') || 'monthly').toLowerCase();
+    const isBlank = searchParams.get('blank') === 'true' || rawType === 'blank_month';
+    const reportType: 'daily' | 'monthly' | 'yearly' | 'blank_month' = 
+      isBlank ? 'blank_month' : rawType === 'daily' ? 'daily' : rawType === 'yearly' ? 'yearly' : 'monthly';
 
     const companyIdParam = searchParams.get('companyId');
     const regionIdParam = searchParams.get('regionId');
@@ -37,6 +41,7 @@ export async function GET(request: NextRequest) {
       month,
       day,
       reportType,
+      isBlankTemplate: isBlank,
       companyId: targetCompanyId || undefined,
       regionId: targetRegionId,
       userId,

@@ -15,10 +15,18 @@ interface DriveUploadWidgetProps {
   isOpen: boolean;
   onClose: () => void;
   companyId?: string;
+  defaultDate?: string;
 }
 
-export function DriveUploadWidget({ isOpen, onClose, companyId = 'ALL' }: DriveUploadWidgetProps) {
-  const [selectedDate, setSelectedDate] = useState('2026-10-06');
+export function DriveUploadWidget({ isOpen, onClose, companyId = 'ALL', defaultDate }: DriveUploadWidgetProps) {
+  const [selectedDate, setSelectedDate] = useState(() => {
+    if (defaultDate) return defaultDate;
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  });
   const [uploading, setUploading] = useState(false);
   const [driveResult, setDriveResult] = useState<{
     fileId: string;

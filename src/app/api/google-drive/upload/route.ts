@@ -12,9 +12,10 @@ export async function POST(request: NextRequest) {
     const actor = await getAuthenticatedUser(request);
     const body = await request.json().catch(() => ({}));
 
-    const year = Number(body.year) || 2026;
-    const month = Number(body.month) || 10;
-    const day = Number(body.day) || 6;
+    const now = new Date();
+    const year = Number(body.year) || now.getFullYear();
+    const month = Number(body.month) || (now.getMonth() + 1);
+    const day = Number(body.day) || now.getDate();
 
     const result = await GoogleDriveService.archiveReport({
       year,

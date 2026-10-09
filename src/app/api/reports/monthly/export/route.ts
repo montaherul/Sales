@@ -16,9 +16,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const year = parseInt(body.year || '2026', 10);
-    const month = parseInt(body.month || '10', 10);
-    const day = parseInt(body.day || '6', 10);
+    const now = new Date();
+    const year = parseInt(body.year || String(now.getFullYear()), 10);
+    const month = parseInt(body.month || String(now.getMonth() + 1), 10);
+    const day = parseInt(body.day || String(now.getDate()), 10);
     const companyId = user.role === 'SUPER_ADMIN' ? (body.companyId || null) : user.companyId;
 
     const { filename, buffer } = await ExcelExportService.generateMonthlyReport(

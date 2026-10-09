@@ -96,11 +96,11 @@ export const WORKBOOK_SHEETS: readonly string[] = [
 export const EXPECTED_SHEET_COUNT = 34;
 
 export const SATKANIA_TERRITORIES = [
-  { id: 'satkania-keranihat', name: 'Kerani Hat', code: 'KH', rowOffset: 8 },
-  { id: 'satkania-satkania', name: 'Satkania', code: 'SAT', rowOffset: 9 },
-  { id: 'satkania-gunagori', name: 'Gunagori', code: 'GN', rowOffset: 10 },
-  { id: 'satkania-lohagora', name: 'Lohagora', code: 'LH', rowOffset: 11 },
-  { id: 'satkania-chakaria', name: 'Chakaria', code: 'CH', rowOffset: 12 },
+  { id: 'satkania-1', name: 'Kerani hat', code: 'KH', rowOffset: 8 },
+  { id: 'satkania-2', name: 'Satkania', code: 'SAT', rowOffset: 9 },
+  { id: 'satkania-3', name: 'Bandarban', code: 'BAN', rowOffset: 10 },
+  { id: 'satkania-4', name: 'Rajasthali', code: 'RAJ', rowOffset: 11 },
+  { id: 'satkania-5', name: 'Dohazari', code: 'DOH', rowOffset: 12 },
 ] as const;
 
 export const CIGARETTE_BRANDS = [

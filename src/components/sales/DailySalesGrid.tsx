@@ -38,6 +38,7 @@ import {
 import { ServerDataTable, ColumnDef } from '@/components/common/ServerDataTable';
 import { Select2, Select2Option } from '@/components/common/Select2';
 import { DatePicker } from '@/components/common/DatePicker';
+import { getTodayDateString } from '@/shared/utils';
 
 interface TerritoryItem {
   id: string;
@@ -62,7 +63,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
   const [territories, setTerritories] = useState<TerritoryItem[]>([]);
   const [selectedTerritoryId, setSelectedTerritoryId] = useState<string>('');
   const [selectedTerritoryName, setSelectedTerritoryName] = useState<string>('');
-  const [reportDate, setReportDate] = useState('2026-10-06');
+  const [reportDate, setReportDate] = useState(() => getTodayDateString());
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
   // Operational State
@@ -186,7 +187,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
     setCurrentSubmissionId(record.id || null);
     setSelectedTerritoryId(record.territory_id || record.territoryId || (territories[0]?.id || ''));
     setSelectedTerritoryName(record.territory_name || record.territoryName || (territories[0]?.name || ''));
-    setReportDate(record.reporting_date || record.reportDate || '2026-10-06');
+    setReportDate(record.reporting_date || record.reportDate || getTodayDateString());
     setCurrentStatus(record.status || (mode === 'create' ? 'NEW' : 'DRAFT'));
     setSubmittedStatus(null);
 
@@ -265,7 +266,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
         territoryName: selectedTerritoryName,
         regionName: currentRegionName,
         reportDate,
-        dayNumber: parseInt(reportDate.split('-')[2] || '6', 10),
+        dayNumber: parseInt(reportDate.split('-')[2] || String(new Date().getDate()), 10),
         status: 'DRAFT',
         companyId: companyId !== 'ALL' ? companyId : undefined,
         cigaretteSales: sales,
@@ -407,13 +408,13 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
     },
     {
       key: 'total_cigarette_sales',
-      header: 'Cig. Sales (Mio)',
+      header: 'Sales (BITCL) (Mio)',
       align: 'right',
       render: (row) => <span className="font-mono font-semibold text-slate-900 dark:text-white">{parseFloat(row.total_cigarette_sales || 0).toFixed(2)}</span>,
     },
     {
       key: 'total_cigarette_stock',
-      header: 'Cig. Stock (Mio)',
+      header: 'Closing Stock (BITCL) (Mio)',
       align: 'right',
       render: (row) => <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">{parseFloat(row.total_cigarette_stock || 0).toFixed(2)}</span>,
     },
@@ -512,10 +513,14 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
   };
 
   const handleExportDailyReport = (dateStr?: string) => {
-    const targetDate = dateStr || reportDate || '2026-10-06';
-    const [y, m, d] = targetDate.split('-').map(Number);
+    const targetDate = dateStr || reportDate || getTodayDateString();
+    const now = new Date();
+    const parts = targetDate.split('-');
+    const y = parseInt(parts[0] || '', 10) || now.getFullYear();
+    const m = parseInt(parts[1] || '', 10) || (now.getMonth() + 1);
+    const d = parseInt(parts[2] || '', 10) || now.getDate();
     const compParam = companyId && companyId !== 'ALL' ? `&companyId=${companyId}` : '';
-    window.location.href = `/api/exports/xlsx?year=${y || 2026}&month=${m || 10}&day=${d || 6}&type=daily${compParam}`;
+    window.location.href = `/api/exports/xlsx?year=${y}&month=${m}&day=${d}&type=daily${compParam}`;
   };
 
   return (
@@ -767,13 +772,13 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
           {/* KPI Calculation Strip */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/40 p-3.5 shadow-sm dark:shadow-none">
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Total Cigarette Sales</span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Brand Wise Sales (BITCL)</span>
               <span className="text-lg font-bold text-slate-900 dark:text-white font-mono">{totalSales.toFixed(2)}</span>
               <span className="text-[10px] text-slate-400 dark:text-slate-500 block">Million Sticks</span>
             </div>
 
             <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/40 p-3.5 shadow-sm dark:shadow-none">
-              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 block">Total Cigarette Stock</span>
+              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 block">Brand Wise Closing Stock (BITCL)</span>
               <span className="text-lg font-bold text-emerald-600 dark:text-emerald-300 font-mono">{totalStock.toFixed(2)}</span>
               <span className="text-[10px] text-slate-400 dark:text-slate-500 block">Million Sticks</span>
             </div>
@@ -796,12 +801,12 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
             {/* 1. Cigarette Brands */}
             <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-5 backdrop-blur-sm space-y-4 shadow-sm dark:shadow-none transition-colors duration-200">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 pb-2">
-                1. Cigarette Brands (Million Sticks)
+                1. Brand Wise Sales & Closing Stock (BITCL) (Million Sticks)
               </h3>
               <div className="grid grid-cols-2 gap-4 text-xs">
                 {/* Sales Columns */}
                 <div className="space-y-3">
-                  <span className="font-semibold text-slate-700 dark:text-slate-300 block">Daily Sales</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-300 block">Brand Wise Sales (BITCL)</span>
                   {(['wilson', 'shahara', 'express', 'nexus', 'sb', 'sm'] as const).map((brand) => (
                     <div key={brand}>
                       <label className="text-slate-600 dark:text-slate-400 capitalize block mb-1">{brand}</label>
@@ -820,7 +825,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
 
                 {/* Stock Columns */}
                 <div className="space-y-3">
-                  <span className="font-semibold text-emerald-600 dark:text-emerald-400 block">Closing Stock</span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400 block">Brand Wise Closing Stock (BITCL)</span>
                   {(['wilson', 'shahara', 'express', 'nexus', 'sb', 'sm'] as const).map((brand) => (
                     <div key={brand}>
                       <label className="text-slate-600 dark:text-slate-400 capitalize block mb-1">{brand}</label>
