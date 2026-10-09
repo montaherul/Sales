@@ -123,6 +123,15 @@ export function parseHeaderCellDate(headerText: string): { day?: number; month?:
 
 /**
  * Validates cross-source date consistency without guessing.
+ *
+ * Date authority hierarchy (highest → lowest):
+ *   1. Sheet name (e.g. "5")  — the tab IS the day.
+ *   2. Sheet header cell B5   — internal label confirms the tab's own date.
+ *   3. Filename               — cumulative workbook export label; day is unreliable.
+ *
+ * When (1) or (2) confirm the application date, a filename day difference
+ * is treated as an informational note only — never a blocking conflict.
+ * Month and year mismatches from the filename remain fatal in all cases.
  */
 export function verifyImportDateSafety(input: DateVerificationInput): DateVerificationResult {
   const conflicts: string[] = [];
@@ -142,8 +151,23 @@ export function verifyImportDateSafety(input: DateVerificationInput): DateVerifi
     }
   }
 
-  // Pre-parse the sheet header date once so we can use it to resolve
-  // filename-vs-appDate discrepancies.
+  // ------------------------------------------------------------------
+  // Determine whether the sheet itself confirms the application date.
+  //
+  //  · sheetName === appDay  → The sheet tab name IS the day number.
+  //    This is the primary/authoritative date source. When this matches,
+  //    the filename day is completely irrelevant.
+  //
+  //  · header cell B5 date === appDate  → The internal label on the sheet
+  //    independently confirms the application date.
+  //
+  // Either condition is sufficient to skip the filename-day comparison.
+  // ------------------------------------------------------------------
+  const sheetNameMatchesDay =
+    input.sheetNumber !== undefined &&
+    appDay !== undefined &&
+    input.sheetNumber === appDay;
+
   let headerConfirmsAppDate = false;
   if (input.headerDateText) {
     const fromHeader = parseHeaderCellDate(input.headerDateText);
@@ -154,70 +178,89 @@ export function verifyImportDateSafety(input: DateVerificationInput): DateVerifi
       fromHeader.month === appMonth &&
       fromHeader.year === appYear
     ) {
-      // The sheet's own header cell independently confirms the application date.
       headerConfirmsAppDate = true;
     }
   }
 
-  // 1. Verify against filename
+  // Sheet-name match OR header confirmation — either is enough to trust appDate
+  const sheetConfirmsAppDate = sheetNameMatchesDay || headerConfirmsAppDate;
+
+  // ------------------------------------------------------------------
+  // 1. Filename check
+  //    • Day:   ignored entirely when the sheet itself confirms the date.
+  //    • Month: always fatal — wrong month means wrong file.
+  //    • Year:  always fatal — wrong year means wrong file.
+  // ------------------------------------------------------------------
   if (input.fileName) {
     const fromFile = extractDateFromFilename(input.fileName);
     if (fromFile) {
       if (appDay !== undefined && fromFile.day !== undefined && appDay !== fromFile.day) {
-        if (headerConfirmsAppDate) {
-          // The sheet header (authoritative for this specific tab) confirms the
-          // application date. The filename day reflects the cumulative workbook
-          // export/download date — not the date of this individual daily tab.
-          // This is acceptable variance; record as a warning only.
-          warnings.push(
-            `Filename indicates day ${fromFile.day}, but the matched sheet header confirms day ${appDay}. ` +
-            `This is normal for multi-tab cumulative workbooks where the filename reflects the latest export date.`
-          );
+        if (sheetConfirmsAppDate) {
+          // Sheet name "5" IS the date. The filename day (e.g. 6) is the
+          // workbook's export/download date — not this individual tab's date.
+          // Silently accepted; no warning needed.
         } else {
-          conflicts.push(`Day mismatch: Application selected day ${appDay}, but filename indicates day ${fromFile.day}.`);
+          conflicts.push(
+            `Day mismatch: Application selected day ${appDay}, but filename indicates day ${fromFile.day}.`
+          );
         }
       }
-      // Month and year mismatches from the filename are always fatal — they
-      // indicate a genuinely wrong file regardless of header date.
       if (appMonth !== undefined && fromFile.month !== undefined && appMonth !== fromFile.month) {
-        conflicts.push(`Month mismatch: Application selected month ${appMonth}, but filename indicates month ${fromFile.month}.`);
+        conflicts.push(
+          `Month mismatch: Application selected month ${appMonth}, but filename indicates month ${fromFile.month}.`
+        );
       }
       if (appYear !== undefined && fromFile.year !== undefined && appYear !== fromFile.year) {
-        conflicts.push(`Year mismatch: Application selected year ${appYear}, but filename indicates year ${fromFile.year}.`);
+        conflicts.push(
+          `Year mismatch: Application selected year ${appYear}, but filename indicates year ${fromFile.year}.`
+        );
       }
     }
   }
 
-  // 2. Verify against Sheet Header date
-  // (Header date is the authoritative source for each tab's reporting date.)
+  // ------------------------------------------------------------------
+  // 2. Sheet header cell B5 check (authoritative label for this tab)
+  //    All three components (day, month, year) must match or be absent.
+  // ------------------------------------------------------------------
   if (input.headerDateText) {
     const fromHeader = parseHeaderCellDate(input.headerDateText);
     if (fromHeader) {
       if (appDay !== undefined && fromHeader.day !== undefined && appDay !== fromHeader.day) {
-        conflicts.push(`Header mismatch: Application selected day ${appDay}, but workbook header indicates day ${fromHeader.day}.`);
+        conflicts.push(
+          `Header mismatch: Application selected day ${appDay}, but workbook header indicates day ${fromHeader.day}.`
+        );
       }
       if (appMonth !== undefined && fromHeader.month !== undefined && appMonth !== fromHeader.month) {
-        conflicts.push(`Header mismatch: Application selected month ${appMonth}, but workbook header indicates month ${fromHeader.month}.`);
+        conflicts.push(
+          `Header mismatch: Application selected month ${appMonth}, but workbook header indicates month ${fromHeader.month}.`
+        );
       }
       if (appYear !== undefined && fromHeader.year !== undefined && appYear !== fromHeader.year) {
-        conflicts.push(`Header mismatch: Application selected year ${appYear}, but workbook header indicates year ${fromHeader.year}.`);
+        conflicts.push(
+          `Header mismatch: Application selected year ${appYear}, but workbook header indicates year ${fromHeader.year}.`
+        );
       }
     }
   }
 
-  // 3. Verify against Sheet number (e.g. Sheet "5" must correspond to Day 5).
-  // When the sheet number matches the appDay we trust it.
-  // When it doesn't match, only flag a conflict if the header does NOT confirm
-  // the app date (to avoid false positives on multi-tab cumulative workbooks).
+  // ------------------------------------------------------------------
+  // 3. Sheet number check
+  //    The sheet name is the primary day identifier.
+  //    A mismatch here is only relevant when neither the sheet name nor
+  //    the header can confirm the application date.
+  // ------------------------------------------------------------------
   if (input.sheetNumber !== undefined && appDay !== undefined) {
-    if (input.sheetNumber !== appDay) {
+    if (!sheetNameMatchesDay) {
       if (headerConfirmsAppDate) {
+        // Header confirms the date; sheet name difference is acceptable.
         warnings.push(
-          `Sheet name '${input.sheetNumber}' does not equal selected day ${appDay}, ` +
-          `but the sheet header confirms ${appDay}. Acceptable for tab-named workbooks.`
+          `Sheet name '${input.sheetNumber}' differs from selected day ${appDay}, ` +
+          `but the sheet header cell confirms day ${appDay}.`
         );
       } else {
-        conflicts.push(`Sheet mismatch: Active sheet is '${input.sheetNumber}', but selected application date is day ${appDay}.`);
+        conflicts.push(
+          `Sheet mismatch: Active sheet is '${input.sheetNumber}', but selected application date is day ${appDay}.`
+        );
       }
     }
   }
@@ -236,3 +279,4 @@ export function verifyImportDateSafety(input: DateVerificationInput): DateVerifi
     warnings,
   };
 }
+
