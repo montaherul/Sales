@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Calendar as CalendarIcon, 
   ChevronLeft, 
@@ -43,7 +44,14 @@ export function DatePicker({
   size = 'md',
 }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Parse current date or fallback
   const parsedValue = useMemo(() => {
@@ -71,10 +79,74 @@ export function DatePicker({
     }
   }, [parsedValue]);
 
+  // Compute fixed portal position coordinates relative to trigger box
+  const updateCoords = useCallback(() => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+
+    if (isMobile) {
+      setCoords(null);
+      return;
+    }
+
+    const popoverWidth = 320;
+    const popoverHeight = 380;
+    const padding = 12;
+
+    // Horizontal positioning
+    let left = align === 'right' ? rect.right - popoverWidth : rect.left;
+    left = Math.max(padding, Math.min(window.innerWidth - popoverWidth - padding, left));
+
+    // Vertical positioning: check available space below vs above
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const fitsBelow = spaceBelow >= popoverHeight + 8;
+    const fitsAbove = spaceAbove >= popoverHeight + 8;
+
+    let top = rect.bottom + 6;
+
+    if (!fitsBelow && fitsAbove) {
+      top = Math.max(padding, rect.top - popoverHeight - 6);
+    }
+
+    setCoords({ top, left });
+  }, [align]);
+
+  // Listen to window scroll & resize to maintain fixed position
+  useEffect(() => {
+    if (isOpen) {
+      updateCoords();
+
+      const handleScroll = (e: Event) => {
+        if (popoverRef.current && popoverRef.current.contains(e.target as Node)) {
+          return;
+        }
+        updateCoords();
+      };
+
+      const handleResize = () => updateCoords();
+
+      window.addEventListener('scroll', handleScroll, true);
+      window.addEventListener('resize', handleResize);
+
+      return () => {
+        window.removeEventListener('scroll', handleScroll, true);
+        window.removeEventListener('resize', handleResize);
+      };
+    }
+  }, [isOpen, updateCoords]);
+
   // Close popover on outside click or Escape key
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        popoverRef.current &&
+        !popoverRef.current.contains(target)
+      ) {
         setIsOpen(false);
         setYearSelectorOpen(false);
       }
@@ -257,12 +329,12 @@ export function DatePicker({
         )}
       </button>
 
-      {/* Popover Calendar Container */}
-      {isOpen && (
+      {/* Popover Calendar Container via Portal so it is NEVER clipped by any parent overflow-hidden or overflow-y-auto */}
+      {mounted && isOpen && createPortal(
         <>
-          {/* Mobile Screen Dimming Backdrop: prevents clicks bleeding to underlying grids on touch screens */}
+          {/* Backdrop: dims screen on mobile, transparent click-catcher on desktop */}
           <div
-            className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-xs sm:hidden"
+            className="fixed inset-0 z-[99998] bg-black/40 sm:bg-transparent"
             onClick={() => {
               setIsOpen(false);
               setYearSelectorOpen(false);
@@ -271,9 +343,18 @@ export function DatePicker({
           />
 
           <div
-            className={`fixed sm:absolute z-[9999] max-sm:inset-x-3 max-sm:top-1/2 max-sm:-translate-y-1/2 max-sm:w-auto max-sm:max-w-sm max-sm:mx-auto sm:mt-1.5 sm:w-80 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-2xl backdrop-blur-md animate-fadeIn ${
-              align === 'right' ? 'sm:right-0 sm:left-auto' : 'sm:left-0 sm:right-auto'
-            }`}
+            ref={popoverRef}
+            style={
+              coords
+                ? {
+                    position: 'fixed',
+                    top: `${coords.top}px`,
+                    left: `${coords.left}px`,
+                    zIndex: 99999,
+                  }
+                : undefined
+            }
+            className="fixed z-[99999] max-sm:inset-x-3 max-sm:top-1/2 max-sm:-translate-y-1/2 max-sm:w-auto max-sm:max-w-sm max-sm:mx-auto w-80 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-2xl backdrop-blur-md animate-fadeIn"
             role="dialog"
             aria-label="Calendar date picker"
           >
@@ -432,7 +513,8 @@ export function DatePicker({
             </div>
           )}
         </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );
