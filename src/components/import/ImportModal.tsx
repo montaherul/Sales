@@ -90,8 +90,6 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
   const [multiDateSuccessCount, setMultiDateSuccessCount] = useState(0);
   const [editingMultiDateTerritoryIndex, setEditingMultiDateTerritoryIndex] = useState<number | null>(null);
 
-  if (!isOpen) return null;
-
   const parseFilesParallel = async (filesToParse: File[], dateStr: string) => {
     if (!filesToParse || filesToParse.length === 0) {
       setUploadedFiles([]);
@@ -765,6 +763,8 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
       packets,
     };
   }, [multiDatePayload, selectedDatesSet]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 backdrop-blur-md p-3 sm:p-4">
