@@ -435,7 +435,7 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
                     </button>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
                   <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2.5">
                     <span className="text-[10px] text-slate-400 block">Territory Records</span>
                     <span className="text-sm font-bold text-slate-900 dark:text-white font-mono">
@@ -478,7 +478,17 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
                     <span className="text-sm font-bold text-purple-600 dark:text-purple-400 font-mono">
                       ৳ {preview.summary.totalZardaSalesValue.toLocaleString()}
                     </span>
-                    <span className="text-[10px] text-slate-400 block mt-0.5">Valuation</span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">Sales Valuation</span>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2.5">
+                    <span className="text-[10px] text-slate-400 block flex items-center gap-1">
+                      <Package className="h-3 w-3 text-indigo-500" /> Zarda Stock
+                    </span>
+                    <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400 font-mono">
+                      ৳ {preview.summary.totalZardaStockValue.toLocaleString()}
+                    </span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">Stock Valuation</span>
                   </div>
 
                   <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2.5">
@@ -689,7 +699,8 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
                           </>
                         )}
 
-                        <th className="py-2 px-3 text-right">Zarda Sales</th>
+                        <th className="py-2 px-3 text-right text-purple-600 dark:text-purple-400">Zarda Sales</th>
+                        <th className="py-2 px-3 text-right text-indigo-600 dark:text-indigo-400">Zarda Stock</th>
                         <th className="py-2 px-3 text-right">Empty Packets</th>
                         <th className="py-2 px-3">Remarks</th>
                         <th className="py-2 px-2 text-center">Detail</th>
@@ -849,6 +860,10 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
                                 ৳ {r.totalZardaSalesValue.toLocaleString()}
                               </td>
 
+                              <td className="py-2 px-3 text-right text-indigo-600 dark:text-indigo-400 font-semibold">
+                                ৳ {r.totalZardaStockValue.toLocaleString()}
+                              </td>
+
                               <td className="py-2 px-3 text-right">
                                 {isEditing ? (
                                   <input
@@ -891,7 +906,7 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
                             {/* Expandable Territory Detailed Editor Card */}
                             {isExpanded && (
                               <tr>
-                                <td colSpan={brandViewMode === 'both' ? 20 : (brandViewMode === 'sales' || brandViewMode === 'stock') ? 14 : 8} className="p-3 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800">
+                                <td colSpan={brandViewMode === 'both' ? 21 : (brandViewMode === 'sales' || brandViewMode === 'stock') ? 15 : 9} className="p-3 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800">
                                   <div className="rounded-xl border border-blue-200 dark:border-blue-900/60 bg-white dark:bg-slate-900 p-4 space-y-3.5">
                                     <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
                                       <div className="flex items-center gap-2">
@@ -1021,7 +1036,60 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
                                       </div>
                                     </div>
 
-                                    {/* 4. Operational Fields */}
+                                    {/* 4. Zarda Closing Stock Quantities & Valuation */}
+                                    <div>
+                                      <div className="flex items-center justify-between mb-1.5">
+                                        <span className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-400 flex items-center gap-1">
+                                          <Package className="h-3.5 w-3.5" />
+                                          Zarda Closing Stock Quantities (Valuation: ৳ {r.totalZardaStockValue.toLocaleString()})
+                                        </span>
+                                      </div>
+                                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                        <div className="bg-slate-50 dark:bg-slate-950 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
+                                          <label className="text-[10px] text-slate-500 font-bold block mb-1">SLB (Kg)</label>
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value={r.zardaStock.slb}
+                                            onChange={(e) => handleRecordChange(idx, 'zardaStock', 'slb', e.target.value)}
+                                            className="w-full text-right font-mono text-xs p-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white"
+                                          />
+                                        </div>
+                                        <div className="bg-slate-50 dark:bg-slate-950 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
+                                          <label className="text-[10px] text-slate-500 font-bold block mb-1">22/25 (৳1,250)</label>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            value={r.zardaStock.qty_22_25}
+                                            onChange={(e) => handleRecordChange(idx, 'zardaStock', 'qty_22_25', e.target.value)}
+                                            className="w-full text-right font-mono text-xs p-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white"
+                                          />
+                                        </div>
+                                        <div className="bg-slate-50 dark:bg-slate-950 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
+                                          <label className="text-[10px] text-slate-500 font-bold block mb-1">99/14 (৳700)</label>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            value={r.zardaStock.qty_99_14}
+                                            onChange={(e) => handleRecordChange(idx, 'zardaStock', 'qty_99_14', e.target.value)}
+                                            className="w-full text-right font-mono text-xs p-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white"
+                                          />
+                                        </div>
+                                        <div className="bg-slate-50 dark:bg-slate-950 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
+                                          <label className="text-[10px] text-slate-500 font-bold block mb-1">33/15 (৳750)</label>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            value={r.zardaStock.qty_33_15}
+                                            onChange={(e) => handleRecordChange(idx, 'zardaStock', 'qty_33_15', e.target.value)}
+                                            className="w-full text-right font-mono text-xs p-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* 5. Operational Fields */}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-slate-100 dark:border-slate-800">
                                       <div>
                                         <label className="text-[10px] text-slate-500 font-bold block mb-1">Empty Packets</label>
