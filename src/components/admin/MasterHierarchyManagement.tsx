@@ -1011,7 +1011,7 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
         </div>
 
         {/* Company Filter via Select2 & Navigation Tabs */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800 relative z-40">
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setActiveTab('DEPARTMENTS')}
@@ -1098,7 +1098,7 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
             </button>
           </div>
 
-          <div className="w-full sm:w-72">
+          <div className="w-full sm:w-72 relative z-50">
             <Select2
               options={companies}
               value={selectedCompanyId}
@@ -1111,6 +1111,7 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
       </div>
 
       {/* Dynamic Tab Body with ServerDataTable */}
+      <div className="relative z-10 space-y-4">
       {activeTab === 'DEPARTMENTS' && (
         <ServerDataTable
           key={`dept_${refreshKey}_${selectedCompanyId}`}
@@ -1234,6 +1235,7 @@ export function MasterHierarchyManagement({ companyId = 'ALL' }: MasterHierarchy
       {activeTab === 'PERIODS' && (
         <PeriodManagement companyId={selectedCompanyId} />
       )}
+      </div>
 
       {/* Unified Single-Page Create & Edit Controller Modal */}
       <DynamicCrudModal

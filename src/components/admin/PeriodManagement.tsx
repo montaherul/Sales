@@ -303,7 +303,7 @@ export function PeriodManagement({ companyId = 'ALL' }: PeriodManagementProps) {
       </div>
 
       {/* 2. Drilldown Navigation Bar & Company Filter */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900/60 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 backdrop-blur-sm shadow-xs">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900/60 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 backdrop-blur-sm shadow-xs relative z-30">
         {/* Breadcrumb Hierarchy */}
         <div className="flex items-center gap-2 text-xs font-semibold">
           <button
@@ -347,7 +347,7 @@ export function PeriodManagement({ companyId = 'ALL' }: PeriodManagementProps) {
         </div>
 
         {/* Company Selector */}
-        <div className="w-full sm:w-64">
+        <div className="w-full sm:w-64 relative z-40">
           <Select2
             value={selectedCompanyId}
             onChange={(val) => setSelectedCompanyId(val)}

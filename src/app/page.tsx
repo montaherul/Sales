@@ -207,7 +207,7 @@ export default function Home() {
         </main>
 
         {/* Footer */}
-        <footer className="border-t border-slate-200 dark:border-slate-900 bg-white/80 dark:bg-slate-950/80 py-4 px-6 text-center text-xs text-slate-500 transition-colors duration-200">
+        <footer className="border-t border-slate-200 dark:border-slate-900 bg-white/80 dark:bg-slate-950/80 py-4 px-6 text-center text-xs text-slate-500 transition-colors duration-200 mb-16 lg:mb-0">
           <p>
             Tobacco SaaS • Multi-Tenant Sales & Stock Intelligence Platform • Production Specification Compliant • PostgreSQL Live
           </p>

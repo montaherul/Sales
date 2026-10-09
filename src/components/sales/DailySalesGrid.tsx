@@ -597,7 +597,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
                 />
               </div>
 
-              <div className="shrink-0 relative z-10 flex items-center gap-2">
+              <div className="shrink-0 relative z-10 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <button
                   onClick={() => handleExportDailyReport()}
                   className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50 px-3.5 py-2 text-xs font-semibold transition-all cursor-pointer shadow-xs"
@@ -770,7 +770,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
           </div>
 
           {/* KPI Calculation Strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 relative z-10">
             <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/40 p-3.5 shadow-sm dark:shadow-none">
               <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Brand Wise Sales (BITCL)</span>
               <span className="text-lg font-bold text-slate-900 dark:text-white font-mono">{totalSales.toFixed(2)}</span>
@@ -797,7 +797,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
           </div>
 
           {/* Form Sections */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10">
             {/* 1. Cigarette Brands */}
             <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-5 backdrop-blur-sm space-y-4 shadow-sm dark:shadow-none transition-colors duration-200">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 pb-2">
@@ -954,7 +954,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
           </div>
 
           {/* 3. Empty Packets & Remarks */}
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-5 backdrop-blur-sm space-y-4 shadow-sm dark:shadow-none transition-colors duration-200">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-5 backdrop-blur-sm space-y-4 shadow-sm dark:shadow-none transition-colors duration-200 relative z-10">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 pb-2">
               Operational Returns & Route Remarks
             </h3>
@@ -985,7 +985,7 @@ export function DailySalesGrid({ companyId = 'ALL', onSaveDraft, onSubmitForRevi
           </div>
 
           {/* Action Footer */}
-          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 relative z-10">
             <button
               onClick={() => setViewMode('listing')}
               className="flex items-center justify-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-800 sm:border-transparent"

@@ -304,8 +304,8 @@ export function MenuManagement({ companyId = 'ALL' }: MenuManagementProps) {
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="flex items-center justify-between gap-4 relative z-30">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 relative z-30">
+        <div className="relative flex-1 max-w-sm w-full">
           <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
           <input
             type="text"
@@ -317,7 +317,7 @@ export function MenuManagement({ companyId = 'ALL' }: MenuManagementProps) {
         </div>
 
         {activeSubTab === 'UWMA' && (
-          <div className="w-80 relative z-40">
+          <div className="w-full sm:w-80 relative z-40">
             <Select2
               options={users.map((u) => ({
                 value: u.id,

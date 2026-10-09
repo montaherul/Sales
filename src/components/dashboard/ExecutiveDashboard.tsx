@@ -183,7 +183,7 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
   return (
     <div className="space-y-6">
       {/* Top Welcome & Subtitle */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between relative z-30">
         <div>
           <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Executive Operations Dashboard</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -191,8 +191,8 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="w-48 sm:w-56">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="flex-1 sm:w-56 sm:flex-initial relative z-40">
             <DatePicker
               value={reportDate}
               onChange={(d) => setReportDate(d)}
@@ -204,7 +204,7 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
           <button
             onClick={() => fetchDashboardData(reportDate)}
             disabled={loading}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>Refresh</span>
@@ -213,7 +213,7 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
       </div>
 
       {/* KPI Metrics Ribbon */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 relative z-10">
         {/* Metric 1 */}
         <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-3.5 sm:p-4 backdrop-blur-sm shadow-sm dark:shadow-none">
           <div className="flex items-center justify-between">

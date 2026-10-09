@@ -347,18 +347,18 @@ export function ApprovalHub({ currentRole, companyId = 'ALL' }: ApprovalHubProps
       </div>
 
       {/* Workflow Queue Status Filter Toolbar */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm space-y-3 shadow-sm">
+      <div className="relative z-30 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4 backdrop-blur-sm space-y-3 shadow-sm">
         {/* Top Scope Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 relative z-40">
           <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <Filter className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
             <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
               Verification & Approval Workflow Queue
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="w-44 sm:w-52">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+            <div className="flex-1 sm:w-52 sm:flex-initial relative z-50">
               <DatePicker
                 value={filterDate}
                 onChange={setFilterDate}
@@ -371,7 +371,7 @@ export function ApprovalHub({ currentRole, companyId = 'ALL' }: ApprovalHubProps
               <button
                 type="button"
                 onClick={() => setFilterDate('')}
-                className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-semibold cursor-pointer"
+                className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-semibold cursor-pointer shrink-0"
               >
                 Clear
               </button>
@@ -383,7 +383,7 @@ export function ApprovalHub({ currentRole, companyId = 'ALL' }: ApprovalHubProps
         </div>
 
         {/* Interactive Segmented Queue Status Chips */}
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-2.5 border-t border-slate-200 dark:border-slate-800">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-2.5 border-t border-slate-200 dark:border-slate-800 relative z-10">
           {[
             { id: 'ALL', label: 'All Records', dot: 'bg-slate-400', activeBg: 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' },
             { id: 'SUBMITTED', label: 'Pending TSO Review', dot: 'bg-blue-500', activeBg: 'bg-blue-600 text-white dark:bg-blue-500 dark:text-white' },
@@ -413,22 +413,24 @@ export function ApprovalHub({ currentRole, companyId = 'ALL' }: ApprovalHubProps
       </div>
 
       {/* ServerDataTable Calling PostgreSQL Stored Procedure */}
-      <ServerDataTable
-        key={`${tableRefreshKey}_${companyId}_${filterDate}`}
-        endpoint="/api/daily-submissions"
-        columns={columns}
-        searchPlaceholder="Search territory, status, remarks..."
-        exportFilenamePrefix="Approval_Queue"
-        additionalParams={{
-          status: statusFilter,
-          reportingDate: filterDate || undefined,
-          companyId: companyId !== 'ALL' ? companyId : undefined,
-        }}
-      />
+      <div className="relative z-10">
+        <ServerDataTable
+          key={`${tableRefreshKey}_${companyId}_${filterDate}`}
+          endpoint="/api/daily-submissions"
+          columns={columns}
+          searchPlaceholder="Search territory, status, remarks..."
+          exportFilenamePrefix="Approval_Queue"
+          additionalParams={{
+            status: statusFilter,
+            reportingDate: filterDate || undefined,
+            companyId: companyId !== 'ALL' ? companyId : undefined,
+          }}
+        />
+      </div>
 
       {/* Reject Modal */}
       {rejectingRecord && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-2xl space-y-4">
             <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
               <AlertTriangle className="h-5 w-5" />

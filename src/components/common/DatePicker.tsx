@@ -219,7 +219,7 @@ export function DatePicker({
   }, []);
 
   return (
-    <div ref={containerRef} className={`relative inline-block w-full ${className}`}>
+    <div ref={containerRef} className={`relative inline-block w-full ${isOpen ? 'z-[9999]' : ''} ${className}`}>
       {label && (
         <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
           {label}
@@ -259,13 +259,24 @@ export function DatePicker({
 
       {/* Popover Calendar Container */}
       {isOpen && (
-        <div
-          className={`absolute z-50 mt-1.5 w-76 sm:w-80 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-2xl backdrop-blur-md animate-fadeIn ${
-            align === 'right' ? 'right-0' : 'left-0'
-          }`}
-          role="dialog"
-          aria-label="Calendar date picker"
-        >
+        <>
+          {/* Mobile Screen Dimming Backdrop: prevents clicks bleeding to underlying grids on touch screens */}
+          <div
+            className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-xs sm:hidden"
+            onClick={() => {
+              setIsOpen(false);
+              setYearSelectorOpen(false);
+            }}
+            aria-hidden="true"
+          />
+
+          <div
+            className={`fixed sm:absolute z-[9999] max-sm:inset-x-3 max-sm:top-1/2 max-sm:-translate-y-1/2 max-sm:w-auto max-sm:max-w-sm max-sm:mx-auto sm:mt-1.5 sm:w-80 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-2xl backdrop-blur-md animate-fadeIn ${
+              align === 'right' ? 'sm:right-0 sm:left-auto' : 'sm:left-0 sm:right-auto'
+            }`}
+            role="dialog"
+            aria-label="Calendar date picker"
+          >
           {/* Header Navigation */}
           <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-1">
@@ -421,6 +432,7 @@ export function DatePicker({
             </div>
           )}
         </div>
+        </>
       )}
     </div>
   );

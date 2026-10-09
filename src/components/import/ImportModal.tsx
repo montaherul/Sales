@@ -249,8 +249,8 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4">
-      <div className="w-full max-w-5xl rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 backdrop-blur-md p-3 sm:p-4">
+      <div className="w-full max-w-5xl rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2.5">
@@ -276,7 +276,7 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
 
         {/* Upload & Date Selectors */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3.5 bg-slate-50/50 dark:bg-slate-950/40">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3.5 bg-slate-50/50 dark:bg-slate-950/40 relative z-30">
             <label className="text-xs font-semibold text-slate-900 dark:text-white flex items-center gap-1.5 mb-1.5">
               <Calendar className="h-4 w-4 text-blue-500" />
               1. Selected Reporting Date (Target Date)
@@ -290,7 +290,7 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
             </p>
           </div>
 
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3.5 bg-slate-50/50 dark:bg-slate-950/40">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3.5 bg-slate-50/50 dark:bg-slate-950/40 relative z-10">
             <label className="text-xs font-semibold text-slate-900 dark:text-white flex items-center gap-1.5 mb-1.5">
               <CloudUpload className="h-4 w-4 text-blue-500" />
               2. Upload Reporting Workbook (.xlsx)

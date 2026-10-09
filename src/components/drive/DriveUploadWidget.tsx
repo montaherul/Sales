@@ -78,7 +78,7 @@ export function DriveUploadWidget({ isOpen, onClose, companyId = 'ALL', defaultD
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
       <div className="w-full max-w-xl rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-2xl space-y-5">
         <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2.5">
@@ -99,7 +99,7 @@ export function DriveUploadWidget({ isOpen, onClose, companyId = 'ALL', defaultD
         </div>
 
         {/* Date Selector */}
-        <div className="space-y-1">
+        <div className="space-y-1 relative z-20">
           <label className="text-xs font-semibold text-slate-900 dark:text-white block">
             Select Reporting Date to Archive
           </label>
@@ -110,7 +110,7 @@ export function DriveUploadWidget({ isOpen, onClose, companyId = 'ALL', defaultD
         </div>
 
         {/* Cloud Hierarchy Specifications */}
-        <div className="space-y-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-4 text-xs font-mono">
+        <div className="space-y-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-4 text-xs font-mono relative z-10">
           <div>
             <span className="text-slate-500 dark:text-slate-400 block text-[11px] font-sans">Target Cloud Directory:</span>
             <span className="text-blue-600 dark:text-blue-400 font-semibold break-all">

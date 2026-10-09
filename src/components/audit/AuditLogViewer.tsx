@@ -197,7 +197,7 @@ export function AuditLogViewer({ companyId = 'ALL' }: AuditLogViewerProps) {
 
       {/* Payload Inspection Modal */}
       {expandedLog && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
           <div className="w-full max-w-2xl overflow-hidden rounded-t-2xl sm:rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[85vh] transition-colors duration-200">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 py-3.5 sm:py-4 bg-slate-50 dark:bg-slate-950/70">
               <div className="flex items-center gap-2">

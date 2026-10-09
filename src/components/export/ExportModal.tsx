@@ -160,9 +160,9 @@ export function ExportModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn">
       <div 
-        className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+        className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[92vh] relative z-10"
         role="dialog"
         aria-modal="true"
       >
@@ -342,7 +342,7 @@ export function ExportModal({
             </div>
 
             {reportType === 'daily' && (
-              <div>
+              <div className="relative z-30">
                 <DatePicker
                   value={`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`}
                   onChange={(dateStr) => {

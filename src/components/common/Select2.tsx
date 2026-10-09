@@ -118,7 +118,7 @@ export function Select2({
   };
 
   return (
-    <div className={`relative w-full ${isOpen ? 'z-[999]' : 'z-auto'} ${className}`} ref={containerRef}>
+    <div className={`relative w-full ${isOpen ? 'z-[9999]' : ''} ${className}`} ref={containerRef}>
       {label && (
         <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
           {label}
