@@ -584,3 +584,285 @@ export async function parseAndValidateXLSX(params: {
     warnings,
   };
 }
+
+export interface SingleDateParsedBatch {
+  dateStr: string;
+  dayNumber: number;
+  sheetName: string;
+  headerDateText: string;
+  records: DailyOperationalRecord[];
+  summary: ImportSummary;
+  isValid: boolean;
+  errors: ImportErrorDetail[];
+}
+
+export interface MultiDateImportPayload {
+  isValid: boolean;
+  fileName: string;
+  baseYear: number;
+  baseMonth: number;
+  totalSheetsFound: number;
+  totalDatesFound: number;
+  dates: SingleDateParsedBatch[];
+  overallSummary: {
+    totalDates: number;
+    totalRecords: number;
+    totalCigaretteSales: number;
+    totalCigaretteStock: number;
+    totalZardaSalesValue: number;
+    totalZardaStockValue: number;
+    totalEmptyPackets: number;
+  };
+  errors: ImportErrorDetail[];
+  warnings: string[];
+}
+
+/**
+ * Parses multiple dates/tabs from a single 34-tab monthly workbook.
+ * Does not mutate or affect existing single-date workflows.
+ */
+export async function parseMultiDateXLSX(params: {
+  buffer: Buffer;
+  fileName: string;
+  applicationYearMonth?: string; // YYYY-MM
+}): Promise<MultiDateImportPayload> {
+  const errors: ImportErrorDetail[] = [];
+  const warnings: string[] = [];
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(params.buffer as any);
+
+  // 1. Establish Base Year & Month
+  let baseYear = 0;
+  let baseMonth = 0;
+
+  if (params.applicationYearMonth && params.applicationYearMonth.includes('-')) {
+    const parts = params.applicationYearMonth.split('-').map(Number);
+    baseYear = parts[0];
+    baseMonth = parts[1];
+  }
+
+  if (!baseYear || !baseMonth) {
+    const fromFilename = extractDateFromFilename(params.fileName);
+    if (fromFilename?.year && fromFilename?.month) {
+      baseYear = fromFilename.year;
+      baseMonth = fromFilename.month;
+    }
+  }
+
+  // Fallback: Inspect first sheet cell B5
+  if (!baseYear || !baseMonth) {
+    for (const ws of workbook.worksheets) {
+      const b5 = safeGetCellString(ws.getCell('B5'));
+      const parsed = parseHeaderCellDate(b5);
+      if (parsed?.year && parsed?.month) {
+        baseYear = parsed.year;
+        baseMonth = parsed.month;
+        break;
+      }
+    }
+  }
+
+  // Ultimate fallback to current year and month
+  if (!baseYear || !baseMonth) {
+    const now = new Date();
+    baseYear = now.getFullYear();
+    baseMonth = now.getMonth() + 1;
+  }
+
+  const parsedDates: SingleDateParsedBatch[] = [];
+
+  // 2. Iterate through all worksheets looking for daily sheets (Tabs '1'..'31')
+  for (let i = 0; i < workbook.worksheets.length; i++) {
+    const ws = workbook.worksheets[i];
+    const sheetNameLower = ws.name.toLowerCase().trim();
+
+    // Skip summary / analysis sheets
+    if (
+      sheetNameLower.includes('std') ||
+      sheetNameLower.includes('target') ||
+      sheetNameLower.includes('analysis')
+    ) {
+      continue;
+    }
+
+    const b5Text = safeGetCellString(ws.getCell('B5'));
+    const parsedB5 = parseHeaderCellDate(b5Text);
+
+    let dayNumber = parseInt(ws.name.trim(), 10);
+    if (isNaN(dayNumber) || dayNumber < 1 || dayNumber > 31) {
+      if (parsedB5?.day && parsedB5.day >= 1 && parsedB5.day <= 31) {
+        dayNumber = parsedB5.day;
+      } else {
+        continue;
+      }
+    }
+
+    const sheetYear = parsedB5?.year || baseYear;
+    const sheetMonth = parsedB5?.month || baseMonth;
+    const dateStr = `${sheetYear}-${String(sheetMonth).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
+
+    const sheetErrors: ImportErrorDetail[] = [];
+    const sheetRecords: DailyOperationalRecord[] = [];
+
+    // Extract records for all 5 Satkania territories
+    for (const terr of SATKANIA_TERRITORIES) {
+      const row = terr.row;
+
+      const extractNum = (col: string, field: string): number => {
+        const res = safeGetCellNumber(ws.getCell(`${col}${row}`), {
+          sheet: ws.name,
+          row,
+          column: col,
+          field,
+        });
+        if (res.error) {
+          sheetErrors.push(res.error);
+        }
+        return res.value;
+      };
+
+      const cigaretteSales: CigaretteBrandSales = {
+        wilson: extractNum('D', 'cigaretteSales.wilson'),
+        shahara: extractNum('E', 'cigaretteSales.shahara'),
+        express: extractNum('F', 'cigaretteSales.express'),
+        nexus: extractNum('G', 'cigaretteSales.nexus'),
+        sb: extractNum('H', 'cigaretteSales.sb'),
+        sm: extractNum('I', 'cigaretteSales.sm'),
+      };
+
+      const cigaretteStock: CigaretteBrandStock = {
+        wilson: extractNum('K', 'cigaretteStock.wilson'),
+        shahara: extractNum('L', 'cigaretteStock.shahara'),
+        express: extractNum('M', 'cigaretteStock.express'),
+        nexus: extractNum('N', 'cigaretteStock.nexus'),
+        sb: extractNum('O', 'cigaretteStock.sb'),
+        sm: extractNum('P', 'cigaretteStock.sm'),
+      };
+
+      const zardaSales: ZardaSalesQty = {
+        slb: extractNum('R', 'zardaSales.slb'),
+        qty_22_25: Math.round(extractNum('S', 'zardaSales.qty_22_25')),
+        qty_99_14: Math.round(extractNum('T', 'zardaSales.qty_99_14')),
+        qty_33_15: Math.round(extractNum('U', 'zardaSales.qty_33_15')),
+      };
+
+      const zardaStock: ZardaStockQty = {
+        slb: extractNum('W', 'zardaStock.slb'),
+        qty_22_25: Math.round(extractNum('X', 'zardaStock.qty_22_25')),
+        qty_99_14: Math.round(extractNum('Y', 'zardaStock.qty_99_14')),
+        qty_33_15: Math.round(extractNum('Z', 'zardaStock.qty_33_15')),
+      };
+
+      const emptyPackets = Math.round(extractNum('AB', 'emptyPackets'));
+      const remarks = safeGetCellString(ws.getCell(`AC${row}`));
+
+      const totalSales = calculateCigaretteSalesTotal(cigaretteSales);
+      const totalStock = calculateCigaretteStockTotal(cigaretteStock);
+      const totalZardaSales = calculateZardaSalesValuation(zardaSales);
+      const totalZardaStock = calculateZardaStockValuation(zardaStock);
+
+      const territoryId = `satkania-${terr.sl}`;
+
+      sheetRecords.push({
+        territoryId,
+        territoryName: terr.name,
+        regionName: 'Satkania',
+        reportDate: dateStr,
+        dayNumber,
+        status: 'DRAFT',
+        cigaretteSales,
+        cigaretteStock,
+        zardaSales,
+        zardaStock,
+        emptyPackets,
+        remarks,
+        totalCigaretteSales: totalSales,
+        totalCigaretteStock: totalStock,
+        totalZardaSalesValue: totalZardaSales,
+        totalZardaStockValue: totalZardaStock,
+      });
+    }
+
+    // Compute summary for this specific date
+    let daySales = 0;
+    let dayStock = 0;
+    let dayZardaSales = 0;
+    let dayZardaStock = 0;
+    let dayPackets = 0;
+
+    for (const r of sheetRecords) {
+      daySales += r.totalCigaretteSales;
+      dayStock += r.totalCigaretteStock;
+      dayZardaSales += r.totalZardaSalesValue;
+      dayZardaStock += r.totalZardaStockValue;
+      dayPackets += r.emptyPackets;
+    }
+
+    const daySummary: ImportSummary = {
+      totalRecords: sheetRecords.length,
+      newRecordsCount: sheetRecords.length,
+      revisionRecordsCount: 0,
+      totalCigaretteSales: Number(daySales.toFixed(2)),
+      totalCigaretteStock: Number(dayStock.toFixed(2)),
+      totalZardaSalesValue: dayZardaSales,
+      totalZardaStockValue: dayZardaStock,
+      totalEmptyPackets: dayPackets,
+    };
+
+    parsedDates.push({
+      dateStr,
+      dayNumber,
+      sheetName: ws.name,
+      headerDateText: b5Text,
+      records: sheetRecords,
+      summary: daySummary,
+      isValid: sheetErrors.length === 0,
+      errors: sheetErrors,
+    });
+  }
+
+  // 3. Sort by day number ascending (1, 2, 3...)
+  parsedDates.sort((a, b) => a.dayNumber - b.dayNumber);
+
+  // 4. Calculate overall summary across all dates
+  let overallRecords = 0;
+  let overallSales = 0;
+  let overallStock = 0;
+  let overallZardaSales = 0;
+  let overallZardaStock = 0;
+  let overallPackets = 0;
+
+  for (const d of parsedDates) {
+    overallRecords += d.records.length;
+    overallSales += d.summary.totalCigaretteSales;
+    overallStock += d.summary.totalCigaretteStock;
+    overallZardaSales += d.summary.totalZardaSalesValue;
+    overallZardaStock += d.summary.totalZardaStockValue;
+    overallPackets += d.summary.totalEmptyPackets;
+    if (d.errors.length > 0) {
+      errors.push(...d.errors);
+    }
+  }
+
+  return {
+    isValid: errors.length === 0,
+    fileName: params.fileName,
+    baseYear,
+    baseMonth,
+    totalSheetsFound: workbook.worksheets.length,
+    totalDatesFound: parsedDates.length,
+    dates: parsedDates,
+    overallSummary: {
+      totalDates: parsedDates.length,
+      totalRecords: overallRecords,
+      totalCigaretteSales: Number(overallSales.toFixed(2)),
+      totalCigaretteStock: Number(overallStock.toFixed(2)),
+      totalZardaSalesValue: overallZardaSales,
+      totalZardaStockValue: overallZardaStock,
+      totalEmptyPackets: overallPackets,
+    },
+    errors,
+    warnings,
+  };
+}

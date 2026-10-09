@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   CloudUpload,
   CheckCircle2,
@@ -22,9 +22,11 @@ import {
   Calendar,
   Files,
   Plus,
-  Trash2
+  Trash2,
+  CheckSquare,
+  Square
 } from 'lucide-react';
-import { ImportPreviewPayload } from '@/lib/excel/import';
+import { ImportPreviewPayload, MultiDateImportPayload, SingleDateParsedBatch } from '@/lib/excel/import';
 import { DatePicker } from '@/components/common/DatePicker';
 import {
   calculateCigaretteSalesTotal,
@@ -73,6 +75,20 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
   const [modifiedTerritories, setModifiedTerritories] = useState<Set<string>>(new Set());
   const [editingTerritoryIndex, setEditingTerritoryIndex] = useState<number | null>(null);
   const [activeTabSection, setActiveTabSection] = useState<'all' | 'sales' | 'stock' | 'zarda' | 'remarks'>('sales');
+
+  // Mode Controller: 'single_date' (Existing, untouched) | 'multi_date' (New separate option)
+  const [importMode, setImportMode] = useState<'single_date' | 'multi_date'>('single_date');
+
+  // Multi-Date Batch Specific State
+  const [multiDateFile, setMultiDateFile] = useState<File | null>(null);
+  const [multiDateLoading, setMultiDateLoading] = useState(false);
+  const [multiDatePayload, setMultiDatePayload] = useState<MultiDateImportPayload | null>(null);
+  const [selectedDatesSet, setSelectedDatesSet] = useState<Set<string>>(new Set());
+  const [activeMultiDateIndex, setActiveMultiDateIndex] = useState<number>(0);
+  const [multiDateCommitting, setMultiDateCommitting] = useState(false);
+  const [multiDateSuccess, setMultiDateSuccess] = useState(false);
+  const [multiDateSuccessCount, setMultiDateSuccessCount] = useState(0);
+  const [editingMultiDateTerritoryIndex, setEditingMultiDateTerritoryIndex] = useState<number | null>(null);
 
   if (!isOpen) return null;
 
@@ -522,6 +538,234 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
     }
   };
 
+  /**
+   * Multi-Date Batch: Uploads and parses all daily tabs from 1 workbook
+   */
+  const handleMultiDateFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setMultiDateFile(file);
+    setMultiDateLoading(true);
+    setMultiDateSuccess(false);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (companyId && companyId !== 'ALL') {
+        formData.append('companyId', companyId);
+      }
+
+      const res = await fetch('/api/imports/xlsx/multi-date', {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await res.json();
+      if (json.success && json.data) {
+        const data: MultiDateImportPayload = json.data;
+        setMultiDatePayload(data);
+        const allDates = new Set(data.dates.map((d) => d.dateStr));
+        setSelectedDatesSet(allDates);
+        setActiveMultiDateIndex(0);
+      } else {
+        alert(json.error || 'Failed to parse multi-date workbook');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Network error processing multi-date workbook');
+    } finally {
+      setMultiDateLoading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleToggleDateSelection = (dateStr: string) => {
+    setSelectedDatesSet((prev) => {
+      const next = new Set(prev);
+      if (next.has(dateStr)) {
+        next.delete(dateStr);
+      } else {
+        next.add(dateStr);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllDates = () => {
+    if (!multiDatePayload) return;
+    const all = new Set(multiDatePayload.dates.map((d) => d.dateStr));
+    setSelectedDatesSet(all);
+  };
+
+  const handleDeselectAllDates = () => {
+    setSelectedDatesSet(new Set());
+  };
+
+  /**
+   * Multi-Date Batch: Live record editor for the currently active day tab
+   */
+  const handleMultiDateRecordChange = (
+    dateIdx: number,
+    recordIdx: number,
+    section: 'sales' | 'stock' | 'zardaSales' | 'zardaStock' | 'emptyPackets' | 'remarks',
+    field?: string,
+    val?: any
+  ) => {
+    if (!multiDatePayload) return;
+    const updatedDates = [...multiDatePayload.dates];
+    const targetDateBatch = { ...updatedDates[dateIdx] };
+    const updatedRecords = [...targetDateBatch.records];
+    const rec = { ...updatedRecords[recordIdx] };
+
+    if (section === 'sales' && field) {
+      rec.cigaretteSales = { ...rec.cigaretteSales, [field]: Math.max(0, Number(val) || 0) };
+      rec.totalCigaretteSales = calculateCigaretteSalesTotal(rec.cigaretteSales);
+    } else if (section === 'stock' && field) {
+      rec.cigaretteStock = { ...rec.cigaretteStock, [field]: Math.max(0, Number(val) || 0) };
+      rec.totalCigaretteStock = calculateCigaretteStockTotal(rec.cigaretteStock);
+    } else if (section === 'zardaSales' && field) {
+      rec.zardaSales = { ...rec.zardaSales, [field]: Math.max(0, Number(val) || 0) };
+      rec.totalZardaSalesValue = calculateZardaSalesValuation(rec.zardaSales);
+    } else if (section === 'zardaStock' && field) {
+      rec.zardaStock = { ...rec.zardaStock, [field]: Math.max(0, Number(val) || 0) };
+      rec.totalZardaStockValue = calculateZardaStockValuation(rec.zardaStock);
+    } else if (section === 'emptyPackets') {
+      rec.emptyPackets = Math.max(0, Math.round(Number(val) || 0));
+    } else if (section === 'remarks') {
+      rec.remarks = String(val || '');
+    }
+
+    updatedRecords[recordIdx] = rec;
+    targetDateBatch.records = updatedRecords;
+
+    // Recalculate that day's summary
+    let daySales = 0;
+    let dayStock = 0;
+    let dayZardaSales = 0;
+    let dayZardaStock = 0;
+    let dayPackets = 0;
+
+    for (const r of updatedRecords) {
+      daySales += r.totalCigaretteSales;
+      dayStock += r.totalCigaretteStock;
+      dayZardaSales += r.totalZardaSalesValue;
+      dayZardaStock += r.totalZardaStockValue;
+      dayPackets += r.emptyPackets;
+    }
+
+    targetDateBatch.summary = {
+      totalRecords: updatedRecords.length,
+      newRecordsCount: updatedRecords.length,
+      revisionRecordsCount: 0,
+      totalCigaretteSales: Number(daySales.toFixed(2)),
+      totalCigaretteStock: Number(dayStock.toFixed(2)),
+      totalZardaSalesValue: dayZardaSales,
+      totalZardaStockValue: dayZardaStock,
+      totalEmptyPackets: dayPackets,
+    };
+
+    updatedDates[dateIdx] = targetDateBatch;
+
+    // Recalculate overall summary
+    let overallRecords = 0;
+    let overallSales = 0;
+    let overallStock = 0;
+    let overallZardaSales = 0;
+    let overallZardaStock = 0;
+    let overallPackets = 0;
+
+    for (const d of updatedDates) {
+      overallRecords += d.records.length;
+      overallSales += d.summary.totalCigaretteSales;
+      overallStock += d.summary.totalCigaretteStock;
+      overallZardaSales += d.summary.totalZardaSalesValue;
+      overallZardaStock += d.summary.totalZardaStockValue;
+      overallPackets += d.summary.totalEmptyPackets;
+    }
+
+    setMultiDatePayload({
+      ...multiDatePayload,
+      dates: updatedDates,
+      overallSummary: {
+        totalDates: updatedDates.length,
+        totalRecords: overallRecords,
+        totalCigaretteSales: Number(overallSales.toFixed(2)),
+        totalCigaretteStock: Number(overallStock.toFixed(2)),
+        totalZardaSalesValue: overallZardaSales,
+        totalZardaStockValue: overallZardaStock,
+        totalEmptyPackets: overallPackets,
+      },
+    });
+
+    setModifiedTerritories((prev) => new Set(prev).add(`${rec.territoryId}-${rec.reportDate}`));
+  };
+
+  /**
+   * Multi-Date Batch: Commits all selected dates atomically into database
+   */
+  const handleMultiDateCommit = async () => {
+    if (!multiDatePayload || selectedDatesSet.size === 0) return;
+    setMultiDateCommitting(true);
+    try {
+      const recordsToCommit = multiDatePayload.dates
+        .filter((d) => selectedDatesSet.has(d.dateStr))
+        .flatMap((d) => d.records);
+
+      const res = await fetch('/api/imports/xlsx/commit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          records: recordsToCommit,
+          fileName: multiDateFile?.name || 'multi-date-batch.xlsx',
+          companyId: companyId !== 'ALL' ? companyId : undefined,
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setMultiDateSuccess(true);
+        setMultiDateSuccessCount(json.count || recordsToCommit.length);
+      } else {
+        alert(json.error || 'Failed to commit multi-date records');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error committing multi-date import');
+    } finally {
+      setMultiDateCommitting(false);
+    }
+  };
+
+  /**
+   * Memoized KPI totals for only the selected dates
+   */
+  const selectedDatesSummary = useMemo(() => {
+    if (!multiDatePayload) {
+      return { datesCount: 0, recordsCount: 0, sales: 0, stock: 0, zarda: 0, packets: 0 };
+    }
+    const selected = multiDatePayload.dates.filter((d) => selectedDatesSet.has(d.dateStr));
+    let recordsCount = 0;
+    let sales = 0;
+    let stock = 0;
+    let zarda = 0;
+    let packets = 0;
+
+    for (const d of selected) {
+      recordsCount += d.records.length;
+      sales += d.summary.totalCigaretteSales;
+      stock += d.summary.totalCigaretteStock;
+      zarda += d.summary.totalZardaSalesValue;
+      packets += d.summary.totalEmptyPackets;
+    }
+
+    return {
+      datesCount: selected.length,
+      recordsCount,
+      sales: Number(sales.toFixed(2)),
+      stock: Number(stock.toFixed(2)),
+      zarda,
+      packets,
+    };
+  }, [multiDatePayload, selectedDatesSet]);
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 backdrop-blur-md p-3 sm:p-4">
       <div className="w-full max-w-5xl rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6 shadow-2xl space-y-5 max-h-[92vh] min-h-[420px] sm:min-h-[480px] overflow-y-auto">
@@ -548,8 +792,45 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
           </button>
         </div>
 
-        {/* Upload & Date Selectors */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Mode Selector Strip: Option 1 (Single Date & Parallel Files) vs Option 2 (Multi-Date Batch from 1 Workbook) */}
+        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80">
+          <button
+            type="button"
+            onClick={() => setImportMode('single_date')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              importMode === 'single_date'
+                ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Calendar className="h-3.5 w-3.5" />
+            <span>Option 1: Single Date / Parallel Files (Default)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setImportMode('multi_date')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              importMode === 'multi_date'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Layers className="h-3.5 w-3.5" />
+            <span>Option 2: Multi-Dates Batch Import (From 1 Workbook)</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+              importMode === 'multi_date' ? 'bg-blue-500 text-white' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+            }`}>
+              Batch All Days
+            </span>
+          </button>
+        </div>
+
+        {/* OPTION 1: Existing Single Date & Parallel Multi-File Workflow (Untouched) */}
+        {importMode === 'single_date' && (
+          <div className="space-y-5">
+            {/* Upload & Date Selectors */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3.5 bg-slate-50/50 dark:bg-slate-950/40 relative z-30">
             <label className="text-xs font-semibold text-slate-900 dark:text-white flex items-center gap-1.5 mb-1.5">
               <Calendar className="h-4 w-4 text-blue-500" />
@@ -2187,6 +2468,601 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
           </div>
         </div>
       </div>
+    )}
+
+      {/* OPTION 2: Multi-Dates Batch Import From 1 Monthly Workbook (Isolated & Independent) */}
+      {importMode === 'multi_date' && (
+        <div className="space-y-5">
+          {/* 1. Monthly Workbook Upload Section */}
+          {!multiDatePayload && (
+            <div className="rounded-2xl border-2 border-dashed border-blue-200 dark:border-blue-900/60 bg-blue-50/20 dark:bg-blue-950/20 p-6 sm:p-8 text-center transition-all">
+              <input
+                id="multi-date-file-upload"
+                type="file"
+                accept=".xlsx, .xls"
+                className="hidden"
+                disabled={multiDateLoading}
+                onChange={handleMultiDateFileSelect}
+              />
+              <div className="max-w-md mx-auto space-y-3">
+                <div className="w-12 h-12 mx-auto rounded-2xl bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                  <Layers className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                    Upload 34-Tab Monthly Workbook
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Upload the authoritative monthly Excel report with tabs 1..31. The system scans and extracts all day tabs so you can selectively or batch import all dates at once.
+                  </p>
+                </div>
+
+                {multiDateLoading ? (
+                  <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900 text-xs font-semibold text-blue-700 dark:text-blue-300">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                    <span>Scanning & extracting all 31 day tabs... Please wait...</span>
+                  </div>
+                ) : (
+                  <label
+                    htmlFor="multi-date-file-upload"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-md shadow-blue-500/20 cursor-pointer transition-all"
+                  >
+                    <CloudUpload className="h-4 w-4" />
+                    <span>Choose Monthly Excel File</span>
+                  </label>
+                )}
+
+                <div className="text-[11px] text-slate-400 dark:text-slate-500 pt-1">
+                  Supported format: <span className="font-mono font-medium">.xlsx, .xls</span> • Authoritative Afaz Tobacco Template
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 2. Loaded Workbook Summary & Active Controls */}
+          {multiDatePayload && (
+            <div className="space-y-4">
+              {/* File Info Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
+                    <FileSpreadsheet className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-[280px] sm:max-w-md">
+                        {multiDatePayload.fileName}
+                      </p>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 font-semibold">
+                        {multiDatePayload.baseYear && multiDatePayload.baseMonth ? `${multiDatePayload.baseYear}-${String(multiDatePayload.baseMonth).padStart(2, '0')}` : 'Monthly'}
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                        {multiDatePayload.totalSheetsFound} Sheets Scanned
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      Found <strong className="text-blue-600 dark:text-blue-400">{multiDatePayload.dates.length}</strong> valid daily reporting tabs.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label
+                    htmlFor="multi-date-file-upload-change"
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-[11px] font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-all"
+                  >
+                    Replace File
+                  </label>
+                  <input
+                    id="multi-date-file-upload-change"
+                    type="file"
+                    accept=".xlsx, .xls"
+                    className="hidden"
+                    onChange={handleMultiDateFileSelect}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMultiDateFile(null);
+                      setMultiDatePayload(null);
+                      setSelectedDatesSet(new Set());
+                      setMultiDateSuccess(false);
+                    }}
+                    className="px-3 py-1.5 rounded-lg border border-rose-200 dark:border-rose-900/60 text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer transition-all"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. Date Selection & Filter Strip */}
+              <div className="space-y-2 p-3.5 rounded-xl bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-blue-500" />
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">
+                      Select Dates To Import ({multiDatePayload.dates.length} Days Detected)
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/70 text-blue-700 dark:text-blue-300 font-bold">
+                      {selectedDatesSet.size} of {multiDatePayload.dates.length} Selected
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleSelectAllDates}
+                      className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:text-blue-600 cursor-pointer transition-all"
+                    >
+                      Select All ({multiDatePayload.dates.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeselectAllDates}
+                      className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:text-rose-600 cursor-pointer transition-all"
+                    >
+                      Deselect All
+                    </button>
+                  </div>
+                </div>
+
+                {/* Date Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1.5 scrollbar-thin">
+                  {multiDatePayload.dates.map((d, idx) => {
+                    const isSelected = selectedDatesSet.has(d.dateStr);
+                    const isActive = idx === activeMultiDateIndex;
+
+                    return (
+                      <div
+                        key={d.dateStr}
+                        className={`group flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs whitespace-nowrap transition-all cursor-pointer ${
+                          isActive
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                            : isSelected
+                            ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 border-blue-200 dark:border-blue-900/80 hover:border-blue-400'
+                            : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800 opacity-60 hover:opacity-100'
+                        }`}
+                      >
+                        {/* Checkbox toggle */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleDateSelection(d.dateStr);
+                          }}
+                          className="p-0.5 hover:scale-110 transition-transform cursor-pointer"
+                          title={isSelected ? 'Exclude date' : 'Include date'}
+                        >
+                          {isSelected ? (
+                            <CheckSquare className={`h-3.5 w-3.5 ${isActive ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
+                          ) : (
+                            <Square className="h-3.5 w-3.5 text-slate-400" />
+                          )}
+                        </button>
+
+                        {/* View day preview */}
+                        <button
+                          type="button"
+                          onClick={() => setActiveMultiDateIndex(idx)}
+                          className="flex items-center gap-1.5 text-left cursor-pointer"
+                        >
+                          <span className="font-mono font-bold text-[11px]">{d.dateStr}</span>
+                          <span className={`text-[9px] font-mono px-1 py-0.2 rounded ${
+                            isActive
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                          }`}>
+                            Tab &quot;{d.sheetName}&quot;
+                          </span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 4. Batch Metrics Cards for Selected Dates */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800">
+                  <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                    Selected Days
+                  </div>
+                  <div className="text-lg font-mono font-bold text-slate-900 dark:text-white mt-0.5">
+                    {selectedDatesSummary.datesCount} <span className="text-xs text-slate-400 font-normal">/ {multiDatePayload.dates.length} Days</span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-blue-50/50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50">
+                  <div className="text-[11px] font-semibold text-blue-700 dark:text-blue-300">
+                    Total Records
+                  </div>
+                  <div className="text-lg font-mono font-bold text-blue-600 dark:text-blue-400 mt-0.5">
+                    {selectedDatesSummary.recordsCount} <span className="text-xs text-blue-400 font-normal">Territories</span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50">
+                  <div className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                    Total Cigarette Sales
+                  </div>
+                  <div className="text-lg font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                    {selectedDatesSummary.sales.toFixed(2)} <span className="text-xs font-normal">Mio</span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-purple-50/50 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/50">
+                  <div className="text-[11px] font-semibold text-purple-700 dark:text-purple-300">
+                    Total Cigarette Stock
+                  </div>
+                  <div className="text-lg font-mono font-bold text-purple-600 dark:text-purple-400 mt-0.5">
+                    {selectedDatesSummary.stock.toFixed(2)} <span className="text-xs font-normal">Mio</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 5. Active Day Preview & Live Editor Card */}
+              {multiDatePayload.dates[activeMultiDateIndex] && (() => {
+                const activeDay = multiDatePayload.dates[activeMultiDateIndex];
+                const isDaySelected = selectedDatesSet.has(activeDay.dateStr);
+
+                return (
+                  <div className="space-y-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
+                          <Calendar className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                              Preview Date: {activeDay.dateStr}
+                            </h3>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">
+                              Sheet Tab &quot;{activeDay.sheetName}&quot;
+                            </span>
+                            {isDaySelected ? (
+                              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                                Included in Batch
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                                Excluded
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            Day Totals: Sales <strong className="text-slate-800 dark:text-slate-200">{activeDay.summary.totalCigaretteSales.toFixed(2)} Mio</strong> • Stock <strong className="text-slate-800 dark:text-slate-200">{activeDay.summary.totalCigaretteStock.toFixed(2)} Mio</strong> • Empty Packets <strong className="text-slate-800 dark:text-slate-200">{activeDay.summary.totalEmptyPackets}</strong>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleDateSelection(activeDay.dateStr)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all ${
+                            isDaySelected
+                              ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60 hover:bg-amber-100'
+                              : 'bg-blue-600 text-white hover:bg-blue-500 shadow-sm'
+                          }`}
+                        >
+                          {isDaySelected ? (
+                            <>
+                              <Square className="h-3.5 w-3.5" />
+                              <span>Exclude this Day</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckSquare className="h-3.5 w-3.5" />
+                              <span>Include this Day</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Territory Records Table */}
+                    <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
+                          <tr>
+                            <th className="py-2.5 px-3">Territory</th>
+                            <th className="py-2.5 px-3">Region</th>
+                            <th className="py-2.5 px-3 text-right">Cig. Sales (Mio)</th>
+                            <th className="py-2.5 px-3 text-right">Cig. Stock (Mio)</th>
+                            <th className="py-2.5 px-3 text-right">Zarda Sales</th>
+                            <th className="py-2.5 px-3 text-right">Empty Packets</th>
+                            <th className="py-2.5 px-3 text-center">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {activeDay.records.map((r, rIdx) => (
+                            <tr key={r.territoryId || rIdx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                              <td className="py-2.5 px-3 font-semibold text-slate-900 dark:text-white">
+                                {r.territoryName}
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400">
+                                {r.regionName || 'Satkania'}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono font-bold text-blue-600 dark:text-blue-400">
+                                {r.totalCigaretteSales.toFixed(2)}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                {r.totalCigaretteStock.toFixed(2)}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono text-purple-600 dark:text-purple-400">
+                                ৳ {r.totalZardaSalesValue.toLocaleString()}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono text-slate-600 dark:text-slate-400">
+                                {r.emptyPackets}
+                              </td>
+                              <td className="py-2.5 px-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingMultiDateTerritoryIndex(rIdx)}
+                                  className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 font-semibold text-[11px] flex items-center justify-center gap-1 mx-auto cursor-pointer transition-all"
+                                >
+                                  <Edit3 className="h-3 w-3" />
+                                  <span>Edit</span>
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Territory Record Live Edit Modal for Multi-Date */}
+              {editingMultiDateTerritoryIndex !== null && multiDatePayload.dates[activeMultiDateIndex] && (() => {
+                const activeDay = multiDatePayload.dates[activeMultiDateIndex];
+                const r = activeDay.records[editingMultiDateTerritoryIndex];
+                if (!r) return null;
+
+                return (
+                  <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-md p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
+                    <div className="relative w-full max-w-3xl max-h-[94vh] flex flex-col rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
+                      {/* Modal Header */}
+                      <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-950/90 backdrop-blur-md flex items-center justify-between shrink-0 gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 shrink-0">
+                            <Edit3 className="h-5 w-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
+                              Edit {r.territoryName} • {activeDay.dateStr}
+                            </h3>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                              Sheet Tab &quot;{activeDay.sheetName}&quot; • Live validation enabled
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setEditingMultiDateTerritoryIndex(null)}
+                          className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
+                      </div>
+
+                      {/* Modal Body */}
+                      <div className="p-4 sm:p-6 space-y-5 overflow-y-auto max-h-[70vh]">
+                        {/* Cigarette Sales Section */}
+                        <div className="space-y-3 bg-blue-50/30 dark:bg-blue-950/20 p-3.5 sm:p-4 rounded-2xl border border-blue-100 dark:border-blue-900/40">
+                          <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-blue-200/60 dark:border-blue-900/60">
+                            <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                              <TrendingUp className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                              <span>1. Cigarette Sales Quantities (Million Sticks)</span>
+                            </h4>
+                            <div className="px-3 py-1 rounded-xl bg-blue-100 dark:bg-blue-900/70 text-blue-800 dark:text-blue-200 font-mono font-bold text-xs">
+                              Total Sales: {r.totalCigaretteSales.toFixed(2)} Mio
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {[
+                              { key: 'wilson', label: 'Classic' },
+                              { key: 'shahara', label: 'Gold Leaf' },
+                              { key: 'express', label: 'Navy' },
+                              { key: 'nexus', label: 'Benson' },
+                              { key: 'sb', label: 'Derby' },
+                              { key: 'sm', label: 'Hollow' },
+                            ].map(({ key, label }) => (
+                              <div key={key} className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1">
+                                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                  {label}
+                                </label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={r.cigaretteSales[key as keyof typeof r.cigaretteSales]}
+                                  onChange={(e) =>
+                                    handleMultiDateRecordChange(
+                                      activeMultiDateIndex,
+                                      editingMultiDateTerritoryIndex,
+                                      'sales',
+                                      key,
+                                      e.target.value
+                                    )
+                                  }
+                                  className="w-full text-right font-mono font-bold text-sm h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Cigarette Stock Section */}
+                        <div className="space-y-3 bg-emerald-50/30 dark:bg-emerald-950/20 p-3.5 sm:p-4 rounded-2xl border border-emerald-100 dark:border-emerald-900/40">
+                          <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-emerald-200/60 dark:border-emerald-900/60">
+                            <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                              <Boxes className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                              <span>2. Cigarette Closing Stock (Million Sticks)</span>
+                            </h4>
+                            <div className="px-3 py-1 rounded-xl bg-emerald-100 dark:bg-emerald-900/70 text-emerald-800 dark:text-emerald-200 font-mono font-bold text-xs">
+                              Total Stock: {r.totalCigaretteStock.toFixed(2)} Mio
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {[
+                              { key: 'wilson', label: 'Classic' },
+                              { key: 'shahara', label: 'Gold Leaf' },
+                              { key: 'express', label: 'Navy' },
+                              { key: 'nexus', label: 'Benson' },
+                              { key: 'sb', label: 'Derby' },
+                              { key: 'sm', label: 'Hollow' },
+                            ].map(({ key, label }) => (
+                              <div key={key} className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1">
+                                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                  {label}
+                                </label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={r.cigaretteStock[key as keyof typeof r.cigaretteStock]}
+                                  onChange={(e) =>
+                                    handleMultiDateRecordChange(
+                                      activeMultiDateIndex,
+                                      editingMultiDateTerritoryIndex,
+                                      'stock',
+                                      key,
+                                      e.target.value
+                                    )
+                                  }
+                                  className="w-full text-right font-mono font-bold text-sm h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 dark:text-white"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Empty Packets & Remarks */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1.5">
+                            <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                              Empty Packets Returned
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={r.emptyPackets}
+                              onChange={(e) =>
+                                handleMultiDateRecordChange(
+                                  activeMultiDateIndex,
+                                  editingMultiDateTerritoryIndex,
+                                  'emptyPackets',
+                                  undefined,
+                                  e.target.value
+                                )
+                              }
+                              className="w-full text-right font-mono font-bold text-sm h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                            />
+                          </div>
+
+                          <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1.5">
+                            <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                              Territory Remarks
+                            </label>
+                            <input
+                              type="text"
+                              value={r.remarks || ''}
+                              onChange={(e) =>
+                                handleMultiDateRecordChange(
+                                  activeMultiDateIndex,
+                                  editingMultiDateTerritoryIndex,
+                                  'remarks',
+                                  undefined,
+                                  e.target.value
+                                )
+                              }
+                              placeholder="Operational notes..."
+                              className="w-full text-xs h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Modal Footer */}
+                      <div className="px-4 py-3 sm:px-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-950/90 flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingMultiDateTerritoryIndex(null)}
+                          className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
+                        >
+                          <Check className="h-4 w-4" />
+                          <span>Apply & Close</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* 6. Batch Success Alert */}
+          {multiDateSuccess && (
+            <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/60 p-4 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-3">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <div>
+                <p className="font-bold">Multi-Dates Batch Import Succeeded!</p>
+                <p className="text-[11px] mt-0.5 text-emerald-700 dark:text-emerald-400">
+                  Successfully inserted {multiDateSuccessCount} records across all selected dates into daily submissions.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* 7. Footer Actions for Option 2 */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+            <div className="text-xs text-slate-500">
+              {multiDatePayload && selectedDatesSet.size > 0 && !multiDateSuccess && (
+                <span>
+                  Ready to batch insert <strong className="text-slate-900 dark:text-white font-mono">{selectedDatesSummary.recordsCount}</strong> records across <strong className="text-blue-600 dark:text-blue-400 font-mono">{selectedDatesSummary.datesCount}</strong> selected dates.
+                </span>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 sm:flex-initial rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2.5 sm:py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer text-center"
+              >
+                {multiDateSuccess ? 'Close' : 'Cancel'}
+              </button>
+
+              {multiDatePayload && selectedDatesSet.size > 0 && !multiDateSuccess && (
+                <button
+                  type="button"
+                  onClick={handleMultiDateCommit}
+                  disabled={multiDateCommitting}
+                  className="flex-1 sm:flex-initial rounded-lg bg-blue-600 px-5 py-2.5 sm:py-2 text-xs font-semibold text-white hover:bg-blue-500 shadow-md shadow-blue-500/20 cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 text-center"
+                >
+                  {multiDateCommitting ? (
+                    <>
+                      <div className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      <span>Batch Inserting {selectedDatesSummary.recordsCount} Records...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Confirm & Batch Insert ({selectedDatesSummary.recordsCount} Records across {selectedDatesSummary.datesCount} Days)</span>
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  );
+  </div>
+);
 }
