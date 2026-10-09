@@ -16,6 +16,8 @@ import {
   Edit3,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Check,
   Calendar,
   Files,
@@ -69,6 +71,8 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
   const [isEditing, setIsEditing] = useState(false);
   const [expandedTerritoryId, setExpandedTerritoryId] = useState<string | null>(null);
   const [modifiedTerritories, setModifiedTerritories] = useState<Set<string>>(new Set());
+  const [editingTerritoryIndex, setEditingTerritoryIndex] = useState<number | null>(null);
+  const [activeTabSection, setActiveTabSection] = useState<'all' | 'sales' | 'stock' | 'zarda' | 'remarks'>('sales');
 
   if (!isOpen) return null;
 
@@ -445,6 +449,49 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
       },
     });
     setModifiedTerritories(new Set());
+  };
+
+  /**
+   * Reverts a single territory record back to its original Excel imported values
+   */
+  const handleResetSingleTerritory = (index: number) => {
+    if (!preview || !pristineRecords || !pristineRecords[index]) return;
+    const original = JSON.parse(JSON.stringify(pristineRecords[index]));
+    const updatedRecords = [...preview.records];
+    updatedRecords[index] = original;
+
+    let totalCigaretteSales = 0;
+    let totalCigaretteStock = 0;
+    let totalZardaSalesValue = 0;
+    let totalZardaStockValue = 0;
+    let totalEmptyPackets = 0;
+
+    for (const r of updatedRecords) {
+      totalCigaretteSales += r.totalCigaretteSales;
+      totalCigaretteStock += r.totalCigaretteStock;
+      totalZardaSalesValue += r.totalZardaSalesValue;
+      totalZardaStockValue += r.totalZardaStockValue;
+      totalEmptyPackets += r.emptyPackets;
+    }
+
+    setPreview({
+      ...preview,
+      records: updatedRecords,
+      summary: {
+        ...preview.summary,
+        totalCigaretteSales: Number(totalCigaretteSales.toFixed(2)),
+        totalCigaretteStock: Number(totalCigaretteStock.toFixed(2)),
+        totalZardaSalesValue,
+        totalZardaStockValue,
+        totalEmptyPackets,
+      },
+    });
+
+    setModifiedTerritories((prev) => {
+      const next = new Set(prev);
+      next.delete(original.territoryId);
+      return next;
+    });
   };
 
   const handleCommit = async () => {
@@ -913,21 +960,34 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
 
                     <button
                       type="button"
+                      onClick={() => {
+                        setEditingTerritoryIndex(0);
+                        setActiveTabSection('sales');
+                      }}
+                      className="text-xs px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-blue-600 hover:bg-blue-500 text-white shadow-xs"
+                      title="Open full-screen responsive popup with comfortable mobile spacing"
+                    >
+                      <Edit3 className="h-3.5 w-3.5" />
+                      <span>Full Popup Editor</span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => setIsEditing(!isEditing)}
-                      className={`text-xs px-2.5 py-1 rounded-lg font-medium flex items-center gap-1.5 transition-all cursor-pointer ${isEditing
-                          ? 'bg-blue-600 text-white shadow-sm'
+                      className={`text-xs px-2.5 py-1 rounded-lg font-medium hidden sm:flex items-center gap-1.5 transition-all cursor-pointer ${isEditing
+                          ? 'bg-slate-800 text-white shadow-sm'
                           : 'bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-blue-500'
                         }`}
+                      title="Toggle direct inline table cell editing"
                     >
                       {isEditing ? (
                         <>
                           <Check className="h-3.5 w-3.5" />
-                          <span>Done Editing</span>
+                          <span>Done Inline Edit</span>
                         </>
                       ) : (
                         <>
-                          <Edit3 className="h-3.5 w-3.5 text-blue-500" />
-                          <span>Edit Preview Data</span>
+                          <span>Inline Table Edit</span>
                         </>
                       )}
                     </button>
@@ -947,15 +1007,117 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
                 </div>
 
                 {isEditing && (
-                  <div className="px-3.5 py-2 bg-blue-50/70 dark:bg-blue-950/40 border-b border-blue-200 dark:border-blue-900/60 text-[11px] text-blue-800 dark:text-blue-300 flex items-center gap-2">
+                  <div className="px-3.5 py-2 bg-blue-50/70 dark:bg-blue-950/40 border-b border-blue-200 dark:border-blue-900/60 text-[11px] text-blue-800 dark:text-blue-300 hidden sm:flex items-center gap-2">
                     <Edit3 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
                     <span>
-                      <strong>Edit Mode Active:</strong> You can edit Brand Wise Sales (BITCL), Brand Wise Closing Stock (BITCL), Zarda, empty packets, or remarks directly below. Totals recalculate live before inserting into the database.
+                      <strong>Inline Edit Active:</strong> You can edit Brand Wise Sales (BITCL), Brand Wise Closing Stock (BITCL), Zarda, empty packets, or remarks directly below. Totals recalculate live before inserting into the database.
                     </span>
                   </div>
                 )}
 
-                <div className="max-h-72 overflow-y-auto">
+                {/* Mobile Responsive Cards View (< md) */}
+                <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800/60 max-h-96 overflow-y-auto">
+                  {preview.records.map((r, idx) => {
+                    const isRev = preview.duplicateTerritories?.includes(r.territoryId);
+                    const isModified = modifiedTerritories.has(r.territoryId);
+
+                    return (
+                      <div key={r.territoryId} className="p-3.5 space-y-3 bg-white dark:bg-slate-900">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-sm text-slate-900 dark:text-white">
+                                {r.territoryName}
+                              </span>
+                              {isModified ? (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono font-bold bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                  EDITED
+                                </span>
+                              ) : isRev ? (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono font-bold bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                  UPDATE
+                                </span>
+                              ) : (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                  INSERT
+                                </span>
+                              )}
+                            </div>
+                            {(r as any).sourceFiles && (r as any).sourceFiles.length > 1 && (
+                              <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono mt-0.5 block">
+                                {(r as any).sourceFiles.length} files merged
+                              </span>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingTerritoryIndex(idx);
+                              setActiveTabSection('sales');
+                            }}
+                            className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer shrink-0"
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                            <span>Edit</span>
+                          </button>
+                        </div>
+
+                        {/* 4-Grid Key Metrics */}
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="p-2.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/40">
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">Sales Total</span>
+                            <span className="font-mono font-bold text-blue-700 dark:text-blue-300 text-sm">
+                              {r.totalCigaretteSales.toFixed(2)} <span className="text-[10px] font-normal">Mio</span>
+                            </span>
+                          </div>
+
+                          <div className="p-2.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/40">
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">Closing Stock</span>
+                            <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300 text-sm">
+                              {r.totalCigaretteStock.toFixed(2)} <span className="text-[10px] font-normal">Mio</span>
+                            </span>
+                          </div>
+
+                          <div className="p-2.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/40">
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">Zarda Sales</span>
+                            <span className="font-mono font-bold text-purple-700 dark:text-purple-300 text-xs">
+                              ৳ {r.totalZardaSalesValue.toLocaleString()}
+                            </span>
+                          </div>
+
+                          <div className="p-2.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/40">
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">Zarda Stock</span>
+                            <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300 text-xs">
+                              ৳ {r.totalZardaStockValue.toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+
+                        {r.remarks && (
+                          <p className="text-[11px] text-slate-600 dark:text-slate-400 italic bg-slate-50 dark:bg-slate-950 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
+                            Note: {r.remarks}
+                          </p>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingTerritoryIndex(idx);
+                            setActiveTabSection('sales');
+                          }}
+                          className="w-full py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/60 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                          <span>Open Full Popup Editor for {r.territoryName}</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop View: Comprehensive Tabular Matrix */}
+                <div className="hidden md:block max-h-72 overflow-y-auto">
                   <table className="w-full text-left text-[11px]">
                     <thead className="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 font-mono bg-slate-50/50 dark:bg-slate-950/50 sticky top-0">
                       <tr>
@@ -1299,14 +1461,29 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
                                 )}
                               </td>
 
-                              <td className="py-2 px-2 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => setExpandedTerritoryId(isExpanded ? null : r.territoryId)}
-                                  className="text-xs px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-blue-600 cursor-pointer"
-                                >
-                                  {isExpanded ? 'Hide' : 'Edit'}
-                                </button>
+                              <td className="py-2 px-2 text-center whitespace-nowrap">
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingTerritoryIndex(idx);
+                                      setActiveTabSection('sales');
+                                    }}
+                                    className="text-xs px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/70 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-semibold cursor-pointer flex items-center gap-1 shadow-xs"
+                                    title="Open full popup editor with comfortable mobile & desktop spacing"
+                                  >
+                                    <Edit3 className="h-3 w-3" />
+                                    <span>Edit</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedTerritoryId(isExpanded ? null : r.territoryId)}
+                                    className="text-xs p-1 rounded border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white cursor-pointer"
+                                    title="Toggle inline details"
+                                  >
+                                    {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                  </button>
+                                </div>
                               </td>
                             </tr>
 
@@ -1534,6 +1711,427 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
           </div>
         )}
 
+        {/* Full Popup Editor Modal Dialog (Mobile-First Ergonomics & Desktop Luxury) */}
+        {editingTerritoryIndex !== null && preview && preview.records[editingTerritoryIndex] && (() => {
+          const r = preview.records[editingTerritoryIndex];
+          const idx = editingTerritoryIndex;
+          const isModified = modifiedTerritories.has(r.territoryId);
+          const totalCount = preview.records.length;
+
+          return (
+            <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-md p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
+              <div className="relative w-full max-w-3xl max-h-[94vh] flex flex-col rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
+                {/* Modal Sticky Header */}
+                <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-950/90 backdrop-blur-md flex items-center justify-between shrink-0 gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 shrink-0">
+                      <Edit3 className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
+                          {r.territoryName}
+                        </h3>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                          Territory {idx + 1} of {totalCount}
+                        </span>
+                        {isModified ? (
+                          <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                            Edited
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                            Original Excel
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        Date: <span className="font-semibold text-slate-700 dark:text-slate-300">{preview.targetDate}</span> • Tab &quot;{preview.matchedSheet.name}&quot;
+                        {(r as any).sourceFiles && (r as any).sourceFiles.length > 1 && (
+                          <span className="ml-1.5 text-blue-600 dark:text-blue-400 font-mono">
+                            ({(r as any).sourceFiles.length} files merged)
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Quick Prev / Next Pagination in Header */}
+                    <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-0.5">
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => setEditingTerritoryIndex(idx - 1)}
+                        className="p-1 rounded text-slate-500 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 cursor-pointer"
+                        title="Previous Territory"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      <span className="text-[10px] font-mono font-semibold px-1.5 text-slate-600 dark:text-slate-400">
+                        {idx + 1}/{totalCount}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={idx === totalCount - 1}
+                        onClick={() => setEditingTerritoryIndex(idx + 1)}
+                        className="p-1 rounded text-slate-500 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 cursor-pointer"
+                        title="Next Territory"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setEditingTerritoryIndex(null)}
+                      className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                      title="Close Popup Editor"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Section Navigation Tabs for Quick Mobile Ergonomics */}
+                <div className="flex items-center gap-1 px-3 sm:px-6 py-2 bg-slate-100/80 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 overflow-x-auto shrink-0 scrollbar-none">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTabSection('sales')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeTabSection === 'sales'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <TrendingUp className="h-3.5 w-3.5" />
+                    <span>Sales ({r.totalCigaretteSales.toFixed(2)} Mio)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTabSection('stock')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeTabSection === 'stock'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-white/60 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <Boxes className="h-3.5 w-3.5" />
+                    <span>Stock ({r.totalCigaretteStock.toFixed(2)} Mio)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTabSection('zarda')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeTabSection === 'zarda'
+                        ? 'bg-purple-600 text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-white/60 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <Package className="h-3.5 w-3.5" />
+                    <span>Zarda (৳ {(r.totalZardaSalesValue + r.totalZardaStockValue).toLocaleString()})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTabSection('remarks')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeTabSection === 'remarks'
+                        ? 'bg-slate-800 text-white dark:bg-slate-700 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <span>Packets & Notes</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTabSection('all')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeTabSection === 'all'
+                        ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <span>All Sections</span>
+                  </button>
+                </div>
+
+                {/* Modal Scrollable Body */}
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+                  {/* Section 1: Cigarette Brand Wise Sales (BITCL) */}
+                  {(activeTabSection === 'sales' || activeTabSection === 'all') && (
+                    <div className="space-y-3 bg-blue-50/30 dark:bg-blue-950/20 p-3.5 sm:p-4 rounded-2xl border border-blue-100 dark:border-blue-900/40">
+                      <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-blue-200/60 dark:border-blue-900/60">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                          <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                            1. Brand Wise Sales (BITCL)
+                          </h4>
+                          <span className="text-[10px] text-slate-500 font-normal">Million Sticks</span>
+                        </div>
+                        <div className="px-3 py-1 rounded-xl bg-blue-100 dark:bg-blue-900/70 text-blue-800 dark:text-blue-200 font-mono font-bold text-xs sm:text-sm">
+                          Total: {r.totalCigaretteSales.toFixed(2)} Mio
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {[
+                          { key: 'wilson', label: 'Wilson' },
+                          { key: 'shahara', label: 'Shahara' },
+                          { key: 'express', label: 'Express' },
+                          { key: 'nexus', label: 'Nexus' },
+                          { key: 'sb', label: 'Special Blend (SB)' },
+                          { key: 'sm', label: 'SM' },
+                        ].map(({ key, label }) => (
+                          <div key={key} className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                {label}
+                              </label>
+                              <span className="text-[10px] text-slate-400">Mio</span>
+                            </div>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={r.cigaretteSales[key as keyof typeof r.cigaretteSales]}
+                              onChange={(e) => handleRecordChange(idx, 'sales', key, e.target.value)}
+                              className="w-full text-right font-mono font-bold text-sm sm:text-base h-11 sm:h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-950/50 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white transition-all"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Section 2: Cigarette Brand Wise Closing Stock (BITCL) */}
+                  {(activeTabSection === 'stock' || activeTabSection === 'all') && (
+                    <div className="space-y-3 bg-emerald-50/30 dark:bg-emerald-950/20 p-3.5 sm:p-4 rounded-2xl border border-emerald-100 dark:border-emerald-900/40">
+                      <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-emerald-200/60 dark:border-emerald-900/60">
+                        <div className="flex items-center gap-2">
+                          <Boxes className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                          <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                            2. Brand Wise Closing Stock (BITCL)
+                          </h4>
+                          <span className="text-[10px] text-slate-500 font-normal">Million Sticks</span>
+                        </div>
+                        <div className="px-3 py-1 rounded-xl bg-emerald-100 dark:bg-emerald-900/70 text-emerald-800 dark:text-emerald-200 font-mono font-bold text-xs sm:text-sm">
+                          Total: {r.totalCigaretteStock.toFixed(2)} Mio
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {[
+                          { key: 'wilson', label: 'Wilson' },
+                          { key: 'shahara', label: 'Shahara' },
+                          { key: 'express', label: 'Express' },
+                          { key: 'nexus', label: 'Nexus' },
+                          { key: 'sb', label: 'Special Blend (SB)' },
+                          { key: 'sm', label: 'SM' },
+                        ].map(({ key, label }) => (
+                          <div key={key} className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                {label}
+                              </label>
+                              <span className="text-[10px] text-slate-400">Mio</span>
+                            </div>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={r.cigaretteStock[key as keyof typeof r.cigaretteStock]}
+                              onChange={(e) => handleRecordChange(idx, 'stock', key, e.target.value)}
+                              className="w-full text-right font-mono font-bold text-sm sm:text-base h-11 sm:h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-950/50 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 dark:text-white transition-all"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Section 3: Zarda Sales & Closing Stock */}
+                  {(activeTabSection === 'zarda' || activeTabSection === 'all') && (
+                    <div className="space-y-4">
+                      {/* Zarda Sales */}
+                      <div className="space-y-3 bg-purple-50/30 dark:bg-purple-950/20 p-3.5 sm:p-4 rounded-2xl border border-purple-100 dark:border-purple-900/40">
+                        <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-purple-200/60 dark:border-purple-900/60">
+                          <div className="flex items-center gap-2">
+                            <Package className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                            <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                              3. Zarda Sales Quantities & Valuation
+                            </h4>
+                          </div>
+                          <div className="px-3 py-1 rounded-xl bg-purple-100 dark:bg-purple-900/70 text-purple-800 dark:text-purple-200 font-mono font-bold text-xs sm:text-sm">
+                            Valuation: ৳ {r.totalZardaSalesValue.toLocaleString()}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          {[
+                            { key: 'slb', label: 'SLB (Loose)', unit: 'Kg', step: '0.01' },
+                            { key: 'qty_22_25', label: '22/25', unit: '৳1,250/can', step: '1' },
+                            { key: 'qty_99_14', label: '99/14', unit: '৳700/can', step: '1' },
+                            { key: 'qty_33_15', label: '33/15', unit: '৳750/can', step: '1' },
+                          ].map(({ key, label, unit, step }) => (
+                            <div key={key} className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                  {label}
+                                </label>
+                                <span className="text-[10px] text-slate-400">{unit}</span>
+                              </div>
+                              <input
+                                type="number"
+                                step={step}
+                                min="0"
+                                value={r.zardaSales[key as keyof typeof r.zardaSales]}
+                                onChange={(e) => handleRecordChange(idx, 'zardaSales', key, e.target.value)}
+                                className="w-full text-right font-mono font-bold text-sm sm:text-base h-11 sm:h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-950/50 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-900 dark:text-white transition-all"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Zarda Closing Stock */}
+                      <div className="space-y-3 bg-indigo-50/30 dark:bg-indigo-950/20 p-3.5 sm:p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/40">
+                        <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-indigo-200/60 dark:border-indigo-900/60">
+                          <div className="flex items-center gap-2">
+                            <Package className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                            <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                              4. Zarda Closing Stock Quantities & Valuation
+                            </h4>
+                          </div>
+                          <div className="px-3 py-1 rounded-xl bg-indigo-100 dark:bg-indigo-900/70 text-indigo-800 dark:text-indigo-200 font-mono font-bold text-xs sm:text-sm">
+                            Valuation: ৳ {r.totalZardaStockValue.toLocaleString()}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          {[
+                            { key: 'slb', label: 'SLB (Loose)', unit: 'Kg', step: '0.01' },
+                            { key: 'qty_22_25', label: '22/25', unit: '৳1,250/can', step: '1' },
+                            { key: 'qty_99_14', label: '99/14', unit: '৳700/can', step: '1' },
+                            { key: 'qty_33_15', label: '33/15', unit: '৳750/can', step: '1' },
+                          ].map(({ key, label, unit, step }) => (
+                            <div key={key} className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                  {label}
+                                </label>
+                                <span className="text-[10px] text-slate-400">{unit}</span>
+                              </div>
+                              <input
+                                type="number"
+                                step={step}
+                                min="0"
+                                value={r.zardaStock[key as keyof typeof r.zardaStock]}
+                                onChange={(e) => handleRecordChange(idx, 'zardaStock', key, e.target.value)}
+                                className="w-full text-right font-mono font-bold text-sm sm:text-base h-11 sm:h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-950/50 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white transition-all"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Section 4: Operational Fields (Empty Packets & Remarks) */}
+                  {(activeTabSection === 'remarks' || activeTabSection === 'all') && (
+                    <div className="space-y-4 bg-slate-50/60 dark:bg-slate-950/40 p-3.5 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                      <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white pb-2 border-b border-slate-200 dark:border-slate-800">
+                        5. Empty Packets & Operational Remarks
+                      </h4>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                            Empty Packets Count
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={r.emptyPackets}
+                            onChange={(e) => handleRecordChange(idx, 'emptyPackets', undefined, e.target.value)}
+                            className="w-full text-right font-mono font-bold text-sm sm:text-base h-11 sm:h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                          />
+                          <p className="text-[10px] text-slate-400">Total physical cigarette packs collected</p>
+                        </div>
+
+                        <div className="sm:col-span-2 space-y-1.5">
+                          <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                            Operational Remarks
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={r.remarks || ''}
+                            placeholder="Enter notes, distribution remarks, or supervisor comments..."
+                            onChange={(e) => handleRecordChange(idx, 'remarks', undefined, e.target.value)}
+                            className="w-full p-2.5 text-xs sm:text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Modal Sticky Footer */}
+                <div className="px-4 py-3 sm:px-6 sm:py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+                  <div className="flex items-center gap-2">
+                    {isModified && (
+                      <button
+                        type="button"
+                        onClick={() => handleResetSingleTerritory(idx)}
+                        className="text-xs px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        title="Revert this territory to original imported values"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        <span>Reset Territory</span>
+                      </button>
+                    )}
+                    <span className="text-[11px] text-slate-500 hidden sm:inline">
+                      Changes update summary totals in real-time
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {idx > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingTerritoryIndex(idx - 1)}
+                        className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                        <span>Prev</span>
+                      </button>
+                    )}
+
+                    {idx < totalCount - 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingTerritoryIndex(idx + 1)}
+                        className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <span>Next</span>
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setEditingTerritoryIndex(null)}
+                      className="flex-1 sm:flex-initial px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-sm shadow-blue-500/20 cursor-pointer"
+                    >
+                      <Check className="h-4 w-4" />
+                      <span>Apply & Close</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {importSuccess && (
           <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/60 p-4 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-3">
             <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -1547,7 +2145,7 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
         )}
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
           <div className="text-xs text-slate-500">
             {preview && preview.records.length > 0 && !importSuccess && (
               <span>
@@ -1560,10 +2158,10 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-end gap-2.5">
             <button
               onClick={onClose}
-              className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              className="flex-1 sm:flex-initial rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2.5 sm:py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer text-center"
             >
               {importSuccess ? 'Close' : 'Cancel'}
             </button>
@@ -1571,7 +2169,7 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
               <button
                 onClick={handleCommit}
                 disabled={committing}
-                className="rounded-lg bg-blue-600 px-5 py-2 text-xs font-semibold text-white hover:bg-blue-500 shadow-md shadow-blue-500/20 cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                className="flex-1 sm:flex-initial rounded-lg bg-blue-600 px-5 py-2.5 sm:py-2 text-xs font-semibold text-white hover:bg-blue-500 shadow-md shadow-blue-500/20 cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 text-center"
               >
                 {committing ? (
                   <>
