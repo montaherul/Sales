@@ -18,7 +18,8 @@ import {
   Lock,
   Sparkles,
   X,
-  CalendarDays
+  CalendarDays,
+  MapPin
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -54,6 +55,7 @@ export function Sidebar({
 
   const operationalNav = [
     { id: 'dashboard', label: 'Executive Analytics', icon: LayoutDashboard },
+    { id: 'territory_csr', label: 'Territory CSR Sales (TSO)', icon: MapPin },
     { id: 'entry', label: 'Daily Sales & Stock', icon: FileEdit },
     { id: 'approvals', label: 'Review & Approvals', icon: ShieldCheck },
   ];

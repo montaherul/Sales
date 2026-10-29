@@ -50,7 +50,16 @@ export class AuditLogRepository {
    * Appends an immutable audit event to audit_logs.
    */
   public async append(event: AuditEvent, companyId?: string | null, ipAddress?: string | null): Promise<string> {
-    const id = `audit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const crypto = await import('crypto');
+    const id = crypto.randomUUID();
+    const validUserId = isUuid.test(event.userId) ? event.userId : null;
+    const validEntityId = isUuid.test(event.entityId) ? event.entityId : null;
+    const enrichedNewValues = {
+      ...(typeof event.newValues === 'object' && event.newValues ? event.newValues : {}),
+      ...(!validUserId && event.userId ? { rawUserId: event.userId } : {}),
+      ...(!validEntityId && event.entityId ? { rawEntityId: event.entityId } : {}),
+    };
 
     try {
       await dbQuery(
@@ -58,19 +67,20 @@ export class AuditLogRepository {
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [
           id,
-          event.userId,
+          validUserId,
           event.eventType,
           event.entityName,
-          event.entityId,
+          validEntityId,
           event.oldValues ? JSON.stringify(event.oldValues) : null,
-          event.newValues ? JSON.stringify(event.newValues) : null,
-          event.timestamp,
+          Object.keys(enrichedNewValues).length > 0 ? JSON.stringify(enrichedNewValues) : null,
+          event.timestamp || new Date().toISOString(),
           companyId || null,
           ipAddress || null,
         ]
       );
       return id;
-    } catch {
+    } catch (err) {
+      logger.warn('PostgreSQL audit log append failed, writing to fallback store', 'AuditLogRepository', { err });
       // Local fallback append
       try {
         let store = { auditLogs: [] as any[] };

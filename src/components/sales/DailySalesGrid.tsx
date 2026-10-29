@@ -42,7 +42,21 @@ import {
 import { ServerDataTable, ColumnDef } from '@/components/common/ServerDataTable';
 import { Select2, Select2Option } from '@/components/common/Select2';
 import { DatePicker } from '@/components/common/DatePicker';
-import { getTodayDateString } from '@/shared/utils';
+async function safeParseJson(res: Response): Promise<any> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    if (!res.ok) {
+      throw new Error(`Server Error (${res.status}): ${text.slice(0, 300) || res.statusText}`);
+    }
+    throw new Error(`Unexpected non-JSON response from server: ${text.slice(0, 100)}`);
+  }
+}
+
+function getTodayDateString(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 interface TerritoryItem {
   id: string;
@@ -78,8 +92,32 @@ export function DailySalesGrid({
   const [territories, setTerritories] = useState<TerritoryItem[]>([]);
   const [selectedTerritoryId, setSelectedTerritoryId] = useState<string>('');
   const [selectedTerritoryName, setSelectedTerritoryName] = useState<string>('');
-  const [reportDate, setReportDate] = useState(() => getTodayDateString());
+  const [reportDate, setReportDate] = useState(() => '2026-10-06');
+  const [filterDate, setFilterDate] = useState<string>('');
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
+
+  // Load available recorded dates dynamically
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchRecordedDates() {
+      try {
+        const q = companyId && companyId !== 'ALL' ? `?companyId=${companyId}` : '';
+        const res = await fetch(`/api/daily-submissions/dates${q}`);
+        const json = await res.json();
+        if (isMounted && json.success && Array.isArray(json.data) && json.data.length > 0) {
+          setAvailableDates(json.data);
+          setReportDate((curr) => (json.data.includes(curr) ? curr : json.data[0]));
+        }
+      } catch (err) {
+        console.error('Failed to load recorded dates in DailySalesGrid:', err);
+      }
+    }
+    fetchRecordedDates();
+    return () => {
+      isMounted = false;
+    };
+  }, [companyId]);
 
   // Operational State
   const [submittedStatus, setSubmittedStatus] = useState<string | null>(null);
@@ -170,16 +208,25 @@ export function DailySalesGrid({
       try {
         const query = companyId && companyId !== 'ALL' ? `?companyId=${companyId}` : '';
         const res = await fetch(`/api/master-data${query}`);
-        const json = await res.json();
+        const json = await safeParseJson(res);
         if (json.success && json.data.territories?.length > 0) {
-          setTerritories(json.data.territories);
+          const terrList: TerritoryItem[] = json.data.territories;
+          setTerritories(terrList);
+
+          // Find if current user has an assigned territory (TSO or CSR)
+          const userTerrMatch = currentUser?.territoryId
+            ? terrList.find((t) => t.id === currentUser.territoryId || t.name.toLowerCase() === currentUser.territoryId?.toLowerCase())
+            : null;
+
+          const defaultTerrId = userTerrMatch?.id || (effectiveRole === 'TSO' || effectiveRole === 'CSR' ? terrList[0]?.id : 'ALL');
+
           setSelectedTerritoryId((prev) => {
-            const exists = json.data.territories.some((t: any) => t.id === prev);
-            return exists ? prev : (json.data.territories[0]?.id || 'ALL');
+            if (prev && terrList.some((t) => t.id === prev)) return prev;
+            return defaultTerrId;
           });
           setSelectedTerritoryName((prev) => {
-            const match = json.data.territories.find((t: any) => t.id === selectedTerritoryId);
-            return match ? match.name : (json.data.territories[0]?.name || '');
+            const match = terrList.find((t) => t.id === defaultTerrId);
+            return match ? match.name : (terrList[0]?.name || '');
           });
         }
       } catch (err) {
@@ -187,7 +234,7 @@ export function DailySalesGrid({
       }
     }
     loadMasterData();
-  }, [companyId]);
+  }, [companyId, currentUser?.territoryId, effectiveRole]);
 
   // Real-time calculations via centralized engine
   const totalSales = useMemo(() => calculateCigaretteSalesTotal(sales), [sales]);
@@ -202,9 +249,23 @@ export function DailySalesGrid({
   const loadSubmissionData = (record: any, mode: 'create' | 'edit') => {
     setFormMode(mode);
     setCurrentSubmissionId(record.id || null);
-    setSelectedTerritoryId(record.territory_id || record.territoryId || (territories[0]?.id || ''));
-    setSelectedTerritoryName(record.territory_name || record.territoryName || (territories[0]?.name || ''));
-    setReportDate(record.reporting_date || record.reportDate || getTodayDateString());
+
+    // Prioritize user's assigned territory if TSO/CSR, or territory specified in record
+    const userAssignedTerr = currentUser?.territoryId
+      ? territories.find((t) => t.id === currentUser.territoryId || t.name.toLowerCase() === currentUser.territoryId?.toLowerCase())
+      : null;
+
+    let targetTerrId = record.territory_id || record.territoryId;
+    if (!targetTerrId || targetTerrId === 'ALL') {
+      targetTerrId = userAssignedTerr?.id || (selectedTerritoryId && selectedTerritoryId !== 'ALL' ? selectedTerritoryId : null) || territories[0]?.id || '';
+    }
+
+    const matchedTerr = territories.find((t) => t.id === targetTerrId);
+    const targetTerrName = record.territory_name || record.territoryName || matchedTerr?.name || territories[0]?.name || '';
+
+    setSelectedTerritoryId(targetTerrId);
+    setSelectedTerritoryName(targetTerrName);
+    setReportDate(record.reporting_date || record.reportDate || new Date().toISOString().slice(0, 10));
     const initialStatus = record.status || (mode === 'create' ? 'NEW' : 'DRAFT');
     setCurrentStatus(initialStatus);
     setAdminSelectedStatus(record.status || 'DRAFT');
@@ -254,9 +315,16 @@ export function DailySalesGrid({
   };
 
   const handleCreateNew = () => {
+    const userAssignedTerr = currentUser?.territoryId
+      ? territories.find((t) => t.id === currentUser.territoryId || t.name.toLowerCase() === currentUser.territoryId?.toLowerCase())
+      : null;
+    const initialTerr = (selectedTerritoryId && selectedTerritoryId !== 'ALL')
+      ? territories.find((t) => t.id === selectedTerritoryId)
+      : (userAssignedTerr || territories[0]);
+
     loadSubmissionData({
-      territory_id: selectedTerritoryId || (territories[0]?.id || ''),
-      territory_name: selectedTerritoryName || (territories[0]?.name || ''),
+      territory_id: initialTerr?.id || '',
+      territory_name: initialTerr?.name || '',
       reporting_date: reportDate,
     }, 'create');
   };
@@ -277,12 +345,22 @@ export function DailySalesGrid({
     }
     setIsSaving(true);
     try {
-      const selectedTerr = territories.find(t => t.id === selectedTerritoryId);
-      const currentRegionName = selectedTerr?.region_name || 'Satkania';
+      const activeTerr = territories.find((t) => t.id === selectedTerritoryId)
+        || (currentUser?.territoryId ? territories.find((t) => t.id === currentUser.territoryId || t.name.toLowerCase() === currentUser.territoryId?.toLowerCase()) : null)
+        || territories[0];
+      const targetTerritoryId = activeTerr?.id;
+      const targetTerritoryName = activeTerr?.name;
+      const currentRegionName = activeTerr?.region_name || 'Satkania';
+
+      if (!targetTerritoryId || targetTerritoryId === 'ALL') {
+        alert('Please select a specific territory for this entry.');
+        setIsSaving(false);
+        return;
+      }
 
       const record = {
-        territoryId: selectedTerritoryId,
-        territoryName: selectedTerritoryName,
+        territoryId: targetTerritoryId,
+        territoryName: targetTerritoryName,
         regionName: currentRegionName,
         reportDate,
         dayNumber: parseInt(reportDate.split('-')[2] || String(new Date().getDate()), 10),
@@ -310,7 +388,7 @@ export function DailySalesGrid({
         }),
       });
 
-      const json = await res.json();
+      const json = await safeParseJson(res);
       if (json.success) {
         setCurrentStatus('DRAFT');
         setSubmittedStatus('Draft saved to PostgreSQL database.');
@@ -333,13 +411,23 @@ export function DailySalesGrid({
     }
     setIsSaving(true);
     try {
-      const selectedTerr = territories.find(t => t.id === selectedTerritoryId);
-      const currentRegionName = selectedTerr?.region_name || 'Satkania';
+      const activeTerr = territories.find((t) => t.id === selectedTerritoryId)
+        || (currentUser?.territoryId ? territories.find((t) => t.id === currentUser.territoryId || t.name.toLowerCase() === currentUser.territoryId?.toLowerCase()) : null)
+        || territories[0];
+      const targetTerritoryId = activeTerr?.id;
+      const targetTerritoryName = activeTerr?.name;
+      const currentRegionName = activeTerr?.region_name || 'Satkania';
       const actorEmail = currentUser?.email || 'csr.keranihat@afaztobacco.com';
 
+      if (!targetTerritoryId || targetTerritoryId === 'ALL') {
+        alert('Please select a specific territory for this submission.');
+        setIsSaving(false);
+        return;
+      }
+
       const record = {
-        territoryId: selectedTerritoryId,
-        territoryName: selectedTerritoryName,
+        territoryId: targetTerritoryId,
+        territoryName: targetTerritoryName,
         regionName: currentRegionName,
         reportDate,
         dayNumber: parseInt(reportDate.split('-')[2] || '6', 10),
@@ -363,14 +451,14 @@ export function DailySalesGrid({
         body: JSON.stringify({ record, userId: actorEmail }),
       });
 
-      const json = await res.json();
+      const json = await safeParseJson(res);
       if (json.success) {
         // Trigger workflow
         await fetch('/api/daily-submissions/workflow', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            territoryId: selectedTerritoryId,
+            territoryId: targetTerritoryId,
             reportDate,
             toStatus: 'SUBMITTED',
             userId: actorEmail,
@@ -395,13 +483,21 @@ export function DailySalesGrid({
   const handleDirectAdminSave = async (explicitStatus?: SubmissionStatus) => {
     setIsSaving(true);
     try {
-      const selectedTerr = territories.find(t => t.id === selectedTerritoryId);
-      const currentRegionName = selectedTerr?.region_name || 'Satkania';
+      const activeTerr = territories.find((t) => t.id === selectedTerritoryId) || territories[0];
+      const targetTerritoryId = activeTerr?.id;
+      const targetTerritoryName = activeTerr?.name;
+      const currentRegionName = activeTerr?.region_name || 'Satkania';
       const targetStatus = explicitStatus || adminSelectedStatus || (currentStatus !== 'NEW' ? currentStatus : 'FINALIZED');
 
+      if (!targetTerritoryId || targetTerritoryId === 'ALL') {
+        alert('Please select a specific territory for this operational entry.');
+        setIsSaving(false);
+        return;
+      }
+
       const record = {
-        territoryId: selectedTerritoryId,
-        territoryName: selectedTerritoryName,
+        territoryId: targetTerritoryId,
+        territoryName: targetTerritoryName,
         regionName: currentRegionName,
         reportDate,
         dayNumber: parseInt(reportDate.split('-')[2] || String(new Date().getDate()), 10),
@@ -429,7 +525,7 @@ export function DailySalesGrid({
         }),
       });
 
-      const json = await res.json();
+      const json = await safeParseJson(res);
       if (json.success) {
         setCurrentStatus(targetStatus);
         setAdminSelectedStatus(targetStatus);
@@ -469,7 +565,7 @@ export function DailySalesGrid({
         }),
       });
 
-      const json = await res.json();
+      const json = await safeParseJson(res);
       if (json.success) {
         if (!rowItem) {
           setCurrentStatus(nextStatus);
@@ -508,7 +604,7 @@ export function DailySalesGrid({
         }),
       });
 
-      const json = await res.json();
+      const json = await safeParseJson(res);
       if (json.success) {
         if (!rowItem) {
           setCurrentStatus(newStatus);
@@ -776,13 +872,27 @@ export function DailySalesGrid({
                 />
               </div>
 
-              <div className="w-full sm:w-56 relative z-50">
-                <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1 block">
-                  Reporting Date Scope
-                </label>
+              <div className="w-full sm:w-60 relative z-50">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
+                    Reporting Date Scope
+                  </label>
+                  {filterDate && (
+                    <button
+                      type="button"
+                      onClick={() => setFilterDate('')}
+                      className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-semibold cursor-pointer"
+                    >
+                      Show All Dates
+                    </button>
+                  )}
+                </div>
                 <DatePicker
-                  value={reportDate}
-                  onChange={(d) => setReportDate(d)}
+                  value={filterDate || reportDate}
+                  onChange={(d) => {
+                    setFilterDate(d);
+                    setReportDate(d);
+                  }}
                 />
               </div>
 
@@ -805,6 +915,42 @@ export function DailySalesGrid({
                 </button>
               </div>
             </div>
+
+            {/* Quick Recorded Date Switch Pills */}
+            {availableDates.length > 0 && (
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] pt-1">
+                <span className="text-slate-500 font-medium shrink-0">Recorded Days:</span>
+                <button
+                  type="button"
+                  onClick={() => setFilterDate('')}
+                  className={`px-2 py-0.5 rounded font-mono font-semibold transition-all cursor-pointer shrink-0 ${
+                    !filterDate
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  All Days
+                </button>
+                {availableDates.slice(0, 10).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => {
+                      setFilterDate(d);
+                      setReportDate(d);
+                    }}
+                    className={`px-2 py-0.5 rounded font-mono font-semibold transition-all cursor-pointer shrink-0 ${
+                      filterDate === d
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                    title={`Filter by ${d}`}
+                  >
+                    Day {parseInt(d.split('-')[2] || '1', 10)}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Bottom Toolbar: Interactive Status Filter Pills */}
             <div className="pt-3 border-t border-slate-200 dark:border-slate-800 relative z-10">
@@ -858,15 +1004,18 @@ export function DailySalesGrid({
           {/* Server-Side Tabulator Table */}
           <div className="relative z-10">
             <ServerDataTable
-              key={`${tableRefreshKey}_${companyId}`}
+              key={`${tableRefreshKey}_${companyId}_${filterDate}`}
               endpoint="/api/daily-submissions"
               columns={columns}
+              defaultSortBy="reporting_date"
+              defaultSortOrder="desc"
               searchPlaceholder="Search territory, region, status, remarks..."
               exportFilenamePrefix="Daily_Submissions"
               onBatchDelete={handleBatchDelete}
               additionalParams={{
                 territoryId: selectedTerritoryId,
                 status: filterStatus,
+                date: filterDate || undefined,
                 companyId: companyId !== 'ALL' ? companyId : undefined,
               }}
             />

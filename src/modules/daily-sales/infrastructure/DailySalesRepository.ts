@@ -152,6 +152,13 @@ export class DailySalesRepository {
     );
     return res.rows[0]?.company_id || null;
   }
+
+  /**
+   * Retrieves all distinct recorded dates for daily submissions.
+   */
+  public async getRecordedDates(companyId?: string | null): Promise<string[]> {
+    return await SubmissionRepository.getRecordedDates(companyId);
+  }
 }
 
 export const dailySalesRepository = new DailySalesRepository();

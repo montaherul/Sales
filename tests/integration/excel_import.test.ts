@@ -151,6 +151,132 @@ async function runImportTests() {
   assert.strictEqual(explicitRes.matchedSheet.name, '6');
   console.log('  ✅ PASS: Explicit sheet selection "6" honored');
 
+  // Test 9: Server-Side Multi-File Consolidation (processMultiFileUpload)
+  console.log('\n[Test 9] Testing Server-Side Multi-File Consolidation (processMultiFileUpload)...');
+  const multiFileRes = await ExcelImportService.processMultiFileUpload({
+    files: [
+      {
+        buffer: templateBuffer,
+        fileName: 'Daily sales and Closing Stock Information October 6 2026.xlsx',
+      },
+      {
+        buffer: singleDailyBuffer,
+        fileName: 'Daily sales 06.10.2026.xlsx',
+      },
+    ],
+    applicationDate: '2026-10-06',
+    actor: mockActor,
+  });
+
+  assert.strictEqual(multiFileRes.fileStatuses.length, 2, 'Should process both uploaded files on server');
+  assert.strictEqual(multiFileRes.fileStatuses[0].status, 'SUCCESS');
+  assert.strictEqual(multiFileRes.fileStatuses[1].status, 'SUCCESS');
+  assert(multiFileRes.consolidatedPreview !== null, 'Consolidated preview must not be null');
+  assert.strictEqual(multiFileRes.consolidatedPreview?.records.length, 5, 'Consolidated records should map to 5 territories');
+  // Check sourceFiles attribution
+  assert(
+    multiFileRes.consolidatedPreview?.records[0].sourceFiles?.length === 2,
+    'Records should track multiple source workbooks'
+  );
+  console.log('  ✅ PASS: Server-side multi-file consolidation produced unified preview with sourceFiles tracking');
+
+  // Test 10: Server-Side Formula Recalculation on Commit (Rule 15 - Tamper-proofing)
+  console.log('\n[Test 10] Testing Server-Side Formula Recalculation on Commit (Rule 15)...');
+  const tamperedRecords = [
+    {
+      territoryId: 'satkania-1',
+      territoryName: 'Kerani hat',
+      regionName: 'Satkania',
+      reportDate: '2026-10-06',
+      dayNumber: 6,
+      status: 'DRAFT',
+      cigaretteSales: { wilson: 10, shahara: 20, express: 30, nexus: 0, sb: 0, sm: 0 },
+      cigaretteStock: { wilson: 5, shahara: 5, express: 5, nexus: 0, sb: 0, sm: 0 },
+      zardaSales: { slb: 0, qty_22_25: 1, qty_99_14: 0, qty_33_15: 0 },
+      zardaStock: { slb: 0, qty_22_25: 1, qty_99_14: 0, qty_33_15: 0 },
+      emptyPackets: 5,
+      // TAMPERED VALUES SENT FROM CLIENT:
+      totalCigaretteSales: 999999,
+      totalCigaretteStock: 888888,
+      totalZardaSalesValue: 777777,
+      totalZardaStockValue: 666666,
+    },
+  ];
+
+  const sanitizedCommit = await ExcelImportService.commitRecords(
+    tamperedRecords,
+    'tampered_test.xlsx',
+    mockActor
+  );
+  assert.strictEqual(sanitizedCommit.count, 1);
+  const committedRecord = sanitizedCommit.savedRecords[0];
+  // Verify server recomputed total sales = 10+20+30 = 60, not 999999!
+  assert.strictEqual(committedRecord.totalCigaretteSales, 60, 'Server must recalculate total sales from raw brands');
+  assert.strictEqual(committedRecord.totalCigaretteStock, 15, 'Server must recalculate total stock from raw brands');
+  assert.strictEqual(committedRecord.totalZardaSalesValue, 15, 'Server must recalculate zarda sales valuation (1 * 15)');
+  console.log('  ✅ PASS: Server recalculation successfully corrected tampered client totals');
+
+  // Test 11: Server-Side Permission Check on Commit (Rule 6 & Rule 7)
+  console.log('\n[Test 11] Testing Server-Side Permission Enforcement on Commit...');
+  const unauthorizedActor = {
+    id: 'csr-user-uuid',
+    email: 'csr@afaztobacco.com',
+    role: ROLES.CSR,
+    companyId: '53ea4edf-b686-45cb-816e-b29581847213',
+    territoryId: 'satkania-1',
+    regionId: 'satkania-region',
+    permissions: [],
+  };
+
+  let permissionBlocked = false;
+  try {
+    await ExcelImportService.commitRecords(tamperedRecords, 'unauth_import.xlsx', unauthorizedActor);
+  } catch (err: any) {
+    permissionBlocked = true;
+    assert(err.message.includes('permission') || err.message.includes('Unauthorized'));
+  }
+  assert.strictEqual(permissionBlocked, true, 'CSR role lacking reports.import must be rejected');
+  console.log('  ✅ PASS: Role lacking reports.import permission blocked from committing records');
+
+  // Test 12: Server-Side Organizational Scope Enforcement (Rule 8)
+  console.log('\n[Test 12] Testing Server-Side Organizational Scope Enforcement (Rule 8)...');
+  const tsoActor = {
+    id: 'tso-user-uuid',
+    email: 'tso@afaztobacco.com',
+    role: ROLES.COMPANY_ADMIN,
+    companyId: 'company-a',
+    territoryId: null,
+    regionId: null,
+    permissions: ['reports.import' as const],
+  };
+
+  const crossCompanyRecords = [
+    {
+      territoryId: 'satkania-1',
+      territoryName: 'Kerani hat',
+      regionName: 'Satkania',
+      companyId: 'company-b', // Different company
+      reportDate: '2026-10-06',
+      dayNumber: 6,
+      status: 'DRAFT',
+      cigaretteSales: { wilson: 1, shahara: 0, express: 0, nexus: 0, sb: 0, sm: 0 },
+      cigaretteStock: { wilson: 1, shahara: 0, express: 0, nexus: 0, sb: 0, sm: 0 },
+      zardaSales: { slb: 0, qty_22_25: 0, qty_99_14: 0, qty_33_15: 0 },
+      zardaStock: { slb: 0, qty_22_25: 0, qty_99_14: 0, qty_33_15: 0 },
+      emptyPackets: 0,
+    },
+  ];
+
+  let scopeBlocked = false;
+  try {
+    await ExcelImportService.commitRecords(crossCompanyRecords, 'cross_company.xlsx', tsoActor);
+  } catch (err: any) {
+    scopeBlocked = true;
+    assert(err.message.includes('scope') || err.message.includes('Company scope violation'));
+  }
+  assert.strictEqual(scopeBlocked, true, 'Cross-company scope violation must be rejected');
+  console.log('  ✅ PASS: Cross-company scope violation blocked by server');
+
   console.log('====================================================');
   console.log('🎉 ALL EXCEL IMPORT INTEGRATION TESTS PASSED!');
   console.log('====================================================');

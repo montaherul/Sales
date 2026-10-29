@@ -49,12 +49,50 @@ export class DailySalesService {
     }
 
     // Server-side scope verification: CSR / TSO cannot save to unauthorized territories
-    if (actor.role !== ROLES.SUPER_ADMIN) {
+    if (actor.role !== ROLES.SUPER_ADMIN && actor.role !== ROLES.COMPANY_ADMIN) {
       if (actor.companyId && record.companyId && record.companyId !== actor.companyId) {
         throw new ForbiddenError('Cannot save submissions for another company');
       }
-      if ((actor.role === ROLES.TSO || actor.role === ROLES.CSR) && actor.territoryId && actor.territoryId !== record.territoryId) {
-        throw new ForbiddenError('You can only save submissions for your assigned territory');
+
+      if ((actor.role === ROLES.TSO || actor.role === ROLES.CSR) && actor.territoryId) {
+        if (record.territoryId === 'ALL') {
+          record.territoryId = actor.territoryId;
+        }
+
+        const directMatch = actor.territoryId === record.territoryId ||
+          actor.territoryId.toLowerCase() === (record.territoryName || '').toLowerCase();
+
+        const cleanActor = actor.territoryId.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const cleanRecId = (record.territoryId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const cleanRecName = (record.territoryName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const normalizedMatch = cleanActor === cleanRecId ||
+          cleanActor === cleanRecName ||
+          (cleanRecName.length > 3 && cleanActor.includes(cleanRecName)) ||
+          (cleanActor.length > 3 && cleanRecName.includes(cleanActor));
+
+        let isMatch = directMatch || normalizedMatch;
+
+        if (!isMatch) {
+          try {
+            const { dbQuery } = await import('@/shared/database/db');
+            const terrCheck = await dbQuery(`
+              SELECT id, name FROM territories 
+              WHERE id::text = $1 OR id::text = $2 OR name ILIKE $1 OR name ILIKE $2;
+            `, [actor.territoryId, record.territoryId]);
+
+            if (terrCheck.rows.length === 1 || (terrCheck.rows.length > 1 && terrCheck.rows[0].id === terrCheck.rows[1].id)) {
+              isMatch = true;
+              record.territoryId = terrCheck.rows[0].id;
+              record.territoryName = terrCheck.rows[0].name;
+            }
+          } catch (scopeErr) {
+            logger.warn('Territory DB scope lookup error', 'DailySalesService', { scopeErr });
+          }
+        }
+
+        if (!isMatch) {
+          throw new ForbiddenError('You can only save submissions for your assigned territory');
+        }
       }
     }
 
@@ -220,5 +258,12 @@ export class DailySalesService {
    */
   public static async getSubmissionsByDateAndTerritory(date: string, territoryId: string): Promise<any[]> {
     return await dailySalesRepository.getByDateAndTerritory(date, territoryId);
+  }
+
+  /**
+   * Retrieves all distinct recorded dates.
+   */
+  public static async getRecordedDates(companyId?: string | null): Promise<string[]> {
+    return await dailySalesRepository.getRecordedDates(companyId);
   }
 }

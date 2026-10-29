@@ -5,11 +5,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseMultiDateXLSX } from '@/lib/excel/import';
 import { getAuthenticatedUser } from '@/shared/auth';
+import { hasPermission } from '@/shared/authorization';
 import { logger } from '@/shared/logger';
 
 export async function POST(request: NextRequest) {
   try {
     const actor = await getAuthenticatedUser(request);
+    if (!hasPermission(actor, 'reports.import')) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized: User lacks reports.import permission.' },
+        { status: 403 }
+      );
+    }
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const applicationYearMonth = (formData.get('applicationYearMonth') as string) || undefined;

@@ -21,6 +21,7 @@ import { ImportModal } from '@/components/import/ImportModal';
 import { DriveUploadWidget } from '@/components/drive/DriveUploadWidget';
 import { ExportModal } from '@/components/export/ExportModal';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
+import { TerritoryCsrHub } from '@/components/territory/TerritoryCsrHub';
 
 export default function Home() {
   const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
@@ -110,10 +111,12 @@ export default function Home() {
     if (user.role !== 'SUPER_ADMIN' && user.companyId) {
       setSelectedCompanyId(user.companyId);
     }
-    // CSRs start directly on entry form; executives start on dashboard
+    // CSRs start directly on entry form; TSOs start on territory CSR hub; executives on dashboard
     if (user.role === 'CSR') {
       setActiveTab('entry');
-    } else if (user.role === 'TSO' || user.role === 'RSO') {
+    } else if (user.role === 'TSO') {
+      setActiveTab('territory_csr');
+    } else if (user.role === 'RSO') {
       setActiveTab('approvals');
     } else {
       setActiveTab('dashboard');
@@ -207,6 +210,12 @@ export default function Home() {
         <main className="flex-1 p-3 sm:p-5 lg:p-8 pb-24 lg:pb-8 max-w-7xl w-full mx-auto">
           {/* Operational Modules */}
           {activeTab === 'dashboard' && <ExecutiveDashboard companyId={effectiveCompanyId} />}
+          {activeTab === 'territory_csr' && (
+            <TerritoryCsrHub
+              currentUser={currentUser}
+              companyId={effectiveCompanyId}
+            />
+          )}
           {activeTab === 'entry' && (
             <DailySalesGrid
               companyId={effectiveCompanyId}

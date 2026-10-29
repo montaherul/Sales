@@ -30,18 +30,44 @@ interface ExecutiveDashboardProps {
 }
 
 export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProps) {
-  const [reportDate, setReportDate] = useState(() => '2026-10-05');
+  const [reportDate, setReportDate] = useState<string>(() => '2026-10-06');
   const [records, setRecords] = useState<any[]>([]);
   const [targetsMap, setTargetsMap] = useState<Record<string, number>>({});
   const [workingDays, setWorkingDays] = useState<number>(26);
   const [loading, setLoading] = useState(false);
-  const [availableDates, setAvailableDates] = useState<string[]>(['2026-10-05', '2026-10-06']);
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+
+  // Dynamically fetch all distinct recorded submission dates from DB
+  useEffect(() => {
+    let isMounted = true;
+    const fetchDates = async () => {
+      try {
+        const companyParam = companyId && companyId !== 'ALL' ? `?companyId=${companyId}` : '';
+        const res = await fetch(`/api/daily-submissions/dates${companyParam}`);
+        const json = await res.json();
+        if (isMounted && json.success && Array.isArray(json.data) && json.data.length > 0) {
+          setAvailableDates(json.data);
+          // Default to latest recorded date if current date is not in list
+          setReportDate((curr) => {
+            if (json.data.includes(curr)) return curr;
+            return json.data[0];
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load recorded dates:', err);
+      }
+    };
+    fetchDates();
+    return () => {
+      isMounted = false;
+    };
+  }, [companyId]);
 
   const fetchDashboardData = async (date: string) => {
     setLoading(true);
     try {
       const now = new Date();
-      const parts = (date || '2026-10-05').split('-');
+      const parts = (date || getTodayDateString()).split('-');
       const year = parts[0] || String(now.getFullYear());
       const month = String(parseInt(parts[1] || String(now.getMonth() + 1), 10));
       const companyParam = companyId && companyId !== 'ALL' ? `&companyId=${companyId}` : '';
@@ -211,24 +237,26 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
 
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           {/* Quick Date Switch Pills */}
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900/80 p-1 rounded-lg border border-slate-200 dark:border-slate-800 text-[11px]">
-            <span className="text-slate-500 px-1 font-medium">Recorded Days:</span>
-            {availableDates.map((d) => (
-              <button
-                key={d}
-                type="button"
-                onClick={() => setReportDate(d)}
-                className={`px-2 py-0.5 rounded font-mono font-semibold transition-all cursor-pointer ${
-                  reportDate === d
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-                title={`Switch report date to ${d}`}
-              >
-                Day {parseInt(d.split('-')[2] || '1', 10)} ({d})
-              </button>
-            ))}
-          </div>
+          {availableDates.length > 0 && (
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900/80 p-1 rounded-lg border border-slate-200 dark:border-slate-800 text-[11px] overflow-x-auto max-w-full">
+              <span className="text-slate-500 px-1 font-medium whitespace-nowrap">Recorded Days:</span>
+              {availableDates.slice(0, 10).map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setReportDate(d)}
+                  className={`px-2 py-0.5 rounded font-mono font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                    reportDate === d
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                  title={`Switch report date to ${d}`}
+                >
+                  Day {parseInt(d.split('-')[2] || '1', 10)}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="flex-1 sm:w-56 sm:flex-initial relative z-40">
             <DatePicker
@@ -256,21 +284,20 @@ export function ExecutiveDashboard({ companyId = 'ALL' }: ExecutiveDashboardProp
           <div className="flex items-center gap-2">
             <span>ℹ️ No territory submissions recorded for date <strong>{reportDate}</strong> in this company.</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span>Switch to populated dates:</span>
-            <button
-              onClick={() => setReportDate('2026-10-05')}
-              className="px-2 py-0.5 bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100 rounded font-semibold cursor-pointer hover:underline"
-            >
-              Day 05 (Oct 5)
-            </button>
-            <button
-              onClick={() => setReportDate('2026-10-06')}
-              className="px-2 py-0.5 bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100 rounded font-semibold cursor-pointer hover:underline"
-            >
-              Day 06 (Oct 6)
-            </button>
-          </div>
+          {availableDates.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span>Switch to recorded dates:</span>
+              {availableDates.slice(0, 8).map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setReportDate(d)}
+                  className="px-2 py-0.5 bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100 rounded font-semibold cursor-pointer hover:underline text-xs"
+                >
+                  Day {parseInt(d.split('-')[2] || '1', 10)} ({d})
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

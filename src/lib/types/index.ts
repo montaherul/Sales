@@ -94,6 +94,7 @@ export interface DailyOperationalRecord {
   zardaStock: ZardaStockQty;
   emptyPackets: number;
   remarks?: string;
+  sourceFiles?: string[];
   // Calculated fields
   totalCigaretteSales: number;
   totalCigaretteStock: number;

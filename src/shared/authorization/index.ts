@@ -224,9 +224,17 @@ export function validateOrganizationalScope(
 
   if (user.role === ROLES.TSO || user.role === ROLES.CSR) {
     if (user.territoryId && user.territoryId !== targetTerritoryId) {
-      throw new ForbiddenError(
-        `Territory scope violation: User is assigned to territory '${user.territoryId}', cannot access '${targetTerritoryId}'`
-      );
+      const cleanUserTerr = (user.territoryId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cleanTargetTerr = (targetTerritoryId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const isMatch = cleanUserTerr === cleanTargetTerr ||
+        (cleanUserTerr.length > 3 && cleanTargetTerr.includes(cleanUserTerr)) ||
+        (cleanTargetTerr.length > 3 && cleanUserTerr.includes(cleanTargetTerr));
+
+      if (!isMatch) {
+        throw new ForbiddenError(
+          `Territory scope violation: User is assigned to territory '${user.territoryId}', cannot access '${targetTerritoryId}'`
+        );
+      }
     }
   }
 }

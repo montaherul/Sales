@@ -162,28 +162,28 @@ export class SubmissionRepository {
             s.status,
             s.is_locked,
             s.unlock_reason,
-            COALESCE((SELECT quantity FROM daily_sales ds JOIN brands b ON ds.brand_id = b.id WHERE ds.submission_id = s.id AND b.name = 'Wilson'), 0)::numeric as c_wilson_sales,
-            COALESCE((SELECT quantity FROM daily_sales ds JOIN brands b ON ds.brand_id = b.id WHERE ds.submission_id = s.id AND b.name = 'Shahara'), 0)::numeric as c_shahara_sales,
-            COALESCE((SELECT quantity FROM daily_sales ds JOIN brands b ON ds.brand_id = b.id WHERE ds.submission_id = s.id AND b.name = 'Express'), 0)::numeric as c_express_sales,
-            COALESCE((SELECT quantity FROM daily_sales ds JOIN brands b ON ds.brand_id = b.id WHERE ds.submission_id = s.id AND b.name = 'Nexus'), 0)::numeric as c_nexus_sales,
-            COALESCE((SELECT quantity FROM daily_sales ds JOIN brands b ON ds.brand_id = b.id WHERE ds.submission_id = s.id AND b.name = 'SB'), 0)::numeric as c_sb_sales,
-            COALESCE((SELECT quantity FROM daily_sales ds JOIN brands b ON ds.brand_id = b.id WHERE ds.submission_id = s.id AND b.name = 'SM'), 0)::numeric as c_sm_sales,
-            COALESCE((SELECT closing_stock FROM daily_stock dst JOIN brands b ON dst.brand_id = b.id WHERE dst.submission_id = s.id AND b.name = 'Wilson'), 0)::numeric as c_wilson_stock,
-            COALESCE((SELECT closing_stock FROM daily_stock dst JOIN brands b ON dst.brand_id = b.id WHERE dst.submission_id = s.id AND b.name = 'Shahara'), 0)::numeric as c_shahara_stock,
-            COALESCE((SELECT closing_stock FROM daily_stock dst JOIN brands b ON dst.brand_id = b.id WHERE dst.submission_id = s.id AND b.name = 'Express'), 0)::numeric as c_express_stock,
-            COALESCE((SELECT closing_stock FROM daily_stock dst JOIN brands b ON dst.brand_id = b.id WHERE dst.submission_id = s.id AND b.name = 'Nexus'), 0)::numeric as c_nexus_stock,
-            COALESCE((SELECT closing_stock FROM daily_stock dst JOIN brands b ON dst.brand_id = b.id WHERE dst.submission_id = s.id AND b.name = 'SB'), 0)::numeric as c_sb_stock,
-            COALESCE((SELECT closing_stock FROM daily_stock dst JOIN brands b ON dst.brand_id = b.id WHERE dst.submission_id = s.id AND b.name = 'SM'), 0)::numeric as c_sm_stock,
-            COALESCE((SELECT quantity FROM zarda_sales zs JOIN brands b ON zs.brand_id = b.id WHERE zs.submission_id = s.id AND b.name = 'SLB'), 0)::numeric as z_slb_sales,
-            COALESCE((SELECT quantity FROM zarda_sales zs JOIN brands b ON zs.brand_id = b.id WHERE zs.submission_id = s.id AND b.name = '22/25'), 0)::int as z_22_25_sales,
-            COALESCE((SELECT quantity FROM zarda_sales zs JOIN brands b ON zs.brand_id = b.id WHERE zs.submission_id = s.id AND b.name = '99/14'), 0)::int as z_99_14_sales,
-            COALESCE((SELECT quantity FROM zarda_sales zs JOIN brands b ON zs.brand_id = b.id WHERE zs.submission_id = s.id AND b.name = '33/15'), 0)::int as z_33_15_sales,
-            COALESCE((SELECT closing_stock FROM zarda_stock zst JOIN brands b ON zst.brand_id = b.id WHERE zst.submission_id = s.id AND b.name = 'SLB'), 0)::numeric as z_slb_stock,
-            COALESCE((SELECT closing_stock FROM zarda_stock zst JOIN brands b ON zst.brand_id = b.id WHERE zst.submission_id = s.id AND b.name = '22/25'), 0)::int as z_22_25_stock,
-            COALESCE((SELECT closing_stock FROM zarda_stock zst JOIN brands b ON zst.brand_id = b.id WHERE zst.submission_id = s.id AND b.name = '99/14'), 0)::int as z_99_14_stock,
-            COALESCE((SELECT closing_stock FROM zarda_stock zst JOIN brands b ON zst.brand_id = b.id WHERE zst.submission_id = s.id AND b.name = '33/15'), 0)::int as z_33_15_stock,
-            COALESCE((SELECT quantity FROM empty_packets ep JOIN brands b ON ep.brand_id = b.id WHERE ep.submission_id = s.id AND b.name = 'Express'), 0)::int as empty_packets,
-            COALESCE((SELECT remarks FROM empty_packets ep JOIN brands b ON ep.brand_id = b.id WHERE ep.submission_id = s.id AND b.name = 'Express'), '') as remarks
+            COALESCE((SELECT ds.quantity FROM daily_sales ds JOIN brands b ON ds.brand_id = b.id WHERE ds.submission_id = s.id AND b.name ILIKE 'Wilson' LIMIT 1), 0)::numeric as c_wilson_sales,
+            COALESCE((SELECT ds.quantity FROM daily_sales ds JOIN brands b ON ds.brand_id = b.id WHERE ds.submission_id = s.id AND b.name ILIKE 'Shahara' LIMIT 1), 0)::numeric as c_shahara_sales,
+            COALESCE((SELECT ds.quantity FROM daily_sales ds JOIN brands b ON ds.brand_id = b.id WHERE ds.submission_id = s.id AND b.name ILIKE 'Express' LIMIT 1), 0)::numeric as c_express_sales,
+            COALESCE((SELECT ds.quantity FROM daily_sales ds JOIN brands b ON ds.brand_id = b.id WHERE ds.submission_id = s.id AND b.name ILIKE 'Nexus' LIMIT 1), 0)::numeric as c_nexus_sales,
+            COALESCE((SELECT ds.quantity FROM daily_sales ds JOIN brands b ON ds.brand_id = b.id WHERE ds.submission_id = s.id AND b.name ILIKE 'SB' LIMIT 1), 0)::numeric as c_sb_sales,
+            COALESCE((SELECT ds.quantity FROM daily_sales ds JOIN brands b ON ds.brand_id = b.id WHERE ds.submission_id = s.id AND b.name ILIKE 'SM' LIMIT 1), 0)::numeric as c_sm_sales,
+            COALESCE((SELECT dst.closing_stock FROM daily_stock dst JOIN brands b ON dst.brand_id = b.id WHERE dst.submission_id = s.id AND b.name ILIKE 'Wilson' LIMIT 1), 0)::numeric as c_wilson_stock,
+            COALESCE((SELECT dst.closing_stock FROM daily_stock dst JOIN brands b ON dst.brand_id = b.id WHERE dst.submission_id = s.id AND b.name ILIKE 'Shahara' LIMIT 1), 0)::numeric as c_shahara_stock,
+            COALESCE((SELECT dst.closing_stock FROM daily_stock dst JOIN brands b ON dst.brand_id = b.id WHERE dst.submission_id = s.id AND b.name ILIKE 'Express' LIMIT 1), 0)::numeric as c_express_stock,
+            COALESCE((SELECT dst.closing_stock FROM daily_stock dst JOIN brands b ON dst.brand_id = b.id WHERE dst.submission_id = s.id AND b.name ILIKE 'Nexus' LIMIT 1), 0)::numeric as c_nexus_stock,
+            COALESCE((SELECT dst.closing_stock FROM daily_stock dst JOIN brands b ON dst.brand_id = b.id WHERE dst.submission_id = s.id AND b.name ILIKE 'SB' LIMIT 1), 0)::numeric as c_sb_stock,
+            COALESCE((SELECT dst.closing_stock FROM daily_stock dst JOIN brands b ON dst.brand_id = b.id WHERE dst.submission_id = s.id AND b.name ILIKE 'SM' LIMIT 1), 0)::numeric as c_sm_stock,
+            COALESCE((SELECT zs.quantity FROM zarda_sales zs JOIN brands b ON zs.brand_id = b.id WHERE zs.submission_id = s.id AND b.name ILIKE 'SLB' LIMIT 1), 0)::numeric as z_slb_sales,
+            COALESCE((SELECT zs.quantity FROM zarda_sales zs JOIN brands b ON zs.brand_id = b.id WHERE zs.submission_id = s.id AND b.name ILIKE '22/25' LIMIT 1), 0)::int as z_22_25_sales,
+            COALESCE((SELECT zs.quantity FROM zarda_sales zs JOIN brands b ON zs.brand_id = b.id WHERE zs.submission_id = s.id AND b.name ILIKE '99/14' LIMIT 1), 0)::int as z_99_14_sales,
+            COALESCE((SELECT zs.quantity FROM zarda_sales zs JOIN brands b ON zs.brand_id = b.id WHERE zs.submission_id = s.id AND b.name ILIKE '33/15' LIMIT 1), 0)::int as z_33_15_sales,
+            COALESCE((SELECT zst.closing_stock FROM zarda_stock zst JOIN brands b ON zst.brand_id = b.id WHERE zst.submission_id = s.id AND b.name ILIKE 'SLB' LIMIT 1), 0)::numeric as z_slb_stock,
+            COALESCE((SELECT zst.closing_stock FROM zarda_stock zst JOIN brands b ON zst.brand_id = b.id WHERE zst.submission_id = s.id AND b.name ILIKE '22/25' LIMIT 1), 0)::int as z_22_25_stock,
+            COALESCE((SELECT zst.closing_stock FROM zarda_stock zst JOIN brands b ON zst.brand_id = b.id WHERE zst.submission_id = s.id AND b.name ILIKE '99/14' LIMIT 1), 0)::int as z_99_14_stock,
+            COALESCE((SELECT zst.closing_stock FROM zarda_stock zst JOIN brands b ON zst.brand_id = b.id WHERE zst.submission_id = s.id AND b.name ILIKE '33/15' LIMIT 1), 0)::int as z_33_15_stock,
+            COALESCE((SELECT ep.quantity FROM empty_packets ep JOIN brands b ON ep.brand_id = b.id WHERE ep.submission_id = s.id AND b.name ILIKE 'Express' LIMIT 1), 0)::int as empty_packets,
+            COALESCE((SELECT ep.remarks FROM empty_packets ep JOIN brands b ON ep.brand_id = b.id WHERE ep.submission_id = s.id AND b.name ILIKE 'Express' LIMIT 1), '') as remarks
           FROM daily_submissions s
           JOIN territories t ON s.territory_id = t.id
           JOIN regions r ON t.region_id = r.id
@@ -218,6 +218,271 @@ export class SubmissionRepository {
   }
 
   /**
+   * High-Performance Bulk Insertion for Import
+   * Reduces thousands of individual SQL round-trips down to a single atomic batch
+   */
+  static async saveSubmissionsBatch(
+    records: DailyOperationalRecord[],
+    userId: string,
+    changeReason?: string
+  ): Promise<DailyOperationalRecord[]> {
+    if (!records || records.length === 0) return [];
+
+    if (getDbPool()) {
+      try {
+        const { withTransaction } = await import('@/shared/database/db');
+        await withTransaction(async (client) => {
+          // 1. Resolve user ID once upfront safely
+          const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          let userUuid: string | null = null;
+          if (UUID_REGEX.test(userId)) {
+            userUuid = userId;
+          } else {
+            const userRes = await client.query(
+              'SELECT id FROM user_profiles WHERE id::text = $1 OR email ILIKE $2 LIMIT 1;',
+              [userId, userId]
+            );
+            userUuid = userRes.rows[0]?.id || null;
+          }
+
+          // 2. Pre-fetch all territories and company IDs once upfront
+          const terrRes = await client.query(`
+            SELECT t.id, t.name, d.company_id 
+            FROM territories t 
+            JOIN regions r ON t.region_id = r.id 
+            JOIN wings w ON r.wing_id = w.id 
+            JOIN divisions d ON w.division_id = d.id;
+          `);
+          const terrLookup = new Map<string, { id: string; name: string; companyId: string }>();
+          for (const row of terrRes.rows) {
+            terrLookup.set(String(row.id).toLowerCase(), { id: row.id, name: row.name, companyId: row.company_id });
+            terrLookup.set(String(row.name).toLowerCase(), { id: row.id, name: row.name, companyId: row.company_id });
+            const clean = String(row.name).toLowerCase().replace(/[^a-z0-9]/g, '');
+            terrLookup.set(clean, { id: row.id, name: row.name, companyId: row.company_id });
+          }
+
+          // 3. Pre-fetch all brands once upfront
+          const brandsRes = await client.query('SELECT id, name FROM brands;');
+          const brandMap = new Map<string, string>();
+          for (const b of brandsRes.rows) {
+            brandMap.set(b.name.toLowerCase(), b.id);
+          }
+
+          // 4. Batch Upsert daily_submissions in chunks of 100
+          const submissionIdMap = new Map<string, string>();
+          const chunkSize = 100;
+
+          for (let i = 0; i < records.length; i += chunkSize) {
+            const chunk = records.slice(i, i + chunkSize);
+            const subPlaceholders: string[] = [];
+            const subValues: any[] = [];
+            let pIdx = 1;
+
+            for (const r of chunk) {
+              const rawKey1 = String(r.territoryId || '').toLowerCase();
+              const rawKey2 = String(r.territoryName || '').toLowerCase();
+              const cleanKey1 = rawKey1.replace(/[^a-z0-9]/g, '');
+              const cleanKey2 = rawKey2.replace(/[^a-z0-9]/g, '');
+              const matchedTerr =
+                terrLookup.get(rawKey1) ||
+                terrLookup.get(rawKey2) ||
+                terrLookup.get(cleanKey1) ||
+                terrLookup.get(cleanKey2);
+              const terrId = matchedTerr?.id || (UUID_REGEX.test(r.territoryId) ? r.territoryId : null);
+              if (!terrId) continue;
+
+              const compId = r.companyId || matchedTerr?.companyId || null;
+
+              subPlaceholders.push(`($${pIdx++}, $${pIdx++}, $${pIdx++}, $${pIdx++}, $${pIdx++})`);
+              subValues.push(terrId, r.reportDate, r.status, userUuid, compId);
+            }
+
+            if (subValues.length > 0) {
+              const subRes = await client.query(`
+                INSERT INTO daily_submissions (territory_id, report_date, status, created_by, company_id)
+                VALUES ${subPlaceholders.join(', ')}
+                ON CONFLICT (territory_id, report_date) DO UPDATE
+                SET status = EXCLUDED.status,
+                    company_id = COALESCE(daily_submissions.company_id, EXCLUDED.company_id),
+                    updated_at = NOW()
+                RETURNING id, territory_id::text, report_date::text;
+              `, subValues);
+
+              for (const row of subRes.rows) {
+                const dateKey = row.report_date.includes('T') ? row.report_date.split('T')[0] : row.report_date;
+                submissionIdMap.set(`${row.territory_id}_${dateKey}`, row.id);
+              }
+            }
+          }
+
+          // 5. Batch multi-row insert for daily_sales & daily_stock
+          const salesPlaceholders: string[] = [];
+          const salesValues: any[] = [];
+          let salesIdx = 1;
+
+          const stockPlaceholders: string[] = [];
+          const stockValues: any[] = [];
+          let stockIdx = 1;
+
+          // 6. Batch multi-row insert for zarda_sales & zarda_stock
+          const zardaSalesPlaceholders: string[] = [];
+          const zardaSalesValues: any[] = [];
+          let zSalesIdx = 1;
+
+          const zardaStockPlaceholders: string[] = [];
+          const zardaStockValues: any[] = [];
+          let zStockIdx = 1;
+
+          // 7. Batch multi-row insert for empty_packets
+          const emptyPacketsPlaceholders: string[] = [];
+          const emptyPacketsValues: any[] = [];
+          let epIdx = 1;
+
+          const zardaConfig = [
+            { key: 'slb', name: 'SLB', price: 0 },
+            { key: 'qty_22_25', name: '22/25', price: 15 },
+            { key: 'qty_99_14', name: '99/14', price: 6 },
+            { key: 'qty_33_15', name: '33/15', price: 8 },
+          ];
+
+          for (const r of records) {
+            const matchedTerr =
+              terrLookup.get(String(r.territoryId).toLowerCase()) ||
+              terrLookup.get(String(r.territoryName).toLowerCase());
+            const terrId = matchedTerr?.id || r.territoryId;
+            const subId = submissionIdMap.get(`${terrId}_${r.reportDate}`);
+            if (!subId) continue;
+
+            // Cigarette Sales & Stock
+            for (const [brandKey, qty] of Object.entries(r.cigaretteSales || {})) {
+              const bId = brandMap.get(brandKey.toLowerCase());
+              if (bId) {
+                salesPlaceholders.push(`($${salesIdx++}, $${salesIdx++}, $${salesIdx++})`);
+                salesValues.push(subId, bId, qty);
+              }
+            }
+            for (const [brandKey, stk] of Object.entries(r.cigaretteStock || {})) {
+              const bId = brandMap.get(brandKey.toLowerCase());
+              if (bId) {
+                stockPlaceholders.push(`($${stockIdx++}, $${stockIdx++}, $${stockIdx++})`);
+                stockValues.push(subId, bId, stk);
+              }
+            }
+
+            // Zarda Sales & Stock
+            for (const zc of zardaConfig) {
+              const bId = brandMap.get(zc.name.toLowerCase());
+              if (bId) {
+                const zQty = (r.zardaSales as any)?.[zc.key] || 0;
+                const zStk = (r.zardaStock as any)?.[zc.key] || 0;
+
+                zardaSalesPlaceholders.push(`($${zSalesIdx++}, $${zSalesIdx++}, $${zSalesIdx++}, $${zSalesIdx++}, $${zSalesIdx++})`);
+                zardaSalesValues.push(subId, bId, zQty, zc.price, zQty * zc.price);
+
+                zardaStockPlaceholders.push(`($${zStockIdx++}, $${zStockIdx++}, $${zStockIdx++}, $${zStockIdx++}, $${zStockIdx++})`);
+                zardaStockValues.push(subId, bId, zStk, zc.price, zStk * zc.price);
+              }
+            }
+
+            // Empty packets
+            const expressId = brandMap.get('express');
+            if (expressId) {
+              emptyPacketsPlaceholders.push(`($${epIdx++}, $${epIdx++}, $${epIdx++}, $${epIdx++})`);
+              emptyPacketsValues.push(subId, expressId, r.emptyPackets || 0, r.remarks || '');
+            }
+          }
+
+          // Execute bulk sales upsert
+          if (salesValues.length > 0) {
+            await client.query(`
+              INSERT INTO daily_sales (submission_id, brand_id, quantity)
+              VALUES ${salesPlaceholders.join(', ')}
+              ON CONFLICT (submission_id, brand_id) DO UPDATE SET quantity = EXCLUDED.quantity;
+            `, salesValues);
+          }
+
+          // Execute bulk stock upsert
+          if (stockValues.length > 0) {
+            await client.query(`
+              INSERT INTO daily_stock (submission_id, brand_id, closing_stock)
+              VALUES ${stockPlaceholders.join(', ')}
+              ON CONFLICT (submission_id, brand_id) DO UPDATE SET closing_stock = EXCLUDED.closing_stock;
+            `, stockValues);
+          }
+
+          // Execute bulk zarda sales upsert
+          if (zardaSalesValues.length > 0) {
+            await client.query(`
+              INSERT INTO zarda_sales (submission_id, brand_id, quantity, unit_price, total_value)
+              VALUES ${zardaSalesPlaceholders.join(', ')}
+              ON CONFLICT (submission_id, brand_id) DO UPDATE
+              SET quantity = EXCLUDED.quantity, unit_price = EXCLUDED.unit_price, total_value = EXCLUDED.total_value;
+            `, zardaSalesValues);
+          }
+
+          // Execute bulk zarda stock upsert
+          if (zardaStockValues.length > 0) {
+            await client.query(`
+              INSERT INTO zarda_stock (submission_id, brand_id, closing_stock, unit_price, total_value)
+              VALUES ${zardaStockPlaceholders.join(', ')}
+              ON CONFLICT (submission_id, brand_id) DO UPDATE
+              SET closing_stock = EXCLUDED.closing_stock, unit_price = EXCLUDED.unit_price, total_value = EXCLUDED.total_value;
+            `, zardaStockValues);
+          }
+
+          // Execute bulk empty packets upsert
+          if (emptyPacketsValues.length > 0) {
+            await client.query(`
+              INSERT INTO empty_packets (submission_id, brand_id, quantity, remarks)
+              VALUES ${emptyPacketsPlaceholders.join(', ')}
+              ON CONFLICT (submission_id, brand_id) DO UPDATE
+              SET quantity = EXCLUDED.quantity, remarks = EXCLUDED.remarks;
+            `, emptyPacketsValues);
+          }
+        });
+      } catch (err) {
+        console.warn('Database batch save failed, syncing to local store:', err);
+      }
+    }
+
+    // Single-pass sync for local store fallback (1 read, 1 write in memory)
+    const store = loadStore();
+    for (const record of records) {
+      const key = `${record.territoryId}_${record.reportDate}`;
+      const existing = store.submissions[key];
+
+      if (existing && existing.status !== 'DRAFT') {
+        const versionsForRecord = store.versions.filter((v) => v.submissionId === key);
+        const nextVer = versionsForRecord.length + 1;
+        store.versions.push({
+          id: `ver-${Date.now()}-${nextVer}`,
+          submissionId: key,
+          versionNumber: nextVer,
+          snapshot: existing,
+          modifiedBy: userId,
+          reason: changeReason || 'Bulk batch import',
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      store.submissions[key] = record;
+      store.auditLogs.push({
+        id: `audit-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        userId,
+        eventType: existing ? 'SALES_UPDATE' : 'SALES_CREATE',
+        entityName: 'daily_submissions',
+        entityId: key,
+        oldValues: existing,
+        newValues: record,
+        timestamp: new Date().toISOString(),
+      });
+    }
+    saveStore(store);
+
+    return records;
+  }
+
+  /**
    * Saves or updates a daily submission record
    */
   static async saveSubmission(
@@ -225,159 +490,8 @@ export class SubmissionRepository {
     userId: string,
     changeReason?: string
   ): Promise<DailyOperationalRecord> {
-    if (getDbPool()) {
-      try {
-        // Resolve territory ID
-        const terrRes = await dbQuery(
-          'SELECT id FROM territories WHERE id::text = $1 OR name ILIKE $2 LIMIT 1;',
-          [record.territoryId, record.territoryName]
-        );
-        const terrId = terrRes.rows[0]?.id;
-
-        // Resolve user ID
-        const userRes = await dbQuery(
-          'SELECT id FROM user_profiles WHERE id::text = $1 OR email ILIKE $2 LIMIT 1;',
-          [userId, userId]
-        );
-        const userUuid = userRes.rows[0]?.id;
-
-        if (terrId) {
-          // Resolve territory company
-          const compRes = await dbQuery(`
-            SELECT d.company_id 
-            FROM territories t 
-            JOIN regions r ON t.region_id = r.id 
-            JOIN wings w ON r.wing_id = w.id 
-            JOIN divisions d ON w.division_id = d.id 
-            WHERE t.id = $1 LIMIT 1
-          `, [terrId]);
-          const compId = compRes.rows[0]?.company_id;
-
-          // Upsert submission
-          const subRes = await dbQuery(`
-            INSERT INTO daily_submissions (territory_id, report_date, status, created_by, company_id)
-            VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT (territory_id, report_date) DO UPDATE
-            SET status = EXCLUDED.status, company_id = COALESCE(daily_submissions.company_id, EXCLUDED.company_id), updated_at = NOW()
-            RETURNING id, status;
-          `, [terrId, record.reportDate, record.status, userUuid, compId]);
-
-          const submissionId = subRes.rows[0].id;
-
-          // Fetch brands map for this company
-          const brandsRes = await dbQuery(
-            'SELECT id, name FROM brands WHERE company_id IS NULL OR company_id = $1;',
-            [compId]
-          );
-          const brandMap: Record<string, string> = {};
-          brandsRes.rows.forEach(b => brandMap[b.name.toLowerCase()] = b.id);
-
-          // Save Cigarette Sales & Stock
-          for (const [brandKey, qty] of Object.entries(record.cigaretteSales)) {
-            const bId = brandMap[brandKey.toLowerCase()];
-            if (bId) {
-              await dbQuery(`
-                INSERT INTO daily_sales (submission_id, brand_id, quantity)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (submission_id, brand_id) DO UPDATE SET quantity = EXCLUDED.quantity;
-              `, [submissionId, bId, qty]);
-            }
-          }
-
-          for (const [brandKey, stk] of Object.entries(record.cigaretteStock)) {
-            const bId = brandMap[brandKey.toLowerCase()];
-            if (bId) {
-              await dbQuery(`
-                INSERT INTO daily_stock (submission_id, brand_id, closing_stock)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (submission_id, brand_id) DO UPDATE SET closing_stock = EXCLUDED.closing_stock;
-              `, [submissionId, bId, stk]);
-            }
-          }
-
-          // Save Zarda Sales & Stock
-          const zardaBrands = [
-            { key: 'slb', name: 'SLB', qty: record.zardaSales.slb, stk: record.zardaStock.slb, price: 0 },
-            { key: '22/25', name: '22/25', qty: record.zardaSales.qty_22_25, stk: record.zardaStock.qty_22_25, price: 15 },
-            { key: '99/14', name: '99/14', qty: record.zardaSales.qty_99_14, stk: record.zardaStock.qty_99_14, price: 6 },
-            { key: '33/15', name: '33/15', qty: record.zardaSales.qty_33_15, stk: record.zardaStock.qty_33_15, price: 8 },
-          ];
-
-          for (const zb of zardaBrands) {
-            const bId = brandMap[zb.name.toLowerCase()];
-            if (bId) {
-              await dbQuery(`
-                INSERT INTO zarda_sales (submission_id, brand_id, quantity, unit_price, total_value)
-                VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (submission_id, brand_id) DO UPDATE
-                SET quantity = EXCLUDED.quantity, unit_price = EXCLUDED.unit_price, total_value = EXCLUDED.total_value;
-              `, [submissionId, bId, zb.qty, zb.price, zb.qty * zb.price]);
-
-              await dbQuery(`
-                INSERT INTO zarda_stock (submission_id, brand_id, closing_stock, unit_price, total_value)
-                VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (submission_id, brand_id) DO UPDATE
-                SET closing_stock = EXCLUDED.closing_stock, unit_price = EXCLUDED.unit_price, total_value = EXCLUDED.total_value;
-              `, [submissionId, bId, zb.stk, zb.price, zb.stk * zb.price]);
-            }
-          }
-
-          // Empty packets
-          const expressId = brandMap['express'];
-          if (expressId) {
-            await dbQuery(`
-              INSERT INTO empty_packets (submission_id, brand_id, quantity, remarks)
-              VALUES ($1, $2, $3, $4)
-              ON CONFLICT (submission_id, brand_id) DO UPDATE
-              SET quantity = EXCLUDED.quantity, remarks = EXCLUDED.remarks;
-            `, [submissionId, expressId, record.emptyPackets, record.remarks]);
-          }
-
-          // Write audit log to database
-          await dbQuery(`
-            INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, new_values)
-            VALUES ($1, 'SALES_UPDATE', 'daily_submissions', $2, $3);
-          `, [userUuid, submissionId, JSON.stringify(record)]);
-        }
-      } catch (err) {
-        console.warn('Database save failed, continuing with local store sync:', err);
-      }
-    }
-
-    // Keep local store in sync
-    const store = loadStore();
-    const key = `${record.territoryId}_${record.reportDate}`;
-    const existing = store.submissions[key];
-
-    if (existing && existing.status !== 'DRAFT') {
-      const versionsForRecord = store.versions.filter((v) => v.submissionId === key);
-      const nextVer = versionsForRecord.length + 1;
-
-      store.versions.push({
-        id: `ver-${Date.now()}-${nextVer}`,
-        submissionId: key,
-        versionNumber: nextVer,
-        snapshot: existing,
-        modifiedBy: userId,
-        reason: changeReason || 'Data update',
-        createdAt: new Date().toISOString(),
-      });
-    }
-
-    store.submissions[key] = record;
-    store.auditLogs.push({
-      id: `audit-${Date.now()}`,
-      userId,
-      eventType: existing ? 'SALES_UPDATE' : 'SALES_CREATE',
-      entityName: 'daily_submissions',
-      entityId: key,
-      oldValues: existing,
-      newValues: record,
-      timestamp: new Date().toISOString(),
-    });
-
-    saveStore(store);
-    return record;
+    const results = await this.saveSubmissionsBatch([record], userId, changeReason);
+    return results[0] || record;
   }
 
   /**
@@ -489,11 +603,22 @@ export class SubmissionRepository {
   ): Promise<AuditLogEntry> {
     if (getDbPool()) {
       try {
-        const userRes = await dbQuery(
-          'SELECT id FROM user_profiles WHERE id::text = $1 OR email ILIKE $2 LIMIT 1;',
-          [userId, userId]
-        );
-        const userUuid = userRes.rows[0]?.id;
+        const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        let userUuid: string | null = null;
+        if (UUID_REGEX.test(userId)) {
+          userUuid = userId;
+        } else {
+          const userRes = await dbQuery(
+            'SELECT id FROM user_profiles WHERE id::text = $1 OR email ILIKE $2 LIMIT 1;',
+            [userId, userId]
+          );
+          userUuid = userRes.rows[0]?.id || null;
+        }
+
+        const validEntityId = UUID_REGEX.test(entityId) ? entityId : null;
+        const auditNewValues = validEntityId
+          ? newValues
+          : { ...(newValues || {}), entityReference: entityId };
 
         const res = await dbQuery(`
           INSERT INTO audit_logs (user_id, event_type, entity_name, entity_id, old_values, new_values)
@@ -503,9 +628,9 @@ export class SubmissionRepository {
           userUuid,
           eventType,
           entityName,
-          entityId.includes('-') ? entityId : null,
+          validEntityId,
           oldValues ? JSON.stringify(oldValues) : null,
-          newValues ? JSON.stringify(newValues) : null,
+          auditNewValues ? JSON.stringify(auditNewValues) : null,
         ]);
 
         return {
@@ -580,5 +705,47 @@ export class SubmissionRepository {
 
     const store = loadStore();
     return store.auditLogs.slice().reverse();
+  }
+
+  /**
+   * Retrieves all distinct recorded dates from Supabase PostgreSQL (or local fallback).
+   */
+  static async getRecordedDates(companyId?: string | null): Promise<string[]> {
+    if (getDbPool()) {
+      try {
+        let sql = `
+          SELECT DISTINCT s.report_date::text as report_date
+          FROM daily_submissions s
+        `;
+        const params: any[] = [];
+        if (companyId && companyId !== 'ALL') {
+          sql += `
+            JOIN territories t ON s.territory_id = t.id
+            JOIN regions r ON t.region_id = r.id
+            JOIN wings w ON r.wing_id = w.id
+            JOIN divisions d ON w.division_id = d.id
+            WHERE d.company_id = $1
+          `;
+          params.push(companyId);
+        }
+        sql += ` ORDER BY report_date DESC LIMIT 31;`;
+
+        const res = await dbQuery(sql, params);
+        if (res.rows && res.rows.length > 0) {
+          return res.rows.map(r => (r.report_date.includes('T') ? r.report_date.split('T')[0] : r.report_date));
+        }
+      } catch (err) {
+        console.warn('Database getRecordedDates query failed, falling back to local store:', err);
+      }
+    }
+
+    const store = loadStore();
+    const dates = new Set<string>();
+    for (const record of Object.values(store.submissions)) {
+      if (record.reportDate) {
+        dates.add(record.reportDate.includes('T') ? record.reportDate.split('T')[0] : record.reportDate);
+      }
+    }
+    return Array.from(dates).sort().reverse();
   }
 }

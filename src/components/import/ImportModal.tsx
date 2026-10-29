@@ -26,6 +26,7 @@ import {
   CheckSquare,
   Square
 } from 'lucide-react';
+import { DailyOperationalRecord } from '@/lib/types';
 import { ImportPreviewPayload, MultiDateImportPayload, SingleDateParsedBatch } from '@/lib/excel/import';
 import { DatePicker } from '@/components/common/DatePicker';
 import {
@@ -34,7 +35,17 @@ import {
   calculateZardaSalesValuation,
   calculateZardaStockValuation
 } from '@/lib/calculations/engine';
-import { DailyOperationalRecord } from '@/lib/types';
+async function safeParseJson(res: Response): Promise<any> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    if (!res.ok) {
+      throw new Error(`Server Error (${res.status}): ${text.slice(0, 300) || res.statusText}`);
+    }
+    throw new Error(`Unexpected non-JSON response from server: ${text.slice(0, 100)}`);
+  }
+}
 
 export interface UploadedFileStatus {
   file: File;
@@ -103,211 +114,87 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
     setModifiedTerritories(new Set());
 
     try {
-      // 1. Execute parallel upload & validation for all files
-      const fileResults: UploadedFileStatus[] = await Promise.all(
-        filesToParse.map(async (f) => {
-          const formData = new FormData();
-          formData.append('file', f);
-          if (dateStr) {
-            formData.append('applicationDate', dateStr);
-          }
-          if (companyId && companyId !== 'ALL') {
-            formData.append('companyId', companyId);
-          }
+      // Send all files to server-side consolidation endpoint
+      const formData = new FormData();
+      for (const f of filesToParse) {
+        formData.append('files', f);
+      }
+      if (dateStr) {
+        formData.append('applicationDate', dateStr);
+      }
+      if (companyId && companyId !== 'ALL') {
+        formData.append('companyId', companyId);
+      }
 
-          try {
-            const res = await fetch('/api/imports/xlsx', {
-              method: 'POST',
-              body: formData,
-            });
-            const json = await res.json();
-            if (json.success && json.data) {
-              return {
-                file: f,
-                status: 'SUCCESS' as const,
-                matchedSheetName: json.data.matchedSheet?.name || 'N/A',
-                territoryCount: json.data.records?.length || 0,
-                totalSheetsFound: json.data.totalSheetsFound || 0,
-                previewData: json.data as ImportPreviewPayload,
-              };
-            } else {
-              return {
-                file: f,
-                status: 'ERROR' as const,
-                error: json.error || 'Failed to parse workbook',
-              };
-            }
-          } catch (err: any) {
-            return {
+      const res = await fetch('/api/imports/xlsx', {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await safeParseJson(res);
+
+      if (json.success && json.data) {
+        const fileStatuses: UploadedFileStatus[] = (json.fileStatuses || []).map((s: any, idx: number) => {
+          const matchedFile = filesToParse.find((f) => f.name === s.fileName) || filesToParse[idx] || new File([], s.fileName);
+          return {
+            file: matchedFile,
+            status: s.status,
+            matchedSheetName: s.matchedSheetName,
+            territoryCount: s.territoryCount,
+            totalSheetsFound: s.totalSheetsFound,
+            error: s.error,
+            previewData: s.previewData,
+          };
+        });
+
+        if (fileStatuses.length === 0) {
+          fileStatuses.push({
+            file: filesToParse[0],
+            status: 'SUCCESS',
+            matchedSheetName: json.data.matchedSheet?.name || 'N/A',
+            territoryCount: json.data.records?.length || 0,
+            totalSheetsFound: json.data.totalSheetsFound || 0,
+            previewData: json.data,
+          });
+        }
+
+        setUploadedFiles(fileStatuses);
+        setPreview(json.data);
+        setPristineRecords(JSON.parse(JSON.stringify(json.data.records)));
+        setActiveSheetName(json.data.matchedSheet?.name || '');
+      } else {
+        const errorMsg = json.error || 'Failed to parse uploaded workbooks';
+        const fileStatuses: UploadedFileStatus[] = (json.fileStatuses || []).map((s: any, idx: number) => ({
+          file: filesToParse.find((f) => f.name === s.fileName) || filesToParse[idx] || new File([], s.fileName),
+          status: s.status || 'ERROR',
+          error: s.error || errorMsg,
+          previewData: s.previewData,
+        }));
+
+        if (fileStatuses.length === 0) {
+          filesToParse.forEach((f) => {
+            fileStatuses.push({
               file: f,
-              status: 'ERROR' as const,
-              error: err.message || 'Network error processing file',
-            };
-          }
-        })
-      );
+              status: 'ERROR',
+              error: errorMsg,
+            });
+          });
+        }
 
-      setUploadedFiles(fileResults);
-
-      const successfulFiles = fileResults.filter(
-        (r) => r.status === 'SUCCESS' && r.previewData
-      ) as Array<{
-        file: File;
-        status: 'SUCCESS';
-        matchedSheetName: string;
-        territoryCount: number;
-        totalSheetsFound: number;
-        previewData: ImportPreviewPayload;
-      }>;
-
-      if (successfulFiles.length === 0) {
+        setUploadedFiles(fileStatuses);
         setPreview(null);
         setPristineRecords(null);
-        return;
       }
-
-      // 2. Consolidate data across all files for the selected date
-      const territoryMap = new Map<string, {
-        record: DailyOperationalRecord & { sourceFiles?: string[] };
-        sources: string[];
-      }>();
-
-      for (const item of successfulFiles) {
-        const payload = item.previewData;
-        for (const rec of payload.records) {
-          const key = (rec.territoryId || rec.territoryName || '').trim();
-          if (!key) continue;
-
-          if (!territoryMap.has(key)) {
-            const copy: any = JSON.parse(JSON.stringify(rec));
-            copy.sourceFiles = [item.file.name];
-            territoryMap.set(key, {
-              record: copy,
-              sources: [item.file.name],
-            });
-          } else {
-            const entry = territoryMap.get(key)!;
-            if (!entry.sources.includes(item.file.name)) {
-              entry.sources.push(item.file.name);
-            }
-            const r = entry.record as any;
-            r.sourceFiles = entry.sources;
-
-            // Merge Cigarette Sales
-            for (const b of ['wilson', 'shahara', 'express', 'nexus', 'sb', 'sm'] as const) {
-              const val1 = Number(r.cigaretteSales?.[b]) || 0;
-              const val2 = Number(rec.cigaretteSales?.[b]) || 0;
-              r.cigaretteSales[b] = Number((val1 + val2).toFixed(4));
-            }
-            r.totalCigaretteSales = calculateCigaretteSalesTotal(r.cigaretteSales);
-
-            // Merge Cigarette Stock
-            for (const b of ['wilson', 'shahara', 'express', 'nexus', 'sb', 'sm'] as const) {
-              const val1 = Number(r.cigaretteStock?.[b]) || 0;
-              const val2 = Number(rec.cigaretteStock?.[b]) || 0;
-              r.cigaretteStock[b] = Number((val1 + val2).toFixed(4));
-            }
-            r.totalCigaretteStock = calculateCigaretteStockTotal(r.cigaretteStock);
-
-            // Merge Zarda Sales
-            for (const b of ['slb', 'qty_22_25', 'qty_99_14', 'qty_33_15'] as const) {
-              const val1 = Number(r.zardaSales?.[b]) || 0;
-              const val2 = Number(rec.zardaSales?.[b]) || 0;
-              r.zardaSales[b] = val1 + val2;
-            }
-            r.totalZardaSalesValue = calculateZardaSalesValuation(r.zardaSales);
-
-            // Merge Zarda Stock
-            for (const b of ['slb', 'qty_22_25', 'qty_99_14', 'qty_33_15'] as const) {
-              const val1 = Number(r.zardaStock?.[b]) || 0;
-              const val2 = Number(rec.zardaStock?.[b]) || 0;
-              r.zardaStock[b] = val1 + val2;
-            }
-            r.totalZardaStockValue = calculateZardaStockValuation(r.zardaStock);
-
-            // Merge Empty Packets
-            r.emptyPackets = (Number(r.emptyPackets) || 0) + (Number(rec.emptyPackets) || 0);
-
-            // Merge Remarks
-            if (rec.remarks && rec.remarks.trim()) {
-              if (r.remarks && r.remarks.trim()) {
-                r.remarks = `${r.remarks} | [${item.file.name}]: ${rec.remarks.trim()}`;
-              } else {
-                r.remarks = `[${item.file.name}]: ${rec.remarks.trim()}`;
-              }
-            }
-          }
-        }
-      }
-
-      const combinedRecords = Array.from(territoryMap.values()).map((v) => v.record);
-
-      // Recalculate combined totals
-      let totalCigaretteSales = 0;
-      let totalCigaretteStock = 0;
-      let totalZardaSalesValue = 0;
-      let totalZardaStockValue = 0;
-      let totalEmptyPackets = 0;
-
-      for (const r of combinedRecords) {
-        totalCigaretteSales += r.totalCigaretteSales;
-        totalCigaretteStock += r.totalCigaretteStock;
-        totalZardaSalesValue += r.totalZardaSalesValue;
-        totalZardaStockValue += r.totalZardaStockValue;
-        totalEmptyPackets += r.emptyPackets;
-      }
-
-      const allErrors = successfulFiles.flatMap((s) => s.previewData.errors || []);
-      const allWarnings = successfulFiles.flatMap((s) => s.previewData.warnings || []);
-      const totalSheetsSum = successfulFiles.reduce(
-        (acc, s) => acc + (s.previewData.totalSheetsFound || 0),
-        0
-      );
-
-      const combinedPreview: ImportPreviewPayload = {
-        isValid: allErrors.length === 0,
-        targetDate: dateStr,
-        matchedSheet: {
-          name:
-            successfulFiles.length === 1
-              ? successfulFiles[0].previewData.matchedSheet.name
-              : `${successfulFiles.length} Workbooks Combined`,
-          index: 0,
-          matchMethod: 'SEARCHED_TAB_MATCH',
-          headerDateText: dateStr,
-          resolvedDate: dateStr,
-        },
-        availableSheets: successfulFiles[0]?.previewData.availableSheets || [],
-        summary: {
-          totalRecords: combinedRecords.length,
-          newRecordsCount: combinedRecords.length,
-          revisionRecordsCount: 0,
-          totalCigaretteSales: Number(totalCigaretteSales.toFixed(2)),
-          totalCigaretteStock: Number(totalCigaretteStock.toFixed(2)),
-          totalZardaSalesValue,
-          totalZardaStockValue,
-          totalEmptyPackets,
-        },
-        dateVerification: {
-          isValid: true,
-          resolvedDate: dateStr,
-          conflicts: [],
-          warnings: allWarnings,
-        },
-        totalSheetsFound: totalSheetsSum,
-        totalValidRecords: combinedRecords.length,
-        duplicateTerritories: [],
-        records: combinedRecords,
-        errors: allErrors,
-        warnings: allWarnings,
-      };
-
-      setPreview(combinedPreview);
-      setPristineRecords(JSON.parse(JSON.stringify(combinedRecords)));
-      setActiveSheetName(combinedPreview.matchedSheet.name);
     } catch (err: any) {
-      console.error('Parallel multi-file import error:', err);
-      alert(err.message || 'Error processing Excel files in parallel');
+      console.error('Server-side import error:', err);
+      setUploadedFiles(
+        filesToParse.map((f) => ({
+          file: f,
+          status: 'ERROR' as const,
+          error: err.message || 'Network error processing file',
+        }))
+      );
+      setPreview(null);
+      setPristineRecords(null);
     } finally {
       setLoading(false);
     }
@@ -353,7 +240,7 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
         formData.append('sheetName', sheetName);
         if (companyId && companyId !== 'ALL') formData.append('companyId', companyId);
         const res = await fetch('/api/imports/xlsx', { method: 'POST', body: formData });
-        const json = await res.json();
+        const json = await safeParseJson(res);
         if (json.success && json.data) {
           setPreview(json.data);
           setPristineRecords(JSON.parse(JSON.stringify(json.data.records)));
@@ -523,7 +410,7 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
         }),
       });
 
-      const json = await res.json();
+      const json = await safeParseJson(res);
       if (json.success) {
         setImportSuccess(true);
       } else {
@@ -558,7 +445,7 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
         method: 'POST',
         body: formData,
       });
-      const json = await res.json();
+      const json = await safeParseJson(res);
       if (json.success && json.data) {
         const data: MultiDateImportPayload = json.data;
         setMultiDatePayload(data);
@@ -718,7 +605,7 @@ export function ImportModal({ isOpen, onClose, companyId = 'ALL', defaultDate }:
         }),
       });
 
-      const json = await res.json();
+      const json = await safeParseJson(res);
       if (json.success) {
         setMultiDateSuccess(true);
         setMultiDateSuccessCount(json.count || recordsToCommit.length);
